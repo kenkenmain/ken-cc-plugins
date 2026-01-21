@@ -1,7 +1,7 @@
 {
   "name": "superpowers-iterate",
-  "version": "1.0.0",
-  "description": "Orchestrates 8-phase iteration workflow: Brainstorm, Plan, Implement, Review, Test, Simplify, Final Review, Codex",
+  "version": "1.1.0",
+  "description": "Orchestrates iterative 8-phase workflow with full/lite modes. Loops until clean or max iterations.",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
