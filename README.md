@@ -1,4 +1,4 @@
-# claude-plugins
+# ken-cc-plugins
 
 Claude Code plugin marketplace for development workflows.
 
@@ -6,10 +6,10 @@ Claude Code plugin marketplace for development workflows.
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add kenkenmain/claude-plugins
+claude plugin marketplace add kenkenmain/ken-cc-plugins
 
 # Install plugins
-claude plugin install superpowers-iterate@claude-plugins
+claude plugin install superpowers-iterate@ken-cc-plugins
 ```
 
 ## Available Plugins

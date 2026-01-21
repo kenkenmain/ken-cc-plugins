@@ -5,9 +5,9 @@ Orchestrates an iterative 8-phase development workflow for Claude Code. Phases 1
 ## Installation
 
 ```bash
-# From claude-plugins marketplace
-claude plugin marketplace add kenkenmain/claude-plugins
-claude plugin install superpowers-iterate@claude-plugins
+# From ken-cc-plugins marketplace
+claude plugin marketplace add kenkenmain/ken-cc-plugins
+claude plugin install superpowers-iterate@ken-cc-plugins
 ```
 
 ## Commands
