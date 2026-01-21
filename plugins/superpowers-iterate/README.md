@@ -12,15 +12,15 @@ claude plugin install superpowers-iterate@kenkenmain-plugins
 
 ## Commands
 
-### `/iterate [options] <task-description>`
+### `/kenken-iterate [options] <task-description>`
 
 Start the iterative workflow:
 
 ```bash
-/iterate Add user authentication with OAuth2           # Full mode
-/iterate --lite Add user authentication with OAuth2    # Lite mode (no Codex)
-/iterate --max-iterations 5 Add user authentication    # Limit iterations
-/iterate --lite --max-iterations 3 Fix login bug       # Combined
+/kenken-iterate Add user authentication with OAuth2           # Full mode
+/kenken-iterate --lite Add user authentication with OAuth2    # Lite mode (no Codex)
+/kenken-iterate --max-iterations 5 Add user authentication    # Limit iterations
+/kenken-iterate --lite --max-iterations 3 Fix login bug       # Combined
 ```
 
 **Options:**
@@ -28,12 +28,12 @@ Start the iterative workflow:
 - `--lite`: Use lite mode (no Codex MCP required)
 - `--max-iterations N`: Maximum iterations before stopping (default: 10)
 
-### `/iterate-status`
+### `/kenken-iterate-status`
 
 Check current iteration progress:
 
 ```
-/iterate-status
+/kenken-iterate-status
 ```
 
 Shows current iteration, phase, completed phases, and issues found.
@@ -124,14 +124,14 @@ Progress is tracked in `.agents/iteration-state.json`:
 This allows:
 
 - Resuming interrupted iterations
-- Checking progress via `/iterate-status`
+- Checking progress via `/kenken-iterate-status`
 - Audit trail of issues found per iteration
 
 ## Workflow Diagram
 
 ```
 ┌─────────────┐
-│  /iterate   │
+│  /kenken-iterate   │
 │   <task>    │
 └──────┬──────┘
        │

@@ -1,6 +1,6 @@
 ---
 name: iteration-workflow
-description: Use when orchestrating a complete 8-phase development iteration. Activated by /iterate command or when user asks to follow the iteration workflow.
+description: Use when orchestrating a complete 8-phase development iteration. Activated by /kenken-iterate command or when user asks to follow the iteration workflow.
 ---
 
 # 8-Phase Iteration Workflow Skill
@@ -9,7 +9,7 @@ description: Use when orchestrating a complete 8-phase development iteration. Ac
 
 This skill activates when:
 
-- User invokes `/iterate <task>`
+- User invokes `/kenken-iterate <task>`
 - User asks to "follow the iteration workflow"
 - User mentions "superpowers iteration" or "8-phase workflow"
 

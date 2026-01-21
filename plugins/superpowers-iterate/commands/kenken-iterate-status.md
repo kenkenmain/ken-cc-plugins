@@ -24,7 +24,7 @@ Check the current iteration state from `.agents/iteration-state.json`.
 
 3. If no iteration is active:
    - Report "No active iteration"
-   - Suggest: "Use `/iterate <task>` to start a new iteration"
+   - Suggest: "Use `/kenken-iterate <task>` to start a new iteration"
 
 ## Phase Reference
 
