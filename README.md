@@ -21,10 +21,10 @@ Orchestrates an iterative 8-phase development workflow. Phases 1-7 loop until th
 **Commands:**
 
 ```bash
-/kenken-iterate <task>                        # Full mode (requires Codex MCP)
-/kenken-iterate --lite <task>                 # Lite mode (no Codex required)
-/kenken-iterate --max-iterations 5 <task>     # Limit iterations
-/kenken-iterate-status                        # Check progress
+/superpowers-iterate:iterate <task>                        # Full mode (requires Codex MCP)
+/superpowers-iterate:iterate --lite <task>                 # Lite mode (no Codex required)
+/superpowers-iterate:iterate --max-iterations 5 <task>     # Limit iterations
+/superpowers-iterate:iterate-status                        # Check progress
 ```
 
 **Modes:**
