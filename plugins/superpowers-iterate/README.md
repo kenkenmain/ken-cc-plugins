@@ -5,22 +5,22 @@ Orchestrates an iterative 8-phase development workflow for Claude Code. Phases 1
 ## Installation
 
 ```bash
-# From kenkenmain-plugins marketplace
-claude plugin marketplace add kenkenmain/kenkenmain-plugins
-claude plugin install superpowers-iterate@kenkenmain-plugins
+# From claude-plugins marketplace
+claude plugin marketplace add kenkenmain/claude-plugins
+claude plugin install superpowers-iterate@claude-plugins
 ```
 
 ## Commands
 
-### `/kenken-iterate [options] <task-description>`
+### `/superpowers-iterate:iterate [options] <task-description>`
 
 Start the iterative workflow:
 
 ```bash
-/kenken-iterate Add user authentication with OAuth2           # Full mode
-/kenken-iterate --lite Add user authentication with OAuth2    # Lite mode (no Codex)
-/kenken-iterate --max-iterations 5 Add user authentication    # Limit iterations
-/kenken-iterate --lite --max-iterations 3 Fix login bug       # Combined
+/superpowers-iterate:iterate Add user authentication with OAuth2           # Full mode
+/superpowers-iterate:iterate --lite Add user authentication with OAuth2    # Lite mode (no Codex)
+/superpowers-iterate:iterate --max-iterations 5 Add user authentication    # Limit iterations
+/superpowers-iterate:iterate --lite --max-iterations 3 Fix login bug       # Combined
 ```
 
 **Options:**
@@ -28,12 +28,12 @@ Start the iterative workflow:
 - `--lite`: Use lite mode (no Codex MCP required)
 - `--max-iterations N`: Maximum iterations before stopping (default: 10)
 
-### `/kenken-iterate-status`
+### `/superpowers-iterate:iterate-status`
 
 Check current iteration progress:
 
 ```
-/kenken-iterate-status
+/superpowers-iterate:iterate-status
 ```
 
 Shows current iteration, phase, completed phases, and issues found.
@@ -124,14 +124,14 @@ Progress is tracked in `.agents/iteration-state.json`:
 This allows:
 
 - Resuming interrupted iterations
-- Checking progress via `/kenken-iterate-status`
+- Checking progress via `/superpowers-iterate:iterate-status`
 - Audit trail of issues found per iteration
 
 ## Workflow Diagram
 
 ```
 ┌─────────────┐
-│  /kenken-iterate   │
+│  /superpowers-iterate:iterate   │
 │   <task>    │
 └──────┬──────┘
        │
