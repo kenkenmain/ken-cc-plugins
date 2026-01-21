@@ -1,5 +1,5 @@
 {
-  "name": "kenkenmain-plugins",
+  "name": "claude-plugins",
   "owner": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
@@ -19,8 +19,8 @@
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
       },
-      "homepage": "https://github.com/kenkenmain/kenkenmain-plugins",
-      "repository": "https://github.com/kenkenmain/kenkenmain-plugins",
+      "homepage": "https://github.com/kenkenmain/claude-plugins",
+      "repository": "https://github.com/kenkenmain/claude-plugins",
       "license": "MIT",
       "keywords": ["iteration", "workflow", "superpowers", "codex", "code-simplifier", "tdd"],
       "category": "workflow"
