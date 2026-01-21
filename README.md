@@ -6,7 +6,7 @@ Claude Code plugin marketplace for development workflows.
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add kenkenmain/kenkenmain-plugins
+claude plugin marketplace add Kennard123661/kenkenmain-plugins
 
 # Install plugins
 claude plugin install superpowers-iterate@kenkenmain-plugins
