@@ -24,7 +24,7 @@ Check the current iteration state from `.agents/iteration-state.json`.
 
 3. If no iteration is active:
    - Report "No active iteration"
-   - Suggest: "Use `/iterate <task>` to start a new iteration"
+   - Suggest: "Use `/superpowers-iterate:iterate <task>` to start a new iteration"
 
 ## Phase Reference
 
@@ -33,8 +33,8 @@ Check the current iteration state from `.agents/iteration-state.json`.
 | 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents |
 | 2     | Plan         | `superpowers:writing-plans` + N parallel subagents |
 | 3     | Implement    | `superpowers:subagent-driven-development` + LSP    |
-| 4     | Review       | `superpowers:requesting-code-review` (3 rounds)    |
+| 4     | Review       | `superpowers:requesting-code-review` (1 round)     |
 | 5     | Test         | `make lint && make test`                           |
 | 6     | Simplify     | `code-simplifier:code-simplifier` plugin           |
-| 7     | Final Review | `mcp__codex-high__codex` (3 rounds)                |
+| 7     | Final Review | `mcp__codex-high__codex` (1 round)                 |
 | 8     | Codex        | `mcp__codex-xhigh__codex` final validation         |

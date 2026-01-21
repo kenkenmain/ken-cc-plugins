@@ -1,6 +1,6 @@
 ---
 description: Start 8-phase iteration workflow for a task (brainstorm->plan->implement->review->test->simplify->codex-review->codex-final)
-argument-hint: <task-description>
+argument-hint: [--max-iterations N] <task-description>
 allowed-tools: Task, Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp__codex__codex, mcp__codex-high__codex, mcp__codex-xhigh__codex, mcp__lsp__get_diagnostics, mcp__lsp__get_hover, mcp__lsp__goto_definition, mcp__lsp__find_references, mcp__lsp__get_completions
 ---
 
@@ -8,26 +8,44 @@ allowed-tools: Task, Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp_
 
 Starting 8-phase iteration workflow for: **$ARGUMENTS**
 
+## Options
+
+- `--max-iterations N`: Maximum review iterations in Phase 7 (default: 10)
+- `--lite`: Use lite mode (no Codex required, uses Claude reviews instead)
+
+Parse from $ARGUMENTS: extract options and remaining text as the task.
+
 ## Context
 
-- **Task:** $ARGUMENTS
+- **Task:** Extracted from $ARGUMENTS (after parsing options)
+- **Max Iterations:** Parsed from --max-iterations or default 10
+- **Mode:** Full (default) or Lite (--lite flag)
 - **Working Directory:** Use `pwd` to determine
 - **Branch:** Use `git branch --show-current` to determine
+
+## Modes
+
+| Mode           | Phase 7                              | Phase 8                   | Requires                |
+| -------------- | ------------------------------------ | ------------------------- | ----------------------- |
+| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-xhigh__codex` | Codex MCP servers       |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                   | Only superpowers plugin |
 
 ## Instructions
 
 Follow the iteration-workflow skill from this plugin exactly. The 8 mandatory phases are:
 
-| Phase | Name         | Integration                                      |
-|-------|--------------|--------------------------------------------------|
-| 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents |
-| 2     | Plan         | `superpowers:writing-plans` + N parallel subagents |
+| Phase | Name         | Integration                                           |
+| ----- | ------------ | ----------------------------------------------------- |
+| 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents    |
+| 2     | Plan         | `superpowers:writing-plans` + N parallel subagents    |
 | 3     | Implement    | `superpowers:subagent-driven-development` + LSP tools |
-| 4     | Review       | `superpowers:requesting-code-review` (3 rounds)  |
-| 5     | Test         | `make lint && make test`                         |
-| 6     | Simplify     | `code-simplifier:code-simplifier` plugin         |
-| 7     | Final Review | `mcp__codex-high__codex` (3 rounds)              |
-| 8     | Codex        | `mcp__codex-xhigh__codex` final validation       |
+| 4     | Review       | `superpowers:requesting-code-review` (1 round)        |
+| 5     | Test         | `make lint && make test`                              |
+| 6     | Simplify     | `code-simplifier:code-simplifier` plugin              |
+| 7     | Final Review | `mcp__codex-high__codex` - decision point             |
+| 8     | Codex        | `mcp__codex-xhigh__codex` final validation            |
+
+**Iteration Loop:** Phases 1-7 repeat until Phase 7 finds zero issues or --max-iterations reached. Phase 8 runs once at the end.
 
 ## Required Prerequisites
 
@@ -56,18 +74,27 @@ Track progress in `.agents/iteration-state.json`:
 {
   "version": 1,
   "task": "$ARGUMENTS",
+  "mode": "full",
+  "maxIterations": 10,
+  "currentIteration": 1,
   "currentPhase": 1,
   "startedAt": "ISO timestamp",
-  "phases": {
-    "1": { "status": "pending" },
-    "2": { "status": "pending" },
-    "3": { "status": "pending" },
-    "4": { "status": "pending" },
-    "5": { "status": "pending" },
-    "6": { "status": "pending" },
-    "7": { "status": "pending" },
-    "8": { "status": "pending" }
-  }
+  "iterations": [
+    {
+      "iteration": 1,
+      "phases": {
+        "1": { "status": "pending" },
+        "2": { "status": "pending" },
+        "3": { "status": "pending" },
+        "4": { "status": "pending" },
+        "5": { "status": "pending" },
+        "6": { "status": "pending" },
+        "7": { "status": "pending" }
+      },
+      "phase7Issues": []
+    }
+  ],
+  "phase8": { "status": "pending" }
 }
 ```
 
