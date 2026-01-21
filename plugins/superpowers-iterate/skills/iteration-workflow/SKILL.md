@@ -18,15 +18,35 @@ This skill activates when:
 ## The 8 Phases
 
 ```
-Phase 1: Brainstorm  -> superpowers:brainstorming + N parallel subagents
-Phase 2: Plan        -> superpowers:writing-plans + N parallel subagents
-Phase 3: Implement   -> superpowers:subagent-driven-development + N subagents
-Phase 4: Review      -> superpowers:requesting-code-review (3 rounds)
-Phase 5: Test        -> make lint && make test
-Phase 6: Simplify    -> code-simplifier agent
-Phase 7: Final Review -> @codex-high MCP review (3 rounds)
-Phase 8: Codex       -> @codex-xhigh MCP final validation
+Phase 1: Brainstorm   -> superpowers:brainstorming + N parallel subagents
+Phase 2: Plan         -> superpowers:writing-plans + N parallel subagents
+Phase 3: Implement    -> superpowers:subagent-driven-development + N subagents
+Phase 4: Review       -> superpowers:requesting-code-review (1 round)
+Phase 5: Test         -> make lint && make test
+Phase 6: Simplify     -> code-simplifier agent
+Phase 7: Final Review -> Decision point (see below)
+Phase 8: Codex        -> Final validation (full mode only)
 ```
+
+## Iteration Loop
+
+Phases 1-7 repeat until Phase 7 finds **zero issues** or `--max-iterations` is reached.
+Phase 8 runs once at the end (full mode only).
+
+```
+Iteration 1: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+             Phase 7 finds issues? -> Fix -> Start Iteration 2
+Iteration 2: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+             Phase 7 finds zero issues? -> Proceed to Phase 8
+Phase 8: Final validation (once)
+```
+
+## Modes
+
+| Mode           | Phase 7 Tool                         | Phase 8                   | Requires                |
+| -------------- | ------------------------------------ | ------------------------- | ----------------------- |
+| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-xhigh__codex` | Codex MCP servers       |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                   | Only superpowers plugin |
 
 ## State Management
 
@@ -36,24 +56,34 @@ Initialize at start:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "task": "<task description>",
-  "startedAt": "<ISO timestamp>",
+  "mode": "full",
+  "maxIterations": 10,
+  "currentIteration": 1,
   "currentPhase": 1,
-  "phases": {
-    "1": { "status": "in_progress", "startedAt": "<timestamp>" },
-    "2": { "status": "pending" },
-    "3": { "status": "pending" },
-    "4": { "status": "pending" },
-    "5": { "status": "pending" },
-    "6": { "status": "pending" },
-    "7": { "status": "pending" },
-    "8": { "status": "pending" }
-  }
+  "startedAt": "<ISO timestamp>",
+  "iterations": [
+    {
+      "iteration": 1,
+      "startedAt": "<timestamp>",
+      "phases": {
+        "1": { "status": "in_progress", "startedAt": "<timestamp>" },
+        "2": { "status": "pending" },
+        "3": { "status": "pending" },
+        "4": { "status": "pending" },
+        "5": { "status": "pending" },
+        "6": { "status": "pending" },
+        "7": { "status": "pending" }
+      },
+      "phase7Issues": []
+    }
+  ],
+  "phase8": { "status": "pending" }
 }
 ```
 
-Update state after each phase transition.
+Update state after each phase transition. When starting a new iteration, add a new entry to `iterations` array.
 
 ## Phase 1: Brainstorm
 
@@ -172,30 +202,33 @@ Update state after each phase transition.
      - Multiple reviewer subagents can run in parallel
    - For each task:
      a. Dispatch implementer subagent with full task text AND LSP context:
-        ```
-        You have access to LSP (Language Server Protocol) tools:
-        - mcp__lsp__get_diagnostics: Get errors/warnings for a file
-        - mcp__lsp__get_hover: Get type info and documentation at position
-        - mcp__lsp__goto_definition: Jump to symbol definition
-        - mcp__lsp__find_references: Find all references to a symbol
-        - mcp__lsp__get_completions: Get code completions at position
 
-        Use LSP tools to:
-        - Check for errors before committing
-        - Understand existing code via hover/go-to-definition
-        - Find all usages before refactoring
-        ```
+     ```
+     You have access to LSP (Language Server Protocol) tools:
+     - mcp__lsp__get_diagnostics: Get errors/warnings for a file
+     - mcp__lsp__get_hover: Get type info and documentation at position
+     - mcp__lsp__goto_definition: Jump to symbol definition
+     - mcp__lsp__find_references: Find all references to a symbol
+     - mcp__lsp__get_completions: Get code completions at position
+
+     Use LSP tools to:
+     - Check for errors before committing
+     - Understand existing code via hover/go-to-definition
+     - Find all usages before refactoring
+     ```
+
      b. Answer any questions from subagent
      c. Subagent follows `superpowers:test-driven-development`:
-        - Write failing test first
-        - Run to verify it fails
-        - Write minimal code to pass
-        - Run to verify it passes
-        - Use `mcp__lsp__get_diagnostics` to check for errors
-        - Self-review and commit
-     d. Dispatch spec reviewer subagent
-     e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
-     f. Mark task complete in TodoWrite
+     - Write failing test first
+     - Run to verify it fails
+     - Write minimal code to pass
+     - Run to verify it passes
+     - Use `mcp__lsp__get_diagnostics` to check for errors
+     - Self-review and commit
+       d. Dispatch spec reviewer subagent
+       e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
+       f. Mark task complete in TodoWrite
+
 3. Run `make lint && make test` to verify all tests pass
 4. Commit after tests pass
 
@@ -210,9 +243,9 @@ Update state after each phase transition.
 
 **Transition:** Mark Phase 3 complete, advance to Phase 4
 
-## Phase 4: Review (3 Rounds)
+## Phase 4: Review (1 Round)
 
-**Purpose:** Code review with 3 mandatory rounds
+**Purpose:** Quick code review sanity check before Phase 7's thorough review
 
 **Required Skill:** `superpowers:requesting-code-review`
 
@@ -224,23 +257,22 @@ Update state after each phase transition.
    BASE_SHA=$(git merge-base HEAD main)
    HEAD_SHA=$(git rev-parse HEAD)
    ```
-3. For round in [1, 2, 3]:
-   a. Dispatch code-reviewer subagent per `superpowers:requesting-code-review`
-   b. Provide:
+3. Dispatch code-reviewer subagent per `superpowers:requesting-code-review`
+4. Provide:
    - WHAT_WAS_IMPLEMENTED: Description of changes
    - PLAN_OR_REQUIREMENTS: Reference to plan file
    - BASE_SHA and HEAD_SHA
-     c. Categorize issues:
+5. Categorize issues:
    - **Critical:** Must fix immediately
-   - **Important:** Fix before next round
-   - **Minor:** Note for later
-     d. Fix Critical and Important issues
-     e. Re-run tests after fixes
-4. Document findings in state
+   - **Important:** Fix now
+   - **Minor:** Note for Phase 7
+6. Fix Critical and Important issues
+7. Re-run tests after fixes
+8. Document findings in state
 
 **Exit criteria:**
 
-- 3 review rounds completed
+- 1 review round completed
 - No Critical issues remaining
 - Important issues addressed
 
@@ -295,57 +327,88 @@ Update state after each phase transition.
 
 **Transition:** Mark Phase 6 complete, advance to Phase 7
 
-## Phase 7: Codex-High Final Review (3 Rounds)
+## Phase 7: Final Review (Decision Point)
 
-**Purpose:** Final review focused on merge readiness using Codex high reasoning
+**Purpose:** Thorough review that determines whether to loop back to Phase 1 or proceed to completion.
 
-**Required Tool:** `mcp__codex-high__codex`
+**Required Tool:**
+
+- Full mode: `mcp__codex-high__codex`
+- Lite mode: `superpowers:requesting-code-review`
 
 **Actions:**
 
 1. Mark Phase 7 as `in_progress`
-2. For round in [1, 2, 3]:
-   a. Invoke `mcp__codex-high__codex` with review prompt:
+2. Check current iteration count against `maxIterations`
+3. Run review based on mode:
 
-   ```
-   Review round {N}/3 for merge readiness. Run these commands first:
-   1. make lint
-   2. make test
+### Full Mode (mcp**codex-high**codex)
 
-   Focus on:
-   - Documentation accuracy
-   - Edge cases and error handling
-   - Test coverage completeness
-   - Code quality and maintainability
-   - Merge readiness
+Invoke `mcp__codex-high__codex` with review prompt:
 
-   Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
-   ```
+```
+Iteration {N}/{max} final review for merge readiness. Run these commands first:
+1. make lint
+2. make test
 
-   b. Categorize Codex findings:
-   - **HIGH:** Must fix immediately
-   - **MEDIUM:** Fix before next round
-   - **LOW:** Note for later
-     c. Fix HIGH and MEDIUM issues
-     d. Re-run tests after fixes
+Focus on:
+- Documentation accuracy
+- Edge cases and error handling
+- Test coverage completeness
+- Code quality and maintainability
+- Merge readiness
 
-3. Document findings in state
+Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
+If you find NO issues, explicitly state: "No issues found."
+```
+
+### Lite Mode (superpowers:requesting-code-review)
+
+Dispatch code-reviewer subagent per `superpowers:requesting-code-review`:
+
+- WHAT_WAS_IMPLEMENTED: Full description of all changes
+- PLAN_OR_REQUIREMENTS: Reference to plan file
+- BASE_SHA and HEAD_SHA from git
+
+4. **Evaluate review results:**
+
+   **If ZERO issues found:**
+   - Announce: "Iteration {N} review found no issues. Proceeding to completion."
+   - Store `phase7Issues: []` in state
+   - **Full mode:** Proceed to Phase 8
+   - **Lite mode:** Skip to Completion
+
+   **If ANY issues found (HIGH, MEDIUM, or LOW):**
+   - Announce: "Iteration {N} found {count} issues. Fixing and starting new iteration."
+   - Fix ALL issues
+   - Re-run `make lint && make test`
+   - Store issues in `phase7Issues` array in state
+   - **If currentIteration < maxIterations:**
+     - Increment `currentIteration`
+     - Add new iteration entry to state
+     - **Loop back to Phase 1**
+   - **If currentIteration >= maxIterations:**
+     - Announce: "Reached max iterations ({max}). Proceeding with {count} unresolved issues noted."
+     - **Full mode:** Proceed to Phase 8
+     - **Lite mode:** Skip to Completion
 
 **Exit criteria:**
 
-- 3 Codex review rounds completed
-- No HIGH severity issues remaining
-- Code is merge-ready
-- Documentation is accurate
-- Test coverage is complete
+- Review completed
+- Either: zero issues found, OR all issues fixed and looping, OR max iterations reached
 
-**Transition:** Mark Phase 7 complete, advance to Phase 8
+**Transition:**
 
-## Phase 8: Codex-XHigh Final Validation
+- Zero issues OR max iterations → Phase 8 (full) or Completion (lite)
+- Issues found AND iterations remaining → Phase 1 (new iteration)
+
+## Phase 8: Codex-XHigh Final Validation (Full Mode Only)
 
 **Purpose:** Final validation with OpenAI Codex extra-high reasoning
 
 **Required Tool:** `mcp__codex-xhigh__codex`
+
+**Note:** This phase is skipped in lite mode.
 
 **Actions:**
 
@@ -377,15 +440,18 @@ Update state after each phase transition.
 - Codex-xhigh review completed
 - No HIGH severity issues remaining
 
-**Transition:** Mark Phase 8 complete
+**Transition:** Mark Phase 8 complete, proceed to Completion
 
 ## Completion
 
-After Phase 8:
+After Phase 7 (lite mode) or Phase 8 (full mode):
 
-1. Update state file to show all phases complete
-2. Announce: "Iteration workflow complete!"
-3. Summarize accomplishments
+1. Update state file to show workflow complete
+2. Announce: "Iteration workflow complete after {N} iteration(s)!"
+3. Summarize:
+   - Total iterations run
+   - Issues found and fixed per iteration
+   - Final state (clean or with noted issues)
 4. Suggest next steps (commit, create PR, etc.)
 5. Optionally use `superpowers:finishing-a-development-branch` for merge prep
 
@@ -394,20 +460,24 @@ After Phase 8:
 If iteration was interrupted:
 
 1. Read `.agents/iteration-state.json`
-2. Identify current phase from `currentPhase` field
-3. Announce: "Resuming iteration at Phase N: <phase-name>"
+2. Identify:
+   - `currentIteration`: Which iteration we're on
+   - `currentPhase`: Which phase within that iteration
+   - `mode`: Full or lite
+3. Announce: "Resuming iteration {N} at Phase {P}: <phase-name>"
 4. Continue from where stopped
 
 ## Red Flags - STOP
 
 **Never:**
 
-- Skip phases (all 8 are mandatory)
+- Skip phases (all 7 phases per iteration are mandatory)
 - Advance without meeting exit criteria
-- Ignore Critical issues from reviews
+- Ignore issues from Phase 7 review (must fix or note if at max iterations)
 - Skip test runs
 - Skip TDD (write tests after implementation)
 - Dispatch parallel implementation subagents (conflicts)
+- Exceed maxIterations without proceeding to completion
 
 **If blocked:**
 

@@ -11,15 +11,24 @@ Starting 8-phase iteration workflow for: **$ARGUMENTS**
 ## Options
 
 - `--max-iterations N`: Maximum review iterations in Phase 7 (default: 10)
+- `--lite`: Use lite mode (no Codex required, uses Claude reviews instead)
 
-Parse from $ARGUMENTS: if starts with `--max-iterations`, extract the number and remaining text as the task.
+Parse from $ARGUMENTS: extract options and remaining text as the task.
 
 ## Context
 
 - **Task:** Extracted from $ARGUMENTS (after parsing options)
 - **Max Iterations:** Parsed from --max-iterations or default 10
+- **Mode:** Full (default) or Lite (--lite flag)
 - **Working Directory:** Use `pwd` to determine
 - **Branch:** Use `git branch --show-current` to determine
+
+## Modes
+
+| Mode           | Phase 7                              | Phase 8                   | Requires                |
+| -------------- | ------------------------------------ | ------------------------- | ----------------------- |
+| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-xhigh__codex` | Codex MCP servers       |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                   | Only superpowers plugin |
 
 ## Instructions
 
@@ -65,6 +74,7 @@ Track progress in `.agents/iteration-state.json`:
 {
   "version": 1,
   "task": "$ARGUMENTS",
+  "mode": "full",
   "maxIterations": 10,
   "currentIteration": 1,
   "currentPhase": 1,
