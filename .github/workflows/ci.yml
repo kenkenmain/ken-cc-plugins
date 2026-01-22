@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate Plugin Structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check plugin.json exists
+        run: |
+          for plugin_dir in plugins/*/; do
+            if [ -d "$plugin_dir" ]; then
+              plugin_name=$(basename "$plugin_dir")
+              plugin_json="${plugin_dir}.claude-plugin/plugin.json"
+
+              if [ ! -f "$plugin_json" ]; then
+                echo "ERROR: Missing plugin.json for $plugin_name"
+                exit 1
+              fi
+
+              echo "✓ Found plugin.json for $plugin_name"
+            fi
+          done
+
+      - name: Validate plugin.json syntax
+        run: |
+          for plugin_json in plugins/*/.claude-plugin/plugin.json; do
+            if [ -f "$plugin_json" ]; then
+              if ! python3 -c "import json; json.load(open('$plugin_json'))"; then
+                echo "ERROR: Invalid JSON in $plugin_json"
+                exit 1
+              fi
+              echo "✓ Valid JSON: $plugin_json"
+            fi
+          done
+
+      - name: Check version format (semver)
+        run: |
+          for plugin_json in plugins/*/.claude-plugin/plugin.json; do
+            if [ -f "$plugin_json" ]; then
+              version=$(python3 -c "import json; print(json.load(open('$plugin_json')).get('version', ''))")
+              plugin_name=$(dirname "$plugin_json" | xargs dirname | xargs basename)
+
+              if [ -z "$version" ]; then
+                echo "ERROR: Missing version in $plugin_name"
+                exit 1
+              fi
+
+              # Check semver format (X.Y.Z)
+              if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "ERROR: Invalid semver version '$version' in $plugin_name (expected X.Y.Z)"
+                exit 1
+              fi
+
+              echo "✓ Valid version $version for $plugin_name"
+            fi
+          done
+
+  version-bump-check:
+    name: Version Bump Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for version bumps on changed plugins
+        run: |
+          # Get list of changed files
+          changed_files=$(git diff --name-only origin/main...HEAD)
+
+          # Find which plugins were modified
+          modified_plugins=""
+          for file in $changed_files; do
+            if [[ "$file" == plugins/* ]]; then
+              plugin_name=$(echo "$file" | cut -d'/' -f2)
+              if [[ ! " $modified_plugins " =~ " $plugin_name " ]]; then
+                modified_plugins="$modified_plugins $plugin_name"
+              fi
+            fi
+          done
+
+          # For each modified plugin, check if version was bumped
+          for plugin_name in $modified_plugins; do
+            plugin_json="plugins/$plugin_name/.claude-plugin/plugin.json"
+
+            if [ -f "$plugin_json" ]; then
+              # Get current version
+              current_version=$(python3 -c "import json; print(json.load(open('$plugin_json')).get('version', ''))")
+
+              # Get base version from main
+              base_version=$(git show origin/main:$plugin_json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('version', ''))" 2>/dev/null || echo "0.0.0")
+
+              if [ "$current_version" = "$base_version" ]; then
+                echo "WARNING: Plugin '$plugin_name' was modified but version was not bumped"
+                echo "  Current version: $current_version"
+                echo "  Consider bumping the version in $plugin_json"
+              else
+                echo "✓ Plugin '$plugin_name' version bumped: $base_version -> $current_version"
+              fi
+            fi
+          done
+
+  lint-markdown:
+    name: Lint Markdown
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check markdown syntax
+        run: |
+          # Simple check for markdown files
+          error_count=0
+          for md_file in $(find plugins -name "*.md" -type f); do
+            # Check for common issues
+            if grep -qE '^\s{1,3}[*+-]' "$md_file"; then
+              echo "WARNING: Inconsistent list indentation in $md_file"
+            fi
+
+            # Check frontmatter for command files
+            if [[ "$md_file" == */commands/*.md ]]; then
+              if ! head -1 "$md_file" | grep -q '^---$'; then
+                echo "ERROR: Missing frontmatter in command file $md_file"
+                error_count=$((error_count + 1))
+              fi
+            fi
+          done
+
+          if [ $error_count -gt 0 ]; then
+            echo "Found $error_count errors"
+            exit 1
+          fi
+
+          echo "✓ All markdown files validated"
