@@ -8,7 +8,7 @@ description: |
   user: "Ready for Codex review"
   assistant: "I'll dispatch the codex-reviewer agent for the final MCP-based review."
   </example>
-model: claude-sonnet-4-20250514
+model: inherit
 tools:
   - Bash
   - Read
