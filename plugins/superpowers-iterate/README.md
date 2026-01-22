@@ -40,10 +40,10 @@ Shows current iteration, phase, completed phases, and issues found.
 
 ## Modes
 
-| Mode           | Phase 7                              | Phase 8                  | Requires                |
-| -------------- | ------------------------------------ | ------------------------ | ----------------------- |
-| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers       |
-| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
+| Mode           | Phase 7                              | Phase 8                  | Requires                      |
+| -------------- | ------------------------------------ | ------------------------ | ----------------------------- |
+| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers             |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | superpowers + code-simplifier |
 
 ## The Iteration Loop
 

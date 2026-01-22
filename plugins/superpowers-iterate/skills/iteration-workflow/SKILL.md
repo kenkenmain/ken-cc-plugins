@@ -43,10 +43,10 @@ Phase 8: Final validation (once)
 
 ## Modes
 
-| Mode           | Phase 7 Tool                         | Phase 8                  | Requires                |
-| -------------- | ------------------------------------ | ------------------------ | ----------------------- |
-| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers       |
-| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
+| Mode           | Phase 7 Tool                         | Phase 8                  | Requires                      |
+| -------------- | ------------------------------------ | ------------------------ | ----------------------------- |
+| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers             |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | superpowers + code-simplifier |
 
 ## Model Configuration
 
