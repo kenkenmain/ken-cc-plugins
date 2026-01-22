@@ -48,6 +48,16 @@ Phase 8: Final validation (once)
 | Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers       |
 | Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
 
+## Model Configuration
+
+| Agent Type         | Model Setting    | Rationale                                     |
+| ------------------ | ---------------- | --------------------------------------------- |
+| Parallel agents    | `model: sonnet`  | Cost-effective for parallel research/planning |
+| Single-task agents | `model: inherit` | Respects user's `/model` choice               |
+
+Parallel agents (dispatched via `superpowers:dispatching-parallel-agents`) use `model: sonnet`.
+Single-task agents (code-reviewer, code-simplifier) inherit the parent model.
+
 ## State Management
 
 **State file:** `.agents/iteration-state.json`
@@ -95,7 +105,7 @@ Update state after each phase transition. When starting a new iteration, add a n
 
 1. Mark Phase 1 as `in_progress` in state file
 2. Use TodoWrite to track brainstorming tasks
-3. **Launch as many parallel sonnet subagents as needed** using `superpowers:dispatching-parallel-agents`:
+3. **Launch parallel subagents as needed** using `superpowers:dispatching-parallel-agents`:
    - Identify independent research areas for the task
    - Dispatch one subagent per independent domain (no limit)
    - Example domains:
@@ -133,7 +143,7 @@ Update state after each phase transition. When starting a new iteration, add a n
 **Actions:**
 
 1. Mark Phase 2 as `in_progress`
-2. **Launch as many parallel sonnet subagents as needed** to create plan components:
+2. **Launch parallel subagents as needed** to create plan components:
    - Identify independent planning areas based on brainstorm output
    - Dispatch one subagent per independent component (no limit)
    - Example planning areas:
