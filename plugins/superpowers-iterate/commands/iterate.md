@@ -72,7 +72,7 @@ Track progress in `.agents/iteration-state.json`:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "task": "$ARGUMENTS",
   "mode": "full",
   "maxIterations": 10,

@@ -352,7 +352,7 @@ Update state after each phase transition. When starting a new iteration, add a n
 2. Check current iteration count against `maxIterations`
 3. Run review based on mode:
 
-### Full Mode (mcp**codex**codex)
+### Full Mode (mcp\_\_codex\_\_codex)
 
 Invoke `mcp__codex__codex` with review prompt:
 
