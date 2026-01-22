@@ -31,7 +31,7 @@ Orchestrates an iterative 8-phase development workflow. Phases 1-7 loop until th
 
 | Mode           | Phase 7            | Phase 8        | Requires                |
 | -------------- | ------------------ | -------------- | ----------------------- |
-| Full (default) | Codex-high MCP     | Codex-high MCP | Codex MCP servers       |
+| Full (default) | Codex MCP          | Codex-high MCP | Codex MCP servers       |
 | Lite (--lite)  | Claude code review | Skipped        | Only superpowers plugin |
 
 **The Iteration Loop:**

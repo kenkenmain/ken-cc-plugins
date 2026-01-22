@@ -42,7 +42,7 @@ Shows current iteration, phase, completed phases, and issues found.
 
 | Mode           | Phase 7                              | Phase 8                  | Requires                |
 | -------------- | ------------------------------------ | ------------------------ | ----------------------- |
-| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-high__codex` | Codex MCP servers       |
+| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers       |
 | Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
 
 ## The Iteration Loop
@@ -76,21 +76,21 @@ Phase 8: Final validation (full mode only)
 **Required for full mode only:**
 
 - **Codex MCP servers** (Phase 7 and 8)
-  - `mcp__codex-high__codex` - Phase 7 review
-  - `mcp__codex-high__codex` - Phase 8 final validation
+  - `mcp__codex__codex` - Phase 7 review (medium reasoning)
+  - `mcp__codex-high__codex` - Phase 8 final validation (high reasoning)
 
 ## The 8 Phases
 
-| Phase | Name         | Purpose                           | Integration                               |
-| ----- | ------------ | --------------------------------- | ----------------------------------------- |
-| 1     | Brainstorm   | Explore problem space             | `brainstorming` + N parallel subagents    |
-| 2     | Plan         | Create implementation plan        | `writing-plans` + N parallel subagents    |
-| 3     | Implement    | TDD-style implementation          | `subagent-driven-development` + LSP       |
-| 4     | Review       | Quick sanity check (1 round)      | `requesting-code-review`                  |
-| 5     | Test         | make lint && make test            | Bash                                      |
-| 6     | Simplify     | Reduce code bloat                 | `code-simplifier:code-simplifier`         |
-| 7     | Final Review | Decision point - loop or proceed  | Codex-high (full) or Claude review (lite) |
-| 8     | Codex        | Final validation (full mode only) | `mcp__codex-high__codex`                  |
+| Phase | Name         | Purpose                           | Integration                            |
+| ----- | ------------ | --------------------------------- | -------------------------------------- |
+| 1     | Brainstorm   | Explore problem space             | `brainstorming` + N parallel subagents |
+| 2     | Plan         | Create implementation plan        | `writing-plans` + N parallel subagents |
+| 3     | Implement    | TDD-style implementation          | `superpowers:test-driven-development`  |
+| 4     | Review       | Quick sanity check (1 round)      | `requesting-code-review`               |
+| 5     | Test         | make lint && make test            | Bash                                   |
+| 6     | Simplify     | Reduce code bloat                 | `code-simplifier:code-simplifier`      |
+| 7     | Final Review | Decision point - loop or proceed  | Codex (full) or Claude review (lite)   |
+| 8     | Codex        | Final validation (full mode only) | `mcp__codex-high__codex`               |
 
 ## State Management
 
@@ -147,7 +147,7 @@ This allows:
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │
-│  │3. Implement │──► subagent-driven-dev  │
+│  │3. Implement │──► test-driven-dev      │
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │

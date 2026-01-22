@@ -20,7 +20,7 @@ This skill activates when:
 ```
 Phase 1: Brainstorm   -> superpowers:brainstorming + N parallel subagents
 Phase 2: Plan         -> superpowers:writing-plans + N parallel subagents
-Phase 3: Implement    -> superpowers:subagent-driven-development + N subagents
+Phase 3: Implement    -> superpowers:test-driven-development
 Phase 4: Review       -> superpowers:requesting-code-review (1 round)
 Phase 5: Test         -> make lint && make test
 Phase 6: Simplify     -> code-simplifier agent
@@ -45,7 +45,7 @@ Phase 8: Final validation (once)
 
 | Mode           | Phase 7 Tool                         | Phase 8                  | Requires                |
 | -------------- | ------------------------------------ | ------------------------ | ----------------------- |
-| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-high__codex` | Codex MCP servers       |
+| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers       |
 | Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
 
 ## State Management
@@ -188,7 +188,7 @@ Update state after each phase transition. When starting a new iteration, add a n
 
 **Purpose:** TDD-style implementation following the plan
 
-**Required Skill:** `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**Required Skill:** `superpowers:test-driven-development`
 
 **Required Plugins:** LSP plugins for code intelligence
 
@@ -333,7 +333,7 @@ Update state after each phase transition. When starting a new iteration, add a n
 
 **Required Tool:**
 
-- Full mode: `mcp__codex-high__codex`
+- Full mode: `mcp__codex__codex`
 - Lite mode: `superpowers:requesting-code-review`
 
 **Actions:**
@@ -342,9 +342,9 @@ Update state after each phase transition. When starting a new iteration, add a n
 2. Check current iteration count against `maxIterations`
 3. Run review based on mode:
 
-### Full Mode (mcp**codex-high**codex)
+### Full Mode (mcp**codex**codex)
 
-Invoke `mcp__codex-high__codex` with review prompt:
+Invoke `mcp__codex__codex` with review prompt:
 
 ```
 Iteration {N}/{max} final review for merge readiness. Run these commands first:
