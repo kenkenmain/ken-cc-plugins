@@ -32,7 +32,7 @@ Check the current iteration state from `.agents/iteration-state.json`.
 | ----- | ------------ | -------------------------------------------------- |
 | 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents |
 | 2     | Plan         | `superpowers:writing-plans` + N parallel subagents |
-| 3     | Implement    | `superpowers:test-driven-development`              |
+| 3     | Implement    | `superpowers:subagent-driven-development` + LSP    |
 | 4     | Review       | `superpowers:requesting-code-review` (1 round)     |
 | 5     | Test         | `make lint && make test`                           |
 | 6     | Simplify     | `code-simplifier:code-simplifier` plugin           |

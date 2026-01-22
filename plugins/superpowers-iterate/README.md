@@ -85,7 +85,7 @@ Phase 8: Final validation (full mode only)
 | ----- | ------------ | --------------------------------- | -------------------------------------- |
 | 1     | Brainstorm   | Explore problem space             | `brainstorming` + N parallel subagents |
 | 2     | Plan         | Create implementation plan        | `writing-plans` + N parallel subagents |
-| 3     | Implement    | TDD-style implementation          | `superpowers:test-driven-development`  |
+| 3     | Implement    | TDD-style implementation          | `subagent-driven-development` + LSP    |
 | 4     | Review       | Quick sanity check (1 round)      | `requesting-code-review`               |
 | 5     | Test         | make lint && make test            | Bash                                   |
 | 6     | Simplify     | Reduce code bloat                 | `code-simplifier:code-simplifier`      |
@@ -147,7 +147,7 @@ This allows:
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │
-│  │3. Implement │──► test-driven-dev      │
+│  │3. Implement │──► subagent-driven-dev  │
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │

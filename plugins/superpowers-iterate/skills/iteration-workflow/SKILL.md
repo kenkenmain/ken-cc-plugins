@@ -20,7 +20,7 @@ This skill activates when:
 ```
 Phase 1: Brainstorm   -> superpowers:brainstorming + N parallel subagents
 Phase 2: Plan         -> superpowers:writing-plans + N parallel subagents
-Phase 3: Implement    -> superpowers:test-driven-development
+Phase 3: Implement    -> superpowers:subagent-driven-development + N subagents
 Phase 4: Review       -> superpowers:requesting-code-review (1 round)
 Phase 5: Test         -> make lint && make test
 Phase 6: Simplify     -> code-simplifier agent
@@ -188,7 +188,7 @@ Update state after each phase transition. When starting a new iteration, add a n
 
 **Purpose:** TDD-style implementation following the plan
 
-**Required Skill:** `superpowers:test-driven-development`
+**Required Skill:** `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
 
 **Required Plugins:** LSP plugins for code intelligence
 
