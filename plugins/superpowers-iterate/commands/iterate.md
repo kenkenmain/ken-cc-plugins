@@ -27,7 +27,7 @@ Parse from $ARGUMENTS: extract options and remaining text as the task.
 
 | Mode           | Phase 7                              | Phase 8                   | Requires                |
 | -------------- | ------------------------------------ | ------------------------- | ----------------------- |
-| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-xhigh__codex` | Codex MCP servers       |
+| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex`  | Codex MCP servers       |
 | Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                   | Only superpowers plugin |
 
 ## Instructions
@@ -42,8 +42,8 @@ Follow the iteration-workflow skill from this plugin exactly. The 8 mandatory ph
 | 4     | Review       | `superpowers:requesting-code-review` (1 round)        |
 | 5     | Test         | `make lint && make test`                              |
 | 6     | Simplify     | `code-simplifier:code-simplifier` plugin              |
-| 7     | Final Review | `mcp__codex-high__codex` - decision point             |
-| 8     | Codex        | `mcp__codex-xhigh__codex` final validation            |
+| 7     | Final Review | `mcp__codex__codex` - decision point                  |
+| 8     | Codex        | `mcp__codex-high__codex` final validation             |
 
 **Iteration Loop:** Phases 1-7 repeat until Phase 7 finds zero issues or --max-iterations reached. Phase 8 runs once at the end.
 
