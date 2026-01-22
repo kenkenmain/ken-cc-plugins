@@ -43,10 +43,10 @@ Phase 8: Final validation (once)
 
 ## Modes
 
-| Mode           | Phase 7 Tool                         | Phase 8                   | Requires                |
-| -------------- | ------------------------------------ | ------------------------- | ----------------------- |
-| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-xhigh__codex` | Codex MCP servers       |
-| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                   | Only superpowers plugin |
+| Mode           | Phase 7 Tool                         | Phase 8                  | Requires                |
+| -------------- | ------------------------------------ | ------------------------ | ----------------------- |
+| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-high__codex` | Codex MCP servers       |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
 
 ## State Management
 
@@ -402,18 +402,18 @@ Dispatch code-reviewer subagent per `superpowers:requesting-code-review`:
 - Zero issues OR max iterations → Phase 8 (full) or Completion (lite)
 - Issues found AND iterations remaining → Phase 1 (new iteration)
 
-## Phase 8: Codex-XHigh Final Validation (Full Mode Only)
+## Phase 8: Codex-High Final Validation (Full Mode Only)
 
-**Purpose:** Final validation with OpenAI Codex extra-high reasoning
+**Purpose:** Final validation with OpenAI Codex high reasoning
 
-**Required Tool:** `mcp__codex-xhigh__codex`
+**Required Tool:** `mcp__codex-high__codex`
 
 **Note:** This phase is skipped in lite mode.
 
 **Actions:**
 
 1. Mark Phase 8 as `in_progress`
-2. Invoke `mcp__codex-xhigh__codex` with final validation prompt:
+2. Invoke `mcp__codex-high__codex` with final validation prompt:
 
    ```
    Final validation review. Run these commands first:
@@ -433,11 +433,11 @@ Dispatch code-reviewer subagent per `superpowers:requesting-code-review`:
    ```
 
 3. Address any HIGH severity issues
-4. Re-run Codex-xhigh if significant changes made
+4. Re-run Codex-high if significant changes made
 
 **Exit criteria:**
 
-- Codex-xhigh review completed
+- Codex-high review completed
 - No HIGH severity issues remaining
 
 **Transition:** Mark Phase 8 complete, proceed to Completion

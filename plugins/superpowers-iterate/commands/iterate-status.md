@@ -28,8 +28,8 @@ Check the current iteration state from `.agents/iteration-state.json`.
 
 ## Phase Reference
 
-| Phase | Name         | Integration                                      |
-|-------|--------------|--------------------------------------------------|
+| Phase | Name         | Integration                                        |
+| ----- | ------------ | -------------------------------------------------- |
 | 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents |
 | 2     | Plan         | `superpowers:writing-plans` + N parallel subagents |
 | 3     | Implement    | `superpowers:subagent-driven-development` + LSP    |
@@ -37,4 +37,4 @@ Check the current iteration state from `.agents/iteration-state.json`.
 | 5     | Test         | `make lint && make test`                           |
 | 6     | Simplify     | `code-simplifier:code-simplifier` plugin           |
 | 7     | Final Review | `mcp__codex-high__codex` (1 round)                 |
-| 8     | Codex        | `mcp__codex-xhigh__codex` final validation         |
+| 8     | Codex        | `mcp__codex-high__codex` final validation          |

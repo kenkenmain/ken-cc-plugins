@@ -1,7 +1,7 @@
 ---
 description: Start 8-phase iteration workflow for a task (brainstorm->plan->implement->review->test->simplify->codex-review->codex-final)
 argument-hint: [--max-iterations N] <task-description>
-allowed-tools: Task, Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp__codex__codex, mcp__codex-high__codex, mcp__codex-xhigh__codex, mcp__lsp__get_diagnostics, mcp__lsp__get_hover, mcp__lsp__goto_definition, mcp__lsp__find_references, mcp__lsp__get_completions
+allowed-tools: Task, Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp__codex__codex, mcp__codex-high__codex, mcp__lsp__get_diagnostics, mcp__lsp__get_hover, mcp__lsp__goto_definition, mcp__lsp__find_references, mcp__lsp__get_completions
 ---
 
 # Iteration Workflow
@@ -25,10 +25,10 @@ Parse from $ARGUMENTS: extract options and remaining text as the task.
 
 ## Modes
 
-| Mode           | Phase 7                              | Phase 8                   | Requires                |
-| -------------- | ------------------------------------ | ------------------------- | ----------------------- |
-| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex`  | Codex MCP servers       |
-| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                   | Only superpowers plugin |
+| Mode           | Phase 7                              | Phase 8                  | Requires                |
+| -------------- | ------------------------------------ | ------------------------ | ----------------------- |
+| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers       |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
 
 ## Instructions
 

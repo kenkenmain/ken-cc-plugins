@@ -40,10 +40,10 @@ Shows current iteration, phase, completed phases, and issues found.
 
 ## Modes
 
-| Mode           | Phase 7                              | Phase 8                   | Requires                |
-| -------------- | ------------------------------------ | ------------------------- | ----------------------- |
-| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-xhigh__codex` | Codex MCP servers       |
-| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                   | Only superpowers plugin |
+| Mode           | Phase 7                              | Phase 8                  | Requires                |
+| -------------- | ------------------------------------ | ------------------------ | ----------------------- |
+| Full (default) | `mcp__codex-high__codex`             | `mcp__codex-high__codex` | Codex MCP servers       |
+| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | Only superpowers plugin |
 
 ## The Iteration Loop
 
@@ -77,7 +77,7 @@ Phase 8: Final validation (full mode only)
 
 - **Codex MCP servers** (Phase 7 and 8)
   - `mcp__codex-high__codex` - Phase 7 review
-  - `mcp__codex-xhigh__codex` - Phase 8 final validation
+  - `mcp__codex-high__codex` - Phase 8 final validation
 
 ## The 8 Phases
 
@@ -90,7 +90,7 @@ Phase 8: Final validation (full mode only)
 | 5     | Test         | make lint && make test            | Bash                                      |
 | 6     | Simplify     | Reduce code bloat                 | `code-simplifier:code-simplifier`         |
 | 7     | Final Review | Decision point - loop or proceed  | Codex-high (full) or Claude review (lite) |
-| 8     | Codex        | Final validation (full mode only) | `mcp__codex-xhigh__codex`                 |
+| 8     | Codex        | Final validation (full mode only) | `mcp__codex-high__codex`                  |
 
 ## State Management
 
@@ -175,7 +175,7 @@ This allows:
           │
           ▼ (Full mode only)
    ┌─────────────┐
-   │  8. Codex   │──► @codex-xhigh
+   │  8. Codex   │──► @codex-high
    └──────┬──────┘
           │
           ▼
