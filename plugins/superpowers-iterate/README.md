@@ -38,6 +38,23 @@ Check current iteration progress:
 
 Shows current iteration, phase, completed phases, and issues found.
 
+### `/superpowers-iterate:configure`
+
+Configure models and parallel agents for each phase:
+
+```bash
+/superpowers-iterate:configure              # Interactive wizard
+/superpowers-iterate:configure --show       # Show current config
+/superpowers-iterate:configure --reset      # Reset to defaults
+```
+
+**Configuration files:**
+
+- Global: `~/.claude/iterate-config.json`
+- Project: `.claude/iterate-config.local.json`
+
+Project config overrides global config.
+
 ## Modes
 
 - **Full (default):** Uses Codex MCP for reviews (Phases 3, 8, 9)
