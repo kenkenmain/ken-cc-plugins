@@ -1,123 +1,48 @@
 ---
-description: Start 8-phase iteration workflow for a task (brainstorm->plan->implement->review->test->simplify->codex-review->codex-final)
+description: Start 9-phase iteration workflow for a task (brainstorm->plan->plan-review->implement->review->test->simplify->final-review->codex-final)
 argument-hint: [--max-iterations N] <task-description>
 allowed-tools: Task, Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp__codex__codex, mcp__codex-high__codex, mcp__lsp__get_diagnostics, mcp__lsp__get_hover, mcp__lsp__goto_definition, mcp__lsp__find_references, mcp__lsp__get_completions
 ---
 
 # Iteration Workflow
 
-Starting 8-phase iteration workflow for: **$ARGUMENTS**
+Starting 9-phase iteration workflow for: **$ARGUMENTS**
 
 ## Options
 
-- `--max-iterations N`: Maximum review iterations in Phase 7 (default: 10)
+- `--max-iterations N`: Maximum iterations before stopping (default: 10)
 - `--lite`: Use lite mode (no Codex required, uses Claude reviews instead)
 
 Parse from $ARGUMENTS: extract options and remaining text as the task.
 
-## Context
-
-- **Task:** Extracted from $ARGUMENTS (after parsing options)
-- **Max Iterations:** Parsed from --max-iterations or default 10
-- **Mode:** Full (default) or Lite (--lite flag)
-- **Working Directory:** Use `pwd` to determine
-- **Branch:** Use `git branch --show-current` to determine
-
 ## Modes
 
-| Mode           | Phase 7                              | Phase 8                  | Requires                      |
-| -------------- | ------------------------------------ | ------------------------ | ----------------------------- |
-| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers             |
-| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | superpowers + code-simplifier |
+- **Full (default):** Uses Codex MCP for Phases 3, 8, 9
+- **Lite (`--lite`):** Uses Claude reviews, skips Phase 9
 
 ## Instructions
 
-Follow the iteration-workflow skill from this plugin exactly. The 8 mandatory phases are:
+Follow the `iteration-workflow` skill from this plugin exactly for detailed phase instructions.
 
-| Phase | Name         | Integration                                           |
-| ----- | ------------ | ----------------------------------------------------- |
-| 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents    |
-| 2     | Plan         | `superpowers:writing-plans` + N parallel subagents    |
-| 3     | Implement    | `superpowers:subagent-driven-development` + LSP tools |
-| 4     | Review       | `superpowers:requesting-code-review` (1 round)        |
-| 5     | Test         | `make lint && make test`                              |
-| 6     | Simplify     | `code-simplifier:code-simplifier` plugin              |
-| 7     | Final Review | `mcp__codex__codex` - decision point                  |
-| 8     | Codex        | `mcp__codex-high__codex` final validation             |
+**The 9 Phases:** Brainstorm -> Plan -> Plan Review -> Implement -> Review -> Test -> Simplify -> Final Review -> Codex Final
 
-**Iteration Loop:** Phases 1-7 repeat until Phase 7 finds zero issues or --max-iterations reached. Phase 8 runs once at the end.
-
-## Required Prerequisites
-
-Before starting, ensure these are installed:
-
-- **superpowers plugin**: `claude plugin install superpowers@superpowers-marketplace`
-- **code-simplifier plugin**: `claude plugin install code-simplifier`
-- **LSP plugins** (per language): `claude plugin install typescript-lsp`, `pyright-lsp`, etc.
-- **Codex MCP servers**: Run `make codex` or configure manually
-
-## LSP Tools Available
-
-Subagents have access to LSP for code intelligence:
-
-- `mcp__lsp__get_diagnostics` - Get errors/warnings for a file
-- `mcp__lsp__get_hover` - Get type info and documentation
-- `mcp__lsp__goto_definition` - Jump to symbol definition
-- `mcp__lsp__find_references` - Find all references to a symbol
-- `mcp__lsp__get_completions` - Get code completions
-
-## State Management
-
-Track progress in `.agents/iteration-state.json`:
-
-```json
-{
-  "version": 2,
-  "task": "$ARGUMENTS",
-  "mode": "full",
-  "maxIterations": 10,
-  "currentIteration": 1,
-  "currentPhase": 1,
-  "startedAt": "ISO timestamp",
-  "iterations": [
-    {
-      "iteration": 1,
-      "phases": {
-        "1": { "status": "pending" },
-        "2": { "status": "pending" },
-        "3": { "status": "pending" },
-        "4": { "status": "pending" },
-        "5": { "status": "pending" },
-        "6": { "status": "pending" },
-        "7": { "status": "pending" }
-      },
-      "phase7Issues": []
-    }
-  ],
-  "phase8": { "status": "pending" }
-}
-```
-
-## Phase Execution
-
-Follow the `iteration-workflow` skill from this plugin for detailed phase instructions.
+**Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or --max-iterations reached.
 
 **Key rules:**
 
-- Never skip phases (all 8 mandatory)
-- Meet exit criteria before advancing
+- Never skip phases (all 8 phases per iteration are mandatory)
+- Phase 9 runs once at the end (full mode only, skipped in lite mode)
 - Fix HIGH/Critical issues immediately
-- Use TodoWrite to track progress
 - Re-run tests after any code changes
-- Use LSP diagnostics before committing
+- Use LSP tools for code intelligence during implementation
 
 ## Completion
 
-After Phase 8:
+After Phase 9 (or Phase 8 in lite mode):
 
 1. Update state file to show all phases complete
 2. Summarize what was accomplished
 3. Suggest next steps (commit, PR, etc.)
 4. Optionally use `superpowers:finishing-a-development-branch`
 
-**IMPORTANT:** Never skip phases. All 8 are mandatory for quality assurance.
+**IMPORTANT:** Never skip phases within an iteration. All 8 iteration phases are mandatory.

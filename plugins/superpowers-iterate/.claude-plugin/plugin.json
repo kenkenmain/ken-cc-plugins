@@ -1,7 +1,7 @@
 {
   "name": "superpowers-iterate",
-  "version": "1.3.0",
-  "description": "Orchestrates iterative 8-phase workflow with full/lite modes. Loops until clean or max iterations.",
+  "version": "1.5.0",
+  "description": "Orchestrates iterative 9-phase workflow with configurable models and full/lite modes.",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
