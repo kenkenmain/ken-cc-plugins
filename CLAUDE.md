@@ -8,6 +8,9 @@
 /superpowers-iterate:iterate --lite <task>             # Lite mode (Claude only)
 /superpowers-iterate:iterate --max-iterations 5 <task> # Limit iterations
 /superpowers-iterate:iterate-status                    # Check progress
+/superpowers-iterate:configure                         # Configure models per phase
+/superpowers-iterate:configure --show                  # Show current config
+/superpowers-iterate:configure --reset                 # Reset to defaults
 
 # Plugin Development
 claude plugin install ./plugins/superpowers-iterate    # Install locally
@@ -63,6 +66,15 @@ Phase 9: Codex Final   -> mcp__codex-high__codex (full mode only)
 | 7     | Simplify     | `inherit` | N/A                      | Code quality                         |
 | 8     | Final Review | N/A       | `mcp__codex__codex`      | Medium reasoning for iteration       |
 | 9     | Codex Final  | N/A       | `mcp__codex-high__codex` | High reasoning for final validation  |
+
+## Configuration
+
+Configure models per phase via `/superpowers-iterate:configure` or edit JSON directly:
+
+**Global:** `~/.claude/iterate-config.json`
+**Project:** `.claude/iterate-config.local.json`
+
+Project overrides global. See `plugins/superpowers-iterate/skills/configuration/SKILL.md` for schema.
 
 ## Code Style
 
