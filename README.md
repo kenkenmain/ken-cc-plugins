@@ -16,7 +16,9 @@ claude plugin install superpowers-iterate@ken-cc-plugins
 
 ### superpowers-iterate
 
-Orchestrates an iterative 8-phase development workflow. Phases 1-7 loop until the code passes review with zero issues.
+Orchestrates an iterative 9-phase development workflow. Phases 1-8 loop until the code passes review with zero issues.
+
+See [AGENTS.md](AGENTS.md) for detailed agent instructions and workflow architecture.
 
 **Commands:**
 
@@ -29,18 +31,19 @@ Orchestrates an iterative 8-phase development workflow. Phases 1-7 loop until th
 
 **Modes:**
 
-| Mode           | Phase 7            | Phase 8        | Requires                      |
-| -------------- | ------------------ | -------------- | ----------------------------- |
-| Full (default) | Codex MCP          | Codex-high MCP | Codex MCP servers             |
-| Lite (--lite)  | Claude code review | Skipped        | superpowers + code-simplifier |
+| Mode           | Phase 3 Tool        | Phase 8 Tool                         | Phase 9                  | Requires                      |
+| -------------- | ------------------- | ------------------------------------ | ------------------------ | ----------------------------- |
+| Full (default) | `mcp__codex__codex` | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers             |
+| Lite (--lite)  | Claude code-review  | `superpowers:requesting-code-review` | Skipped                  | superpowers + code-simplifier |
 
 **The Iteration Loop:**
 
 ```
-Iteration 1: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-             Phase 7 finds issues? -> Fix -> Iteration 2
-Iteration 2: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-             Phase 7 finds zero issues? -> Phase 8 -> Done
+Iteration 1: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+             Phase 8 finds issues? -> Fix -> Iteration 2
+Iteration 2: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+             Phase 8 finds zero issues? -> Phase 9 (full) or Done (lite)
+Phase 9: Final validation (full mode only)
 ```
 
 **Phases:**
@@ -49,18 +52,19 @@ Iteration 2: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | ----- | ------------ | ----------------------------------------- |
 | 1     | Brainstorm   | Explore problem space, generate ideas     |
 | 2     | Plan         | Create detailed implementation plan       |
-| 3     | Implement    | TDD-style implementation with LSP support |
-| 4     | Review       | Quick sanity check (1 round)              |
-| 5     | Test         | Run lint and tests                        |
-| 6     | Simplify     | Reduce code bloat with code-simplifier    |
-| 7     | Final Review | Decision point - loop or proceed          |
-| 8     | Codex        | Final validation (full mode only)         |
+| 3     | Plan Review  | Validate plan before implementation       |
+| 4     | Implement    | TDD-style implementation with LSP support |
+| 5     | Review       | Quick sanity check (1 round)              |
+| 6     | Test         | Run lint and tests                        |
+| 7     | Simplify     | Reduce code bloat with code-simplifier    |
+| 8     | Final Review | Decision point - loop or proceed          |
+| 9     | Codex        | Final validation (full mode only)         |
 
 **Prerequisites:**
 
 - `superpowers` plugin (from superpowers-marketplace)
 - `code-simplifier` plugin (from claude-plugins-official)
-- Codex MCP servers - only for full mode (`@codex-high`)
+- Codex MCP servers - only for full mode (`mcp__codex__codex`, `mcp__codex-high__codex`)
 
 ## License
 

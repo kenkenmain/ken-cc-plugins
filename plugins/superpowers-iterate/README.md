@@ -1,6 +1,6 @@
 # superpowers-iterate
 
-Orchestrates an iterative 8-phase development workflow for Claude Code. Phases 1-7 loop until Phase 7 finds zero issues or `--max-iterations` is reached.
+Orchestrates an iterative 9-phase development workflow for Claude Code. Phases 1-8 loop until Phase 8 finds zero issues or `--max-iterations` is reached.
 
 ## Installation
 
@@ -40,57 +40,59 @@ Shows current iteration, phase, completed phases, and issues found.
 
 ## Modes
 
-| Mode           | Phase 7                              | Phase 8                  | Requires                      |
-| -------------- | ------------------------------------ | ------------------------ | ----------------------------- |
-| Full (default) | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers             |
-| Lite (--lite)  | `superpowers:requesting-code-review` | Skipped                  | superpowers + code-simplifier |
+| Mode           | Phase 3 Tool        | Phase 8 Tool                         | Phase 9                  | Requires                      |
+| -------------- | ------------------- | ------------------------------------ | ------------------------ | ----------------------------- |
+| Full (default) | `mcp__codex__codex` | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers             |
+| Lite (--lite)  | Claude code-review  | `superpowers:requesting-code-review` | Skipped                  | superpowers + code-simplifier |
 
 ## The Iteration Loop
 
 ```
-Iteration 1: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-             Phase 7 finds issues? -> Fix -> Start Iteration 2
-Iteration 2: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-             Phase 7 finds zero issues? -> Phase 8 (full) or Done (lite)
-Phase 8: Final validation (full mode only)
+Iteration 1: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+             Phase 8 finds issues? -> Fix -> Start Iteration 2
+Iteration 2: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+             Phase 8 finds zero issues? -> Phase 9 (full) or Done (lite)
+Phase 9: Final validation (full mode only)
 ```
 
 ## Prerequisites
 
 **Required for all modes:**
 
-- **Superpowers plugin** (phases 1-4, 7 lite mode)
+- **Superpowers plugin** (phases 1-2, 4-5, 8 lite mode)
   - `superpowers:brainstorming` - Phase 1
   - `superpowers:writing-plans` - Phase 2
-  - `superpowers:subagent-driven-development` - Phase 3
-  - `superpowers:requesting-code-review` - Phase 4, Phase 7 (lite)
+  - `superpowers:subagent-driven-development` - Phase 4
+  - `superpowers:requesting-code-review` - Phase 5, Phase 8 (lite)
   - `superpowers:dispatching-parallel-agents` - Parallel subagent dispatch
   - `superpowers:test-driven-development` - TDD for implementation
 
-- **code-simplifier plugin** @ claude-plugins-official (Phase 6)
+- **code-simplifier plugin** @ claude-plugins-official (Phase 7)
   - Install: `claude plugin install code-simplifier`
 
-- **LSP plugins** @ claude-plugins-official (Phase 3)
+- **LSP plugins** @ claude-plugins-official (Phase 4)
   - Install per language: `typescript-lsp`, `pyright-lsp`, `gopls-lsp`, etc.
 
 **Required for full mode only:**
 
-- **Codex MCP servers** (Phase 7 and 8)
-  - `mcp__codex__codex` - Phase 7 review (medium reasoning)
-  - `mcp__codex-high__codex` - Phase 8 final validation (high reasoning)
+- **Codex MCP servers** (Phase 3, 8, and 9)
+  - `mcp__codex__codex` - Phase 3 plan review (medium reasoning)
+  - `mcp__codex__codex` - Phase 8 final review (medium reasoning)
+  - `mcp__codex-high__codex` - Phase 9 final validation (high reasoning)
 
-## The 8 Phases
+## The 9 Phases
 
 | Phase | Name         | Purpose                           | Integration                            |
 | ----- | ------------ | --------------------------------- | -------------------------------------- |
 | 1     | Brainstorm   | Explore problem space             | `brainstorming` + N parallel subagents |
 | 2     | Plan         | Create implementation plan        | `writing-plans` + N parallel subagents |
-| 3     | Implement    | TDD-style implementation          | `subagent-driven-development` + LSP    |
-| 4     | Review       | Quick sanity check (1 round)      | `requesting-code-review`               |
-| 5     | Test         | make lint && make test            | Bash                                   |
-| 6     | Simplify     | Reduce code bloat                 | `code-simplifier:code-simplifier`      |
-| 7     | Final Review | Decision point - loop or proceed  | Codex (full) or Claude review (lite)   |
-| 8     | Codex        | Final validation (full mode only) | `mcp__codex-high__codex`               |
+| 3     | Plan Review  | Validate plan before implement    | `mcp__codex__codex` (medium)           |
+| 4     | Implement    | TDD-style implementation          | `subagent-driven-development` + LSP    |
+| 5     | Review       | Quick sanity check (1 round)      | `requesting-code-review`               |
+| 6     | Test         | make lint && make test            | Bash                                   |
+| 7     | Simplify     | Reduce code bloat                 | `code-simplifier:code-simplifier`      |
+| 8     | Final Review | Decision point - loop or proceed  | Codex (full) or Claude review (lite)   |
+| 9     | Codex        | Final validation (full mode only) | `mcp__codex-high__codex`               |
 
 ## State Management
 
@@ -98,26 +100,26 @@ Progress is tracked in `.agents/iteration-state.json`:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "task": "Add user authentication",
   "mode": "full",
   "maxIterations": 10,
   "currentIteration": 2,
-  "currentPhase": 3,
+  "currentPhase": 4,
   "startedAt": "2026-01-21T12:00:00Z",
   "iterations": [
     {
       "iteration": 1,
-      "phases": { "1": {"status": "completed"}, ... },
-      "phase7Issues": ["Issue 1", "Issue 2"]
+      "phases": { "1": {"status": "completed"}, "2": {"status": "completed"}, "3": {"status": "completed", "planReviewIssues": []}, ... },
+      "phase8Issues": ["Issue 1", "Issue 2"]
     },
     {
       "iteration": 2,
-      "phases": { "1": {"status": "completed"}, "2": {"status": "completed"}, "3": {"status": "in_progress"}, ... },
-      "phase7Issues": []
+      "phases": { "1": {"status": "completed"}, "2": {"status": "completed"}, "3": {"status": "completed"}, "4": {"status": "in_progress"}, ... },
+      "phase8Issues": []
     }
   ],
-  "phase8": { "status": "pending" }
+  "phase9": { "status": "pending" }
 }
 ```
 
@@ -147,23 +149,27 @@ This allows:
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │
-│  │3. Implement │──► subagent-driven-dev  │
+│  │3. Plan Revw │──► mcp__codex__codex    │
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │
-│  │  4. Review  │──► code review (1 round)│
+│  │4. Implement │──► subagent-driven-dev  │
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │
-│  │   5. Test   │──► make lint && test    │
+│  │  5. Review  │──► code review (1 round)│
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐                         │
-│  │ 6. Simplify │──► code-simplifier      │
+│  │   6. Test   │──► make lint && test    │
+│  └──────┬──────┘                         │
+│         ▼                                │
+│  ┌─────────────┐                         │
+│  │ 7. Simplify │──► code-simplifier      │
 │  └──────┬──────┘                         │
 │         ▼                                │
 │  ┌─────────────┐     Issues found?       │
-│  │7.Final Revw │──────────────┐          │
+│  │8.Final Revw │──────────────┐          │
 │  └──────┬──────┘              │          │
 │         │ No issues           │ Yes      │
 │         │                     ▼          │
@@ -175,7 +181,7 @@ This allows:
           │
           ▼ (Full mode only)
    ┌─────────────┐
-   │  8. Codex   │──► @codex-high
+   │  9. Codex   │──► mcp__codex-high
    └──────┬──────┘
           │
           ▼

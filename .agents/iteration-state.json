@@ -1,0 +1,27 @@
+{
+  "version": 3,
+  "task": "Write AGENTS.md, symlink CLAUDE.md, check CI version checks, add plan review stage with codex-medium, add model configuration",
+  "mode": "full",
+  "maxIterations": 10,
+  "currentIteration": 1,
+  "currentPhase": 4,
+  "startedAt": "2026-01-23T00:00:00Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "startedAt": "2026-01-23T00:00:00Z",
+      "phases": {
+        "1": { "status": "completed" },
+        "2": { "status": "completed" },
+        "3": { "status": "completed", "planReviewIssues": [] },
+        "4": { "status": "completed" },
+        "5": { "status": "pending" },
+        "6": { "status": "pending" },
+        "7": { "status": "pending" },
+        "8": { "status": "pending" }
+      },
+      "phase8Issues": []
+    }
+  ],
+  "phase9": { "status": "pending" }
+}
