@@ -62,7 +62,7 @@ Shows current iteration, phase, completed phases, and issues found.
 | 6     | Test         | make lint && make test               |
 | 7     | Simplify     | code-simplifier                      |
 | 8     | Final Review | Codex (full) or Claude review (lite) |
-| 9     | Codex Final  | mcp\_\_codex-high (full mode only)   |
+| 9     | Codex Final  | `mcp__codex-high__codex` (full only) |
 
 **Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or max iterations reached.
 
