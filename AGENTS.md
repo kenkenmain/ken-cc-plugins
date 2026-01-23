@@ -43,12 +43,12 @@ This plugin orchestrates a 9-phase development iteration:
 ```
 Phase 1: Brainstorm    -> superpowers:brainstorming + parallel agents
 Phase 2: Plan          -> superpowers:writing-plans + parallel agents
-Phase 3: Plan Review   -> mcp__codex__codex (validates plan before implementation)
+Phase 3: Plan Review   -> mcp__codex__codex (default, configurable via /configure)
 Phase 4: Implement     -> superpowers:subagent-driven-development
 Phase 5: Review        -> superpowers:requesting-code-review
 Phase 6: Test          -> make lint && make test
 Phase 7: Simplify      -> code-simplifier agent
-Phase 8: Final Review  -> mcp__codex__codex (decision point - loop or proceed)
+Phase 8: Final Review  -> mcp__codex__codex (default, configurable via /configure)
 Phase 9: Codex Final   -> mcp__codex-high__codex (full mode only)
 ```
 

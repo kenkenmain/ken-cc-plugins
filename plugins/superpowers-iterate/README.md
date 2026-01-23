@@ -57,7 +57,7 @@ Project config overrides global config.
 
 ## Modes
 
-- **Full (default):** Uses Codex MCP for reviews (Phases 3, 8, 9)
+- **Full (default):** Defaults to Codex MCP for reviews (Phases 3, 8, 9), configurable via `/configure`
 - **Lite (`--lite`):** Uses Claude reviews, skips Phase 9
 
 ## Prerequisites

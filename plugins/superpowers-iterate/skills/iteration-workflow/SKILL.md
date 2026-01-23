@@ -22,7 +22,7 @@ This skill activates when:
 
 **Modes:**
 
-- **Full (default):** Uses `mcp__codex__codex` for Phases 3, 8 and `mcp__codex-high__codex` for Phase 9
+- **Full (default):** Defaults to `mcp__codex__codex` for Phases 3, 8 and `mcp__codex-high__codex` for Phase 9 (configurable via `/configure`)
 - **Lite (`--lite`):** Uses Claude reviews, skips Phase 9
 
 See AGENTS.md for model configuration and state schema details.
