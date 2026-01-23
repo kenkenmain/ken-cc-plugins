@@ -17,7 +17,7 @@ Check the current iteration state from `.agents/iteration-state.json`.
 
 2. If an iteration is active, report:
    - **Task:** What is being worked on
-   - **Current Phase:** Which of the 8 phases (with name and integration)
+   - **Current Phase:** Which of the 9 phases (with name and integration)
    - **Started:** When the iteration began
    - **Completed Phases:** List of finished phases
    - **Next Steps:** What needs to happen to advance
@@ -32,9 +32,10 @@ Check the current iteration state from `.agents/iteration-state.json`.
 | ----- | ------------ | -------------------------------------------------- |
 | 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents |
 | 2     | Plan         | `superpowers:writing-plans` + N parallel subagents |
-| 3     | Implement    | `superpowers:subagent-driven-development` + LSP    |
-| 4     | Review       | `superpowers:requesting-code-review` (1 round)     |
-| 5     | Test         | `make lint && make test`                           |
-| 6     | Simplify     | `code-simplifier:code-simplifier` plugin           |
-| 7     | Final Review | `mcp__codex__codex` (1 round)                      |
-| 8     | Codex        | `mcp__codex-high__codex` final validation          |
+| 3     | Plan Review  | `mcp__codex__codex` (validates plan)               |
+| 4     | Implement    | `superpowers:subagent-driven-development` + LSP    |
+| 5     | Review       | `superpowers:requesting-code-review` (1 round)     |
+| 6     | Test         | `make lint && make test`                           |
+| 7     | Simplify     | `code-simplifier:code-simplifier` plugin           |
+| 8     | Final Review | `mcp__codex__codex` (decision point)               |
+| 9     | Codex Final  | `mcp__codex-high__codex` (full mode only)          |

@@ -48,7 +48,7 @@ Shows current iteration, phase, completed phases, and issues found.
 - **superpowers plugin** - brainstorming, writing-plans, subagent-driven-development, requesting-code-review
 - **code-simplifier plugin** - Phase 7
 - **LSP plugins** (optional) - typescript-lsp, pyright-lsp, gopls-lsp
-- **Codex MCP servers** (full mode only) - mcp**codex**codex, mcp**codex-high**codex
+- **Codex MCP servers** (full mode only) - `mcp__codex__codex`, `mcp__codex-high__codex`
 
 ## The 9 Phases
 

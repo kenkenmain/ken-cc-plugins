@@ -30,18 +30,19 @@ Follow the `iteration-workflow` skill from this plugin exactly for detailed phas
 
 **Key rules:**
 
-- Never skip phases (all 9 mandatory)
+- Never skip phases (all 8 phases per iteration are mandatory)
+- Phase 9 runs once at the end (full mode only, skipped in lite mode)
 - Fix HIGH/Critical issues immediately
 - Re-run tests after any code changes
 - Use LSP tools for code intelligence during implementation
 
 ## Completion
 
-After Phase 9:
+After Phase 9 (or Phase 8 in lite mode):
 
 1. Update state file to show all phases complete
 2. Summarize what was accomplished
 3. Suggest next steps (commit, PR, etc.)
 4. Optionally use `superpowers:finishing-a-development-branch`
 
-**IMPORTANT:** Never skip phases. All 9 are mandatory for quality assurance.
+**IMPORTANT:** Never skip phases within an iteration. All 8 iteration phases are mandatory.
