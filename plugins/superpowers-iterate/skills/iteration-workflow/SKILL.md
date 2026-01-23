@@ -146,17 +146,19 @@ Run `/superpowers-iterate:configure --show` to see current config.
 
 **Purpose:** Validate plan quality before implementation begins
 
-**Required Tool:**
+**Required Tool (from config `phases.3.tool`):**
 
-- Full mode: `mcp__codex__codex`
-- Lite mode: `superpowers:requesting-code-review`
+- `mcp__codex__codex` (default): Codex with medium reasoning
+- `mcp__codex-high__codex`: Codex with high reasoning
+- `claude-review`: Use `superpowers:requesting-code-review`
+- Lite mode always uses `superpowers:requesting-code-review`
 
 **Actions:**
 
 1. Mark Phase 3 as `in_progress` in state file
-2. Run review based on config (`phases.3.tool`):
+2. Run review based on configured tool:
 
-### Full Mode (mcp\_\_codex\_\_codex)
+### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
 
 Invoke `mcp__codex__codex` with plan review prompt:
 
@@ -176,9 +178,9 @@ Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
 If you find NO issues, explicitly state: "Plan looks good to proceed."
 ```
 
-### Lite Mode (superpowers:requesting-code-review)
+### Claude Review Mode (claude-review or lite mode)
 
-Dispatch code-reviewer subagent to review the plan document.
+Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to review the plan document.
 
 3. **Evaluate review results:**
 
@@ -350,18 +352,20 @@ Dispatch code-reviewer subagent to review the plan document.
 
 **Purpose:** Thorough review that determines whether to loop back to Phase 1 or proceed to completion.
 
-**Required Tool:**
+**Required Tool (from config `phases.8.tool`):**
 
-- Full mode: `mcp__codex__codex`
-- Lite mode: `superpowers:requesting-code-review`
+- `mcp__codex__codex` (default): Codex with medium reasoning
+- `mcp__codex-high__codex`: Codex with high reasoning
+- `claude-review`: Use `superpowers:requesting-code-review`
+- Lite mode always uses `superpowers:requesting-code-review`
 
 **Actions:**
 
 1. Mark Phase 8 as `in_progress`
 2. Check current iteration count against `maxIterations`
-3. Run review based on config (`phases.8.tool`):
+3. Run review based on configured tool:
 
-### Full Mode (mcp\_\_codex\_\_codex)
+### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
 
 Invoke `mcp__codex__codex` with review prompt:
 
@@ -381,9 +385,9 @@ Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
 If you find NO issues, explicitly state: "No issues found."
 ```
 
-### Lite Mode (superpowers:requesting-code-review)
+### Claude Review Mode (claude-review or lite mode)
 
-Dispatch code-reviewer subagent per `superpowers:requesting-code-review`:
+Dispatch code-reviewer subagent via `superpowers:requesting-code-review`:
 
 - WHAT_WAS_IMPLEMENTED: Full description of all changes
 - PLAN_OR_REQUIREMENTS: Reference to plan file
