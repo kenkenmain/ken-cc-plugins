@@ -32,7 +32,7 @@ ken-cc-plugins/
 ├── .agents/                               # Runtime state (iteration-state.json)
 ├── .github/workflows/                     # CI validation
 ├── AGENTS.md                              # This file - agent instructions
-├── CLAUDE.md                              # Copy of AGENTS.md
+├── CLAUDE.md                              # Symlink to AGENTS.md
 └── README.md                              # User-facing documentation
 ```
 
