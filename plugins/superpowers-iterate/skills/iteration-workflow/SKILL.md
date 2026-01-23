@@ -51,17 +51,17 @@ Phase 9: Final validation (once)
 
 ## Model Configuration
 
-| Phase | Activity     | Model     | MCP Tool                 | Rationale                           |
-| ----- | ------------ | --------- | ------------------------ | ----------------------------------- |
-| 1     | Brainstorm   | `sonnet`  | N/A                      | Cost-effective parallel exploration |
-| 2     | Plan         | `sonnet`  | N/A                      | Parallel plan creation              |
-| 3     | Plan Review  | N/A       | `mcp__codex__codex`      | Medium reasoning for plan validation|
-| 4     | Implement    | `inherit` | N/A                      | User controls quality               |
-| 5     | Review       | `inherit` | N/A                      | Quick sanity check                  |
-| 6     | Test         | N/A       | N/A                      | Bash commands                       |
-| 7     | Simplify     | `inherit` | N/A                      | Code quality                        |
-| 8     | Final Review | N/A       | `mcp__codex__codex`      | Medium reasoning for iteration      |
-| 9     | Codex Final  | N/A       | `mcp__codex-high__codex` | High reasoning for final validation |
+| Phase | Activity     | Model     | MCP Tool                 | Rationale                            |
+| ----- | ------------ | --------- | ------------------------ | ------------------------------------ |
+| 1     | Brainstorm   | `sonnet`  | N/A                      | Cost-effective parallel exploration  |
+| 2     | Plan         | `sonnet`  | N/A                      | Parallel plan creation               |
+| 3     | Plan Review  | N/A       | `mcp__codex__codex`      | Medium reasoning for plan validation |
+| 4     | Implement    | `inherit` | N/A                      | User controls quality                |
+| 5     | Review       | `inherit` | N/A                      | Quick sanity check                   |
+| 6     | Test         | N/A       | N/A                      | Bash commands                        |
+| 7     | Simplify     | `inherit` | N/A                      | Code quality                         |
+| 8     | Final Review | N/A       | `mcp__codex__codex`      | Medium reasoning for iteration       |
+| 9     | Codex Final  | N/A       | `mcp__codex-high__codex` | High reasoning for final validation  |
 
 Parallel agents (dispatched via `superpowers:dispatching-parallel-agents`) use `model: sonnet`.
 Single-task agents (code-reviewer, code-simplifier) inherit the parent model.
@@ -299,15 +299,15 @@ Dispatch code-reviewer subagent to review the plan document.
 
      b. Answer any questions from subagent
      c. Subagent follows `superpowers:test-driven-development`:
-        - Write failing test first
-        - Run to verify it fails
-        - Write minimal code to pass
-        - Run to verify it passes
-        - Use `mcp__lsp__get_diagnostics` to check for errors
-        - Self-review and commit
-     d. Dispatch spec reviewer subagent
-     e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
-     f. Mark task complete in TodoWrite
+     - Write failing test first
+     - Run to verify it fails
+     - Write minimal code to pass
+     - Run to verify it passes
+     - Use `mcp__lsp__get_diagnostics` to check for errors
+     - Self-review and commit
+       d. Dispatch spec reviewer subagent
+       e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
+       f. Mark task complete in TodoWrite
 
 3. Run `make lint && make test` to verify all tests pass
 4. Commit after tests pass
@@ -551,7 +551,7 @@ If iteration was interrupted:
 
 **Never:**
 
-- Skip phases (all 8 phases per iteration are mandatory)
+- Skip phases (all 8 phases per iteration are mandatory, Phase 9 runs once at end)
 - Advance without meeting exit criteria
 - Ignore issues from Phase 8 review (must fix or note if at max iterations)
 - Skip test runs

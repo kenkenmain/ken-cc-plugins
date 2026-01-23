@@ -63,17 +63,17 @@ Phase 9: Codex Final   -> mcp__codex-high__codex (full mode only)
 
 ## Model Configuration
 
-| Phase | Activity     | Model     | MCP Tool               | Rationale                          |
-| ----- | ------------ | --------- | ---------------------- | ---------------------------------- |
-| 1     | Brainstorm   | `sonnet`  | N/A                    | Cost-effective parallel exploration|
-| 2     | Plan         | `sonnet`  | N/A                    | Parallel plan creation             |
-| 3     | Plan Review  | N/A       | `mcp__codex__codex`    | Medium reasoning for plan validation|
-| 4     | Implement    | `inherit` | N/A                    | User controls quality              |
-| 5     | Review       | `inherit` | N/A                    | Quick sanity check                 |
-| 6     | Test         | N/A       | N/A                    | Bash commands                      |
-| 7     | Simplify     | `inherit` | N/A                    | Code quality                       |
-| 8     | Final Review | N/A       | `mcp__codex__codex`    | Medium reasoning for iteration     |
-| 9     | Codex Final  | N/A       | `mcp__codex-high__codex`| High reasoning for final validation|
+| Phase | Activity     | Model     | MCP Tool                 | Rationale                            |
+| ----- | ------------ | --------- | ------------------------ | ------------------------------------ |
+| 1     | Brainstorm   | `sonnet`  | N/A                      | Cost-effective parallel exploration  |
+| 2     | Plan         | `sonnet`  | N/A                      | Parallel plan creation               |
+| 3     | Plan Review  | N/A       | `mcp__codex__codex`      | Medium reasoning for plan validation |
+| 4     | Implement    | `inherit` | N/A                      | User controls quality                |
+| 5     | Review       | `inherit` | N/A                      | Quick sanity check                   |
+| 6     | Test         | N/A       | N/A                      | Bash commands                        |
+| 7     | Simplify     | `inherit` | N/A                      | Code quality                         |
+| 8     | Final Review | N/A       | `mcp__codex__codex`      | Medium reasoning for iteration       |
+| 9     | Codex Final  | N/A       | `mcp__codex-high__codex` | High reasoning for final validation  |
 
 ## Code Style
 
@@ -104,18 +104,27 @@ State tracked in `.agents/iteration-state.json`:
   "version": 3,
   "task": "<description>",
   "mode": "full",
+  "maxIterations": 10,
   "currentIteration": 1,
   "currentPhase": 1,
-  "phases": {
-    "1": { "status": "..." },
-    "2": { "status": "..." },
-    "3": { "status": "...", "planReviewIssues": [] },
-    "4": { "status": "..." },
-    "5": { "status": "..." },
-    "6": { "status": "..." },
-    "7": { "status": "..." },
-    "8": { "status": "..." }
-  },
+  "startedAt": "ISO timestamp",
+  "iterations": [
+    {
+      "iteration": 1,
+      "startedAt": "ISO timestamp",
+      "phases": {
+        "1": { "status": "..." },
+        "2": { "status": "..." },
+        "3": { "status": "...", "planReviewIssues": [] },
+        "4": { "status": "..." },
+        "5": { "status": "..." },
+        "6": { "status": "..." },
+        "7": { "status": "..." },
+        "8": { "status": "..." }
+      },
+      "phase8Issues": []
+    }
+  ],
   "phase9": { "status": "pending" }
 }
 ```
