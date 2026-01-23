@@ -138,11 +138,19 @@ For each selected phase, ask appropriate questions:
 - header: "Tool"
 - options:
   - label: "codex (Recommended)"
-    description: "Codex with medium reasoning"
+    description: "Codex MCP with medium reasoning"
   - label: "codex-high"
-    description: "Codex with high reasoning"
+    description: "Codex MCP with high reasoning"
   - label: "claude-review"
     description: "Use Claude code review (no Codex required)"
+
+**Tool name mapping when saving to config:**
+
+| UI Label      | Config Value             |
+| ------------- | ------------------------ |
+| codex         | `mcp__codex__codex`      |
+| codex-high    | `mcp__codex-high__codex` |
+| claude-review | `claude-review`          |
 
 ### For Phases 4, 5, 7 (Sequential phases)
 

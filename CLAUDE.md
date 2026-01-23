@@ -26,12 +26,13 @@ ken-cc-plugins/
 │       ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
 │       ├── commands/                      # Slash commands (iterate.md, iterate-status.md)
 │       ├── skills/iteration-workflow/     # Main skill (SKILL.md)
+│       ├── skills/configuration/          # Config management (SKILL.md)
 │       └── agents/                        # Agent definitions (codex-reviewer.md)
 ├── docs/plans/                            # Design docs and implementation plans
 ├── .agents/                               # Runtime state (iteration-state.json)
 ├── .github/workflows/                     # CI validation
 ├── AGENTS.md                              # This file - agent instructions
-├── CLAUDE.md                              # Symlink to AGENTS.md
+├── CLAUDE.md                              # Copy of AGENTS.md
 └── README.md                              # User-facing documentation
 ```
 
@@ -57,8 +58,8 @@ Phase 9: Codex Final   -> mcp__codex-high__codex (full mode only)
 
 | Phase | Activity     | Model     | MCP Tool                 | Rationale                            |
 | ----- | ------------ | --------- | ------------------------ | ------------------------------------ |
-| 1     | Brainstorm   | `sonnet`  | N/A                      | Cost-effective parallel exploration  |
-| 2     | Plan         | `sonnet`  | N/A                      | Parallel plan creation               |
+| 1     | Brainstorm   | `inherit` | N/A                      | User controls via /configure         |
+| 2     | Plan         | `inherit` | N/A                      | User controls via /configure         |
 | 3     | Plan Review  | N/A       | `mcp__codex__codex`      | Medium reasoning for plan validation |
 | 4     | Implement    | `inherit` | N/A                      | User controls quality                |
 | 5     | Review       | `inherit` | N/A                      | Quick sanity check                   |
