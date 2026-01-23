@@ -11,98 +11,27 @@ This skill activates when:
 
 - User invokes `/superpowers-iterate:iterate <task>`
 - User asks to "follow the iteration workflow"
-- User mentions "superpowers iteration" or "9-phase workflow"
 
 **Announce:** "I'm using the iteration-workflow skill to orchestrate this task through all 9 mandatory phases."
 
-## The 9 Phases
+## Overview
 
-```
-Phase 1: Brainstorm    -> superpowers:brainstorming + N parallel subagents
-Phase 2: Plan          -> superpowers:writing-plans + N parallel subagents
-Phase 3: Plan Review   -> mcp__codex__codex (validates plan before implementation)
-Phase 4: Implement     -> superpowers:subagent-driven-development + N subagents
-Phase 5: Review        -> superpowers:requesting-code-review (1 round)
-Phase 6: Test          -> make lint && make test
-Phase 7: Simplify      -> code-simplifier agent
-Phase 8: Final Review  -> Decision point (see below)
-Phase 9: Codex         -> Final validation (full mode only)
-```
+**Phases:** Brainstorm -> Plan -> Plan Review -> Implement -> Review -> Test -> Simplify -> Final Review -> Codex Final
 
-## Iteration Loop
+**Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or max iterations reached. Phase 9 runs once at the end (full mode only).
 
-Phases 1-8 repeat until Phase 8 finds **zero issues** or `--max-iterations` is reached.
-Phase 9 runs once at the end (full mode only).
+**Modes:**
 
-```
-Iteration 1: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
-             Phase 8 finds issues? -> Fix -> Start Iteration 2
-Iteration 2: Phase 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
-             Phase 8 finds zero issues? -> Proceed to Phase 9
-Phase 9: Final validation (once)
-```
+- **Full (default):** Uses `mcp__codex__codex` for Phases 3, 8 and `mcp__codex-high__codex` for Phase 9
+- **Lite (`--lite`):** Uses Claude reviews, skips Phase 9
 
-## Modes
-
-| Mode           | Phase 3 Tool        | Phase 8 Tool                         | Phase 9                  | Requires                      |
-| -------------- | ------------------- | ------------------------------------ | ------------------------ | ----------------------------- |
-| Full (default) | `mcp__codex__codex` | `mcp__codex__codex`                  | `mcp__codex-high__codex` | Codex MCP servers             |
-| Lite (--lite)  | Claude code-review  | `superpowers:requesting-code-review` | Skipped                  | superpowers + code-simplifier |
-
-## Model Configuration
-
-| Phase | Activity     | Model     | MCP Tool                 | Rationale                            |
-| ----- | ------------ | --------- | ------------------------ | ------------------------------------ |
-| 1     | Brainstorm   | `sonnet`  | N/A                      | Cost-effective parallel exploration  |
-| 2     | Plan         | `sonnet`  | N/A                      | Parallel plan creation               |
-| 3     | Plan Review  | N/A       | `mcp__codex__codex`      | Medium reasoning for plan validation |
-| 4     | Implement    | `inherit` | N/A                      | User controls quality                |
-| 5     | Review       | `inherit` | N/A                      | Quick sanity check                   |
-| 6     | Test         | N/A       | N/A                      | Bash commands                        |
-| 7     | Simplify     | `inherit` | N/A                      | Code quality                         |
-| 8     | Final Review | N/A       | `mcp__codex__codex`      | Medium reasoning for iteration       |
-| 9     | Codex Final  | N/A       | `mcp__codex-high__codex` | High reasoning for final validation  |
-
-Parallel agents (dispatched via `superpowers:dispatching-parallel-agents`) use `model: sonnet`.
-Single-task agents (code-reviewer, code-simplifier) inherit the parent model.
+See AGENTS.md for model configuration and state schema details.
 
 ## State Management
 
 **State file:** `.agents/iteration-state.json`
 
-Initialize at start:
-
-```json
-{
-  "version": 3,
-  "task": "<task description>",
-  "mode": "full",
-  "maxIterations": 10,
-  "currentIteration": 1,
-  "currentPhase": 1,
-  "startedAt": "<ISO timestamp>",
-  "iterations": [
-    {
-      "iteration": 1,
-      "startedAt": "<timestamp>",
-      "phases": {
-        "1": { "status": "in_progress", "startedAt": "<timestamp>" },
-        "2": { "status": "pending" },
-        "3": { "status": "pending", "planReviewIssues": [] },
-        "4": { "status": "pending" },
-        "5": { "status": "pending" },
-        "6": { "status": "pending" },
-        "7": { "status": "pending" },
-        "8": { "status": "pending" }
-      },
-      "phase8Issues": []
-    }
-  ],
-  "phase9": { "status": "pending" }
-}
-```
-
-Update state after each phase transition. When starting a new iteration, add a new entry to `iterations` array.
+Initialize at start with version 3 schema. Update state after each phase transition. See AGENTS.md for full schema.
 
 ## Phase 1: Brainstorm
 

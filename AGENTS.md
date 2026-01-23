@@ -2,27 +2,16 @@
 
 ## Commands
 
-### Testing
-
 ```bash
-make lint          # Lint check (not configured yet)
-make test          # Run tests (not configured yet)
-```
-
-### Plugin Development
-
-```bash
-claude plugin install ./plugins/superpowers-iterate  # Install locally
-claude plugin list                                    # List installed
-```
-
-### Iteration Workflow
-
-```bash
-/superpowers-iterate:iterate <task>                   # Full mode (Codex MCP)
-/superpowers-iterate:iterate --lite <task>            # Lite mode (Claude only)
+# Iteration Workflow
+/superpowers-iterate:iterate <task>                    # Full mode (Codex MCP)
+/superpowers-iterate:iterate --lite <task>             # Lite mode (Claude only)
 /superpowers-iterate:iterate --max-iterations 5 <task> # Limit iterations
-/superpowers-iterate:iterate-status                   # Check progress
+/superpowers-iterate:iterate-status                    # Check progress
+
+# Plugin Development
+claude plugin install ./plugins/superpowers-iterate    # Install locally
+claude plugin list                                     # List installed
 ```
 
 ## Project Structure
@@ -77,23 +66,9 @@ Phase 9: Codex Final   -> mcp__codex-high__codex (full mode only)
 
 ## Code Style
 
-### Markdown Files
-
-- Use YAML frontmatter (---) for plugin metadata
-- Follow existing command/skill/agent structure
-- Include examples in `<example>` tags
-
-### Naming
-
-- Commands: kebab-case (e.g., `iterate-status.md`)
-- Skills: kebab-case (e.g., `iteration-workflow`)
-- Agents: kebab-case (e.g., `codex-reviewer.md`)
-
-### Git Commits
-
-- Prefix: `feat|fix|docs|chore|ci`
-- Co-author: `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
-- Example: `feat: add Phase 3 Plan Review stage`
+- **Markdown:** Use YAML frontmatter, follow existing command/skill/agent structure
+- **Naming:** kebab-case for commands, skills, agents (e.g., `iterate-status.md`)
+- **Git Commits:** Prefix with `feat|fix|docs|chore|ci`, include co-author line
 
 ## State Management
 
@@ -131,23 +106,8 @@ State tracked in `.agents/iteration-state.json`:
 
 ## Boundaries
 
-### Always Do
+**Always:** Update state after each phase, follow phase progression, fix HIGH severity issues, validate plan before implementation, bump plugin.json version on changes
 
-- Update `.agents/iteration-state.json` after each phase
-- Follow phase progression (never skip)
-- Fix HIGH severity issues before proceeding
-- Validate plan before implementation (Phase 3)
-- Bump `plugin.json` version on changes
+**Ask First:** Skipping phases, changing iteration count mid-workflow, modifying state file schema
 
-### Ask First
-
-- Skipping phases
-- Changing iteration count mid-workflow
-- Modifying state file schema
-
-### Never Do
-
-- Skip Phase 8 decision point without explicit user approval
-- Proceed with HIGH severity issues
-- Commit secrets or API keys
-- Break backward compatibility without version bump
+**Never:** Skip Phase 8 decision point without approval, proceed with HIGH severity issues, commit secrets
