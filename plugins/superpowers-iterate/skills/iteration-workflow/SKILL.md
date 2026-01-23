@@ -35,37 +35,19 @@ Initialize at start with version 3 schema. Update state after each phase transit
 
 ## Configuration Loading
 
-At workflow start, load configuration from the `configuration` skill:
+At workflow start, load configuration using the `configuration` skill. The skill handles:
 
-1. Start with default config (see configuration skill)
-2. Read `~/.claude/iterate-config.json` if exists, merge over defaults
-3. Read `.claude/iterate-config.local.json` if exists, merge over global
-4. Use merged config values throughout phase execution
+- Default values
+- Merging global config (`~/.claude/iterate-config.json`)
+- Merging project config (`.claude/iterate-config.local.json`)
 
-**Config usage per phase:**
-
-| Phase   | Config Key               | Usage                                        |
-| ------- | ------------------------ | -------------------------------------------- |
-| 1, 2    | `phases.N.parallel`      | If true, dispatch parallel agents            |
-| 1, 2    | `phases.N.parallelModel` | Model for parallel agents                    |
-| 1, 2    | `phases.N.model`         | Model if parallel=false                      |
-| 3, 8    | `phases.N.tool`          | Review tool (codex/codex-high/claude-review) |
-| 4, 5, 7 | `phases.N.model`         | Model for single-task agents                 |
-| 9       | `phases.9.tool`          | Fixed to `mcp__codex-high__codex`            |
-
-If config file not found or invalid, use defaults. Run `/superpowers-iterate:configure --show` to see current config.
+Run `/superpowers-iterate:configure --show` to see current config.
 
 ## Phase 1: Brainstorm
 
 **Purpose:** Explore problem space, generate ideas, clarify requirements
 
 **Required Skill:** `superpowers:brainstorming` + `superpowers:dispatching-parallel-agents`
-
-**Model selection (from config):**
-
-- If `phases.1.parallel` is true: dispatch parallel agents with `phases.1.parallelModel`
-- If `phases.1.parallel` is false: use single agent with `phases.1.model`
-- Default: parallel=true, model=inherit
 
 **Actions:**
 
@@ -106,16 +88,10 @@ If config file not found or invalid, use defaults. Run `/superpowers-iterate:con
 
 **Required Skill:** `superpowers:writing-plans` + `superpowers:dispatching-parallel-agents`
 
-**Model selection (from config):**
-
-- If `phases.2.parallel` is true: dispatch parallel agents with `phases.2.parallelModel`
-- If `phases.2.parallel` is false: use single agent with `phases.2.model`
-- Default: parallel=true, model=inherit
-
 **Actions:**
 
 1. Mark Phase 2 as `in_progress`
-2. **Launch parallel subagents as needed** to create plan components:
+2. **Launch parallel subagents** (if `phases.2.parallel` is true) to create plan components:
    - Identify independent planning areas based on brainstorm output
    - Dispatch one subagent per independent component (no limit)
    - Example planning areas:
@@ -175,16 +151,10 @@ If config file not found or invalid, use defaults. Run `/superpowers-iterate:con
 - Full mode: `mcp__codex__codex`
 - Lite mode: `superpowers:requesting-code-review`
 
-**Tool selection (from config):**
-
-- Use tool from `phases.3.tool`
-- If `claude-review`: use `superpowers:requesting-code-review` instead of Codex
-- Default: `mcp__codex__codex`
-
 **Actions:**
 
 1. Mark Phase 3 as `in_progress` in state file
-2. Run review based on mode:
+2. Run review based on config (`phases.3.tool`):
 
 ### Full Mode (mcp\_\_codex\_\_codex)
 
@@ -241,15 +211,10 @@ Dispatch code-reviewer subagent to review the plan document.
 
 **Required Plugins:** LSP plugins for code intelligence
 
-**Model selection (from config):**
-
-- Use model from `phases.4.model` for implementer subagents
-- Default: inherit
-
 **Actions:**
 
 1. Mark Phase 4 as `in_progress`
-2. Follow `superpowers:subagent-driven-development` process:
+2. Follow `superpowers:subagent-driven-development` process (model from `phases.4.model`):
    - Read plan, extract all tasks, create TodoWrite
    - **Launch as many subagents as needed** for implementation:
      - One implementer subagent per task (sequential to avoid conflicts)
@@ -302,11 +267,6 @@ Dispatch code-reviewer subagent to review the plan document.
 **Purpose:** Quick code review sanity check before Phase 8's thorough review
 
 **Required Skill:** `superpowers:requesting-code-review`
-
-**Model selection (from config):**
-
-- Use model from `phases.5.model` for code-reviewer subagent
-- Default: inherit
 
 **Actions:**
 
@@ -363,11 +323,6 @@ Dispatch code-reviewer subagent to review the plan document.
 
 **Required Plugin:** `code-simplifier:code-simplifier` (from claude-plugins-official)
 
-**Model selection (from config):**
-
-- Use model from `phases.7.model` for code-simplifier agent
-- Default: inherit
-
 **Actions:**
 
 1. Mark Phase 7 as `in_progress`
@@ -400,17 +355,11 @@ Dispatch code-reviewer subagent to review the plan document.
 - Full mode: `mcp__codex__codex`
 - Lite mode: `superpowers:requesting-code-review`
 
-**Tool selection (from config):**
-
-- Use tool from `phases.8.tool`
-- If `claude-review`: use `superpowers:requesting-code-review` instead of Codex
-- Default: `mcp__codex__codex`
-
 **Actions:**
 
 1. Mark Phase 8 as `in_progress`
 2. Check current iteration count against `maxIterations`
-3. Run review based on mode:
+3. Run review based on config (`phases.8.tool`):
 
 ### Full Mode (mcp\_\_codex\_\_codex)
 

@@ -17,15 +17,7 @@ Parse from $ARGUMENTS to determine mode.
 
 ## Step 1: Load Current Configuration
 
-Load the `configuration` skill from this plugin to understand the config structure and defaults.
-
-Read config files in order (later overrides earlier):
-
-1. Default values (from configuration skill)
-2. Global: `~/.claude/iterate-config.json`
-3. Project: `.claude/iterate-config.local.json`
-
-Merge using per-phase deep merge as described in the configuration skill.
+Load and merge configuration using the `configuration` skill.
 
 ## Step 2: Handle --show Flag
 
@@ -100,51 +92,17 @@ For each selected phase, ask appropriate questions:
 
 ### For Phases 1, 2 (Parallel phases)
 
-**Ask model:**
+Ask three questions:
 
-- question: "Model for Phase N (Brainstorm/Plan)?"
-- header: "Model"
-- options:
-  - label: "inherit (Recommended)"
-    description: "Use your current /model setting"
-  - label: "sonnet"
-    description: "Force Claude Sonnet (cost-effective)"
-  - label: "opus"
-    description: "Force Claude Opus (highest quality)"
-  - label: "haiku"
-    description: "Force Claude Haiku (fastest)"
-
-**Ask parallel:**
-
-- question: "Enable parallel agents for Phase N?"
-- header: "Parallel"
-- options:
-  - label: "Yes (Recommended)"
-    description: "Dispatch multiple agents for faster exploration"
-  - label: "No"
-    description: "Use single sequential agent"
-
-**If parallel enabled, ask parallel model:**
-
-- question: "Model for parallel agents in Phase N?"
-- header: "Agent Model"
-- options: (same as model options above)
+1. **Model:** inherit (recommended), sonnet, opus, or haiku
+2. **Parallel agents:** Yes (recommended) or No
+3. **Parallel model** (if parallel=Yes): inherit, sonnet, opus, or haiku
 
 ### For Phases 3, 8 (MCP review phases)
 
-**Ask tool:**
+Ask which tool: codex (recommended), codex-high, or claude-review
 
-- question: "Tool for Phase N (Plan Review/Final Review)?"
-- header: "Tool"
-- options:
-  - label: "codex (Recommended)"
-    description: "Codex MCP with medium reasoning"
-  - label: "codex-high"
-    description: "Codex MCP with high reasoning"
-  - label: "claude-review"
-    description: "Use Claude code review (no Codex required)"
-
-**Tool name mapping when saving to config:**
+**Tool name mapping when saving:**
 
 | UI Label      | Config Value             |
 | ------------- | ------------------------ |
@@ -154,11 +112,7 @@ For each selected phase, ask appropriate questions:
 
 ### For Phases 4, 5, 7 (Sequential phases)
 
-**Ask model:**
-
-- question: "Model for Phase N (Implement/Review/Simplify)?"
-- header: "Model"
-- options: (same as parallel phase model options)
+Ask which model: inherit (recommended), sonnet, opus, or haiku
 
 ## Step 6: Ask Where to Save
 

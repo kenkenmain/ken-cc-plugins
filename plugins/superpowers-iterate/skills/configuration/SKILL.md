@@ -65,18 +65,13 @@ To "unset" a value back to default: delete the key from config file.
 
 ## Validation Rules
 
-**Valid model values:** `inherit`, `sonnet`, `opus`, `haiku`
-**Valid model for Phase 6:** `null` only (bash phase)
-
-**Valid tool values for Phases 3, 8:** `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review`
-**Valid tool for Phase 9:** `mcp__codex-high__codex` only (not configurable)
-
-**Phase-specific rules:**
-
-- Phases 1, 2, 4, 5, 7: model must be inherit/sonnet/opus/haiku
-- Phase 6: model is always null (bash only, not configurable)
-- Phases 3, 8: tool can be codex/codex-high/claude-review
-- Phase 9: tool is fixed to `mcp__codex-high__codex`
+| Phase     | Key      | Valid Values                                                   |
+| --------- | -------- | -------------------------------------------------------------- |
+| 1,2,4,5,7 | model    | `inherit`, `sonnet`, `opus`, `haiku`                           |
+| 1,2       | parallel | `true`, `false`                                                |
+| 3,8       | tool     | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` |
+| 6         | model    | `null` only (bash phase, not configurable)                     |
+| 9         | tool     | `mcp__codex-high__codex` only (not configurable)               |
 
 ## Error Handling
 
