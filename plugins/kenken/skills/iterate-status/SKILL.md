@@ -1,5 +1,5 @@
 ---
-name: status
+name: iterate-status
 description: Show current kenken iteration status
 ---
 
@@ -11,7 +11,7 @@ description: Show current kenken iteration status
 
 1. Read `.agents/kenken-state.json`
 2. If no state found:
-   - Display: "No kenken iteration in progress. Use /kenken:iterate to start."
+   - Display: "No kenken iteration in progress. Use `/kenken:iterate` to start."
    - Exit
 3. If state found, display formatted status:
 

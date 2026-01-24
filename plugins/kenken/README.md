@@ -19,16 +19,39 @@ claude plugin install kenken@ken-cc-plugins
 /kenken:iterate Add user authentication with OAuth2
 
 # Check status
-/kenken:status
+/kenken:iterate-status
 
 # Resume interrupted workflow
-/kenken:resume
+/kenken:iterate-resume
 
 # Configure settings
-/kenken:configure
-/kenken:configure --show
-/kenken:configure --reset
+/kenken:iterate-configure
+/kenken:iterate-configure --show
+/kenken:iterate-configure --reset
+
+# Set up a new GitHub repo with GitFlow
+/kenken:gh-repo-setup my-new-repo
+
+# Configure an existing repo
+/kenken:gh-repo-setup --existing
 ```
+
+## GitHub Repository Setup
+
+The `gh-repo-setup` skill sets up GitHub repositories with best practices:
+
+```bash
+/kenken:gh-repo-setup [repo-name]
+/kenken:gh-repo-setup --existing
+```
+
+**Features:**
+
+- **GitFlow branching** - Creates main and develop branches
+- **Branch protection** - Requires PR reviews, admins can bypass
+- **Issue templates** - Bug report and feature request templates
+- **PR template** - Standardized pull request format
+- **CI workflow** - Label-triggered GitHub Actions (add `ci` label to run)
 
 ## The 4 Stages
 
@@ -78,13 +101,13 @@ Enable via config: `stages.test.enabled: true`
 
 ```bash
 # Interactive wizard
-/kenken:configure
+/kenken:iterate-configure
 
 # Show current config
-/kenken:configure --show
+/kenken:iterate-configure --show
 
 # Reset to defaults
-/kenken:configure --reset
+/kenken:iterate-configure --reset
 ```
 
 **Config files:**
