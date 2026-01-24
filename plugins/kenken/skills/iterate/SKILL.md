@@ -378,9 +378,13 @@ If test configuration is not set, auto-detect and verify with user:
 
 **If Branch + PR:**
 
-- Generate branch name from task: `feat/<task-slug>` or `fix/<task-slug>`
-- Fetch latest main: `git fetch origin main`
-- Detect main branch name (main or master): `git remote show origin | grep 'HEAD branch'`
+- Generate branch name using configured format:
+  - Format from config: `git.branchFormat` (default: `{type}/{slug}`)
+  - Placeholders: `{type}` (feat/fix/etc), `{slug}` (task-slug), `{date}` (YYYY-MM-DD), `{user}` (git user)
+  - Type from config: `git.defaultType` (default: `feat`), or infer from task (fix for bugs)
+  - Example: `feat/add-user-auth`, `fix/login-bug`, `user/feat/2026-01-24-oauth`
+- Fetch latest main: `git fetch origin`
+- Detect main branch (config `git.mainBranch`): `auto` detects via `git remote show origin | grep 'HEAD branch'`
 - Create branch from latest main:
   ```bash
   git stash --include-untracked  # Save any uncommitted changes

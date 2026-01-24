@@ -164,6 +164,11 @@ Ask: "Where to save?"
       "suggestExtensions": { "enabled": true, "maxSuggestions": 3 }
     }
   },
+  "git": {
+    "branchFormat": "{type}/{slug}",
+    "defaultType": "feat",
+    "mainBranch": "auto"
+  },
   "logging": {
     "directory": ".agents/logs",
     "retainDays": 7,
@@ -184,6 +189,9 @@ Ask: "Where to save?"
 | Max retries        | 3                        |
 | Extensions         | enabled                  |
 | Test instructions  | (must be provided)       |
+| Branch format      | `{type}/{slug}`          |
+| Default type       | `feat`                   |
+| Main branch        | `auto` (detect)          |
 
 ## Validation Rules
 
@@ -199,5 +207,8 @@ Ask: "Where to save?"
 | instructions   | non-empty string (required when test.enabled=true)                        |
 | commands.\*    | valid shell command string                                                |
 | coverageFormat | `auto`, `lcov`, `cobertura`, `json`                                       |
+| branchFormat   | string with placeholders: `{type}`, `{slug}`, `{date}`, `{user}`          |
+| defaultType    | `feat`, `fix`, `chore`, `refactor`, `docs`, `test`                        |
+| mainBranch     | `auto`, `main`, `master`, or custom branch name                           |
 
 **Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex MCP. It's available as a fallback when Codex MCP is not configured, or for users who prefer Claude-native reviews. No additional dependencies required.
