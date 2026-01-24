@@ -23,9 +23,11 @@ argument-hint: [--existing] [repo-name]
 3. If new: Create repo with gh repo create
 4. Setup GitFlow branches (main, develop)
 5. Configure branch protection (owner can bypass)
-6. Add issue/PR templates
-7. Add label-triggered CI workflow
-8. Display summary
+6. Configure squash merge only + auto-delete branches
+7. Add issue/PR templates
+8. Add label-triggered CI workflow
+9. Add Dependabot config for github-actions
+10. Display summary
 ```
 
 ## Phase 1: Authentication
@@ -189,6 +191,18 @@ gh api repos/$REPO/branches/develop/protection \
   "allow_deletions": false
 }
 EOF
+```
+
+**Configure squash merge only:**
+
+```bash
+gh api repos/$REPO \
+  -X PATCH \
+  -H "Accept: application/vnd.github+json" \
+  -F allow_squash_merge=true \
+  -F allow_merge_commit=false \
+  -F allow_rebase_merge=false \
+  -F delete_branch_on_merge=true
 ```
 
 **Note:** `enforce_admins: false` allows repo owner/admins to bypass protection.
@@ -360,6 +374,21 @@ jobs:
 
 **Note:** CI only runs when PR has the `ci` label.
 
+**Create Dependabot config at `.github/dependabot.yml`:**
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
+```
+
+**Note:** Dependabot will automatically create PRs for outdated GitHub Actions.
+
 ## Phase 7: Commit and Summary
 
 **Stage and commit all template files (only if changes exist):**
@@ -395,13 +424,18 @@ Branches:
   ✓ develop (protected)
   Note: Admins can bypass protection rules
 
+Merge Settings:
+  ✓ Squash merge only (merge commit and rebase disabled)
+  ✓ Auto-delete branches after merge
+
 Templates Added:
   ✓ .github/ISSUE_TEMPLATE/bug_report.md
   ✓ .github/ISSUE_TEMPLATE/feature_request.md
   ✓ .github/PULL_REQUEST_TEMPLATE.md
 
-CI Workflow:
+CI & Automation:
   ✓ .github/workflows/ci.yml (triggers on 'ci' label)
+  ✓ .github/dependabot.yml (weekly updates for github-actions)
 
 Next Steps:
   1. Customize .github/workflows/ci.yml for your project
