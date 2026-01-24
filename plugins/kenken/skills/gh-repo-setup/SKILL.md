@@ -415,6 +415,7 @@ Next Steps:
 | Error                   | Action                                           |
 | ----------------------- | ------------------------------------------------ |
 | Not authenticated       | Run `gh auth login` and wait                     |
+| Repo already exists     | Ask user: configure existing repo or abort       |
 | Repo creation fails     | Display error, suggest checking name/permissions |
 | Branch protection fails | Check if user has admin access to repo           |
 | Not a git repo          | Inform user, exit skill                          |
