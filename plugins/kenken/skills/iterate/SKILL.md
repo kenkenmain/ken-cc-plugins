@@ -247,7 +247,7 @@ If test configuration is not set, auto-detect and verify with user:
 
 **Exit criteria:** Test plan documented.
 
-### Phase 3.2: Test Implementation
+### Phase 3.2: Write Tests
 
 **Goal:** Write the tests following project instructions.
 
