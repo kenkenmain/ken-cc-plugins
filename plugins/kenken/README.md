@@ -28,7 +28,30 @@ claude plugin install kenken@ken-cc-plugins
 /kenken:configure
 /kenken:configure --show
 /kenken:configure --reset
+
+# Set up a new GitHub repo with GitFlow
+/kenken:gh-repo-setup my-new-repo
+
+# Configure an existing repo
+/kenken:gh-repo-setup --existing
 ```
+
+## GitHub Repository Setup
+
+The `gh-repo-setup` skill sets up GitHub repositories with best practices:
+
+```bash
+/kenken:gh-repo-setup [repo-name]
+/kenken:gh-repo-setup --existing
+```
+
+**Features:**
+
+- **GitFlow branching** - Creates main and develop branches
+- **Branch protection** - Requires PR reviews, admins can bypass
+- **Issue templates** - Bug report and feature request templates
+- **PR template** - Standardized pull request format
+- **CI workflow** - Label-triggered GitHub Actions (add `ci` label to run)
 
 ## The 4 Stages
 
