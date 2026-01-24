@@ -379,9 +379,16 @@ If test configuration is not set, auto-detect and verify with user:
 **If Branch + PR:**
 
 - Generate branch name from task: `feat/<task-slug>` or `fix/<task-slug>`
-- If not already on feature branch, create and checkout new branch
+- Fetch latest main: `git fetch origin main`
+- Detect main branch name (main or master): `git remote show origin | grep 'HEAD branch'`
+- Create branch from latest main:
+  ```bash
+  git stash --include-untracked  # Save any uncommitted changes
+  git checkout -b <branch-name> origin/main
+  git stash pop  # Restore changes
+  ```
 - Stage and commit (as above)
-- Push branch to origin
+- Push branch to origin: `git push -u origin <branch-name>`
 - Create PR using `gh pr create`:
 
   ```
