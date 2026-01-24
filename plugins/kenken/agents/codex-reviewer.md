@@ -1,6 +1,13 @@
 ---
+name: codex-reviewer
 model: inherit
 description: Dispatches Codex MCP for code review during kenken workflow
+tools:
+  - Bash
+  - Read
+  - Grep
+  - mcp__codex__codex
+  - mcp__codex-high__codex
 ---
 
 # Codex Reviewer Agent

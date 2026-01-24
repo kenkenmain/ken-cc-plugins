@@ -17,7 +17,7 @@ Head SHA: {HEAD_SHA}
 - Logging quality (meaningful messages, error context)
 - Code follows repo conventions
 - No security vulnerabilities
-  </focus_areas>
+</focus_areas>
 
 <output_format>
 Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.

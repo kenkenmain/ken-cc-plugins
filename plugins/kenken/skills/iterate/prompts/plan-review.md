@@ -17,7 +17,7 @@ Plan location: {PLAN_PATH}
 - Logging requirements specified
 - Dependencies and task order are correct
 - Edge cases are covered
-  </focus_areas>
+</focus_areas>
 
 <output_format>
 Report findings with severity (HIGH/MEDIUM/LOW) and specific locations.

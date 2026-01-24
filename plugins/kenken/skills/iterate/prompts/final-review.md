@@ -17,7 +17,7 @@ All changes: {ALL_CHANGES}
 - Security concerns
 - Logging quality
 - Code quality and maintainability
-  </focus_areas>
+</focus_areas>
 
 <output_format>
 Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.

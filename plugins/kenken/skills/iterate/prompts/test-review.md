@@ -17,7 +17,7 @@ Project testing instructions: {TEST_INSTRUCTIONS}
 - Error conditions tested
 - Meaningful assertions
 - No false positives (tests that always pass)
-  </focus_areas>
+</focus_areas>
 
 <output_format>
 Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.

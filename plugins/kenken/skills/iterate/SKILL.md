@@ -386,6 +386,7 @@ Before using state or config files:
 {
   "version": 1,
   "task": "task description",
+  "startedAt": "2026-01-24T10:30:00Z",
   "currentStage": "IMPLEMENT",
   "currentPhase": "2.1",
   "stages": {
