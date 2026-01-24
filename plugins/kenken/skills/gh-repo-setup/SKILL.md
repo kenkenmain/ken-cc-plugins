@@ -207,6 +207,22 @@ EOF
 
 ## Phase 5: Templates
 
+**Check for uncommitted changes before proceeding:**
+
+```bash
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Warning: Uncommitted changes detected"
+fi
+```
+
+If uncommitted changes exist, use AskUserQuestion:
+
+| Header    | Question                                             | Options             |
+| --------- | ---------------------------------------------------- | ------------------- |
+| "Changes" | "You have uncommitted changes. Continue with setup?" | "Continue", "Abort" |
+
+If user aborts, exit the skill.
+
 **Create .github directory structure:**
 
 ```bash
@@ -363,8 +379,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Push changes (only if there were commits):**
 
 ```bash
-# Only push if there are commits to push
-git diff origin/main --quiet || git push
+# Push to origin, setting upstream if needed
+git push -u origin HEAD
 ```
 
 **Display summary:**
