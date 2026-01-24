@@ -24,6 +24,21 @@
       "license": "MIT",
       "keywords": ["iteration", "workflow", "superpowers", "codex", "code-simplifier", "tdd"],
       "category": "workflow"
+    },
+    {
+      "name": "kenken",
+      "source": "./plugins/kenken",
+      "description": "4-stage iterative development workflow (PLAN → IMPLEMENT → TEST → FINAL)",
+      "version": "2.0.0",
+      "author": {
+        "name": "Kennard Ng",
+        "email": "kennard.ng.pool.hua@gmail.com"
+      },
+      "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
+      "repository": "https://github.com/kenkenmain/ken-cc-plugins",
+      "license": "MIT",
+      "keywords": ["iteration", "workflow", "plan", "implement", "test", "codex"],
+      "category": "workflow"
     }
   ]
 }
