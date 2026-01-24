@@ -1,5 +1,5 @@
 ---
-name: resume
+name: iterate-resume
 description: Resume interrupted kenken iteration from saved state
 ---
 
@@ -12,11 +12,11 @@ description: Resume interrupted kenken iteration from saved state
 1. Read `.agents/kenken-state.json`
 
 2. If no state found:
-   - Display: "No kenken iteration in progress. Use /kenken:iterate to start."
+   - Display: "No kenken iteration in progress. Use `/kenken:iterate` to start."
    - Exit
 
 3. If state found:
-   - Display current status (use same format as /kenken:status)
+   - Display current status (use same format as `/kenken:iterate-status`)
    - Use AskUserQuestion:
      - "Resume iteration from Phase {X.Y} ({phase name})?"
      - Options:
@@ -32,7 +32,7 @@ description: Resume interrupted kenken iteration from saved state
 ## Example Flow
 
 ```
-User: /kenken:resume
+User: /kenken:iterate-resume
 
 Claude:
 kenken Status

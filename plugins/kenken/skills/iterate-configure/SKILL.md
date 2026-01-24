@@ -1,5 +1,5 @@
 ---
-name: configure
+name: iterate-configure
 description: Configure models, tools, and options for kenken workflow
 argument-hint: [--show | --reset]
 ---
@@ -88,7 +88,7 @@ Ask for each phase:
 
 - brainstorm: model (inherit/sonnet/opus/haiku), parallel (true/false)
 - writePlan: model, parallel
-- planReview: tool (mcp__codex__codex/mcp__codex-high__codex/claude-review)
+- planReview: tool (mcp**codex**codex/mcp**codex-high**codex/claude-review)
 
 **For IMPLEMENT Stage:**
 
