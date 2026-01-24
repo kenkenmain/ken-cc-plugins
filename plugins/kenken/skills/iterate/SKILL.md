@@ -232,7 +232,7 @@ If test configuration is not set, auto-detect and verify with user:
 **Present detected config to user using AskUserQuestion:**
 
 - Show detected framework, commands, test file patterns
-- Options: "Use detected", "Modify", "Skip tests"
+- Options: "Use detected", "Modify" (if TEST stage is enabled, do not offer skip option)
 
 ### Phase 3.1: Test Plan
 
@@ -363,7 +363,7 @@ If test configuration is not set, auto-detect and verify with user:
 
 2. Based on choice:
 
-**If Finish:**
+**If No git:**
 
 - Summarize what was accomplished
 - Clear state file
@@ -387,8 +387,9 @@ If test configuration is not set, auto-detect and verify with user:
 - Detect main branch (config `git.mainBranch`): `auto` detects via `git remote show origin | grep 'HEAD branch'`
 - Create branch from latest main:
   ```bash
+  MAIN_BRANCH=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}')
   git stash --include-untracked  # Save any uncommitted changes
-  git checkout -b <branch-name> origin/main
+  git checkout -b <branch-name> origin/$MAIN_BRANCH
   git stash pop  # Restore changes
   ```
 - Stage and commit (as above)
