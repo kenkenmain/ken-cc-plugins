@@ -168,4 +168,4 @@ State tracked in `.agents/iteration-state.json`:
 
 **Ask First:** Skipping phases, changing iteration count mid-workflow, modifying state file schema
 
-**Never:** Skip Phase 8 decision point without approval, proceed with HIGH severity issues, commit secrets
+**Never:** Skip Phase 8 decision point without approval, proceed with HIGH severity issues, commit secrets, include `docs/plans/` in PRs (plans are local working documents)

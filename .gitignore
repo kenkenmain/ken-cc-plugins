@@ -1,6 +1,9 @@
 # Runtime state (user-specific)
 .agents/
 
+# Local working documents (never include in PRs)
+docs/plans/
+
 # OS files
 .DS_Store
 Thumbs.db
