@@ -46,7 +46,13 @@ Wait for user to complete authentication before proceeding.
 
 ## Phase 2: Repo Selection
 
-**Ask user using AskUserQuestion:**
+**Parse arguments first:**
+
+- If `--existing` flag is present: Skip to "If Configure Existing" section
+- If repo name is provided as argument: Use it (don't prompt for name)
+- Otherwise: Ask user for mode
+
+**Ask user using AskUserQuestion (only if no --existing flag):**
 
 | Header      | Question                                 | Options                                      |
 | ----------- | ---------------------------------------- | -------------------------------------------- |
@@ -206,6 +212,23 @@ EOF
 ```bash
 mkdir -p .github/ISSUE_TEMPLATE .github/workflows
 ```
+
+**Check for existing template files before creating:**
+
+```bash
+# Check if any template files exist
+EXISTING_FILES=""
+[ -f .github/ISSUE_TEMPLATE/bug_report.md ] && EXISTING_FILES="$EXISTING_FILES bug_report.md"
+[ -f .github/ISSUE_TEMPLATE/feature_request.md ] && EXISTING_FILES="$EXISTING_FILES feature_request.md"
+[ -f .github/PULL_REQUEST_TEMPLATE.md ] && EXISTING_FILES="$EXISTING_FILES PULL_REQUEST_TEMPLATE.md"
+[ -f .github/workflows/ci.yml ] && EXISTING_FILES="$EXISTING_FILES ci.yml"
+```
+
+If any files exist, use AskUserQuestion:
+
+| Header     | Question                                 | Options                          |
+| ---------- | ---------------------------------------- | -------------------------------- |
+| "Existing" | "These files exist: {files}. Overwrite?" | "Overwrite all", "Skip existing" |
 
 **Create bug report template at `.github/ISSUE_TEMPLATE/bug_report.md`:**
 
