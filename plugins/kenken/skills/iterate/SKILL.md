@@ -346,10 +346,61 @@ If test configuration is not set, auto-detect and verify with user:
    - Queue selected extensions
    - Return to PLAN stage with first extension
 5. If user selects Done:
-   - Complete workflow
-   - Summarize what was accomplished
+   - Advance to Phase 4.3 (Completion)
 
-**Exit criteria:** User chose Done, or new task started.
+**Exit criteria:** User chose extension (restart PLAN), or Done (advance to 4.3).
+
+### Phase 4.3: Completion
+
+**Goal:** Finalize work with optional git/PR operations.
+
+**Actions:**
+
+1. Ask user using AskUserQuestion (header: "Git workflow"):
+   - **No git** - Complete without git operations
+   - **Commit only** - Commit to current branch (non-branch workflow)
+   - **Branch + PR** - Create feature branch and open PR (branch-based workflow)
+
+2. Based on choice:
+
+**If Finish:**
+
+- Summarize what was accomplished
+- Clear state file
+- Done
+
+**If Commit:**
+
+- Stage all relevant files (exclude `.agents/`, temporary files)
+- Generate commit message from task description
+- Commit with `Co-Authored-By: Claude`
+- Summarize and clear state
+
+**If Branch + PR:**
+
+- Generate branch name from task: `feat/<task-slug>` or `fix/<task-slug>`
+- If not already on feature branch, create and checkout new branch
+- Stage and commit (as above)
+- Push branch to origin
+- Create PR using `gh pr create`:
+
+  ```
+  gh pr create --title "<task summary>" --body "$(cat <<'EOF'
+  ## Summary
+  <bullet points from task>
+
+  ## Changes
+  <list of changed files>
+
+  🤖 Generated with kenken workflow
+  EOF
+  )"
+  ```
+
+- Display PR URL
+- Summarize and clear state
+
+**Exit criteria:** User chose completion option and git operations (if any) succeeded.
 
 ## Configuration
 

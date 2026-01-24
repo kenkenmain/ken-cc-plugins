@@ -66,6 +66,13 @@ Enable via config: `stages.test.enabled: true`
 | ----- | ------------------ | --------------------------------- |
 | 4.1   | Codex Final        | Final validation (high reasoning) |
 | 4.2   | Suggest Extensions | Propose next steps                |
+| 4.3   | Completion         | Git workflow options              |
+
+**Completion options:**
+
+- **No git** - Just finish, no git operations
+- **Commit only** - Commit to current branch (non-branch workflow)
+- **Branch + PR** - Create feature branch and open PR (branch-based workflow)
 
 ## Configuration
 
