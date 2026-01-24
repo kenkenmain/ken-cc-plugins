@@ -27,7 +27,8 @@ argument-hint: [--existing] [repo-name]
 7. Add issue/PR templates
 8. Add label-triggered CI workflow
 9. Add Dependabot config for github-actions
-10. Display summary
+10. Create .claude/.agents and CLAUDE.md/AGENTS.md symlinks
+11. Display summary
 ```
 
 ## Phase 1: Authentication
@@ -389,18 +390,38 @@ updates:
 
 **Note:** Dependabot will automatically create PRs for outdated GitHub Actions.
 
+**Create project structure symlinks:**
+
+```bash
+# Create .agents directory if it doesn't exist
+mkdir -p .agents
+
+# Create symlink .claude -> .agents (for Claude Code compatibility)
+[ -L .claude ] || [ -d .claude ] || ln -s .agents .claude
+
+# Create AGENTS.md if it doesn't exist (placeholder)
+[ -f AGENTS.md ] || echo "# Agent Instructions\n\nProject-specific instructions for AI agents." > AGENTS.md
+
+# Create symlink CLAUDE.md -> AGENTS.md
+[ -L CLAUDE.md ] || [ -f CLAUDE.md ] || ln -s AGENTS.md CLAUDE.md
+```
+
+**Note:** These symlinks ensure compatibility with both Claude Code (which reads CLAUDE.md and .claude/) and other AI agents (which may use AGENTS.md and .agents/).
+
 ## Phase 7: Commit and Summary
 
 **Stage and commit all template files (only if changes exist):**
 
 ```bash
-git add .github/
+git add .github/ .agents/ .claude AGENTS.md CLAUDE.md
 # Only commit if there are staged changes
-git diff --staged --quiet || git commit -m "chore: add GitHub templates and CI workflow
+git diff --staged --quiet || git commit -m "chore: add GitHub templates, CI workflow, and project structure
 
 - Bug report and feature request issue templates
 - Pull request template
 - Label-triggered CI workflow
+- Dependabot config for github-actions
+- .agents/.claude directories and AGENTS.md/CLAUDE.md symlinks
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
@@ -436,6 +457,10 @@ Templates Added:
 CI & Automation:
   ✓ .github/workflows/ci.yml (triggers on 'ci' label)
   ✓ .github/dependabot.yml (weekly updates for github-actions)
+
+Project Structure:
+  ✓ .agents/ directory (with .claude symlink)
+  ✓ AGENTS.md (with CLAUDE.md symlink)
 
 Next Steps:
   1. Customize .github/workflows/ci.yml for your project
