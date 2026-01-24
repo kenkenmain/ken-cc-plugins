@@ -140,7 +140,7 @@ Review phases share common failure handling logic:
    - Include exact file paths
    - Include complete code in plan
    - Follow DRY, YAGNI, TDD principles
-4. **Each task MUST include test steps:**
+4. **Each task MUST include test steps** (skip for documentation-only projects):
    - Step 1: Write failing test
    - Step 2: Run test to verify it fails
    - Step 3: Write minimal implementation
@@ -169,7 +169,7 @@ Review phases share common failure handling logic:
 
 **Exit criteria:**
 
-- Implementation plan created with TDD steps
+- Implementation plan created with TDD steps (or N/A for documentation-only projects)
 - All tasks have clear acceptance criteria
 - Test strategy defined for each task
 - Plan follows superpowers:writing-plans format
@@ -190,19 +190,28 @@ Review phases share common failure handling logic:
 2. Review prompt for Codex mode:
 
 ```
-Review the implementation plan at docs/plans/YYYY-MM-DD-<feature-name>.md
+<instructions>
+Review the implementation plan for quality and completeness before implementation begins.
+</instructions>
 
-Validate:
+<context>
+Plan location: docs/plans/YYYY-MM-DD-{feature-name}.md
+</context>
+
+<focus_areas>
 - Task granularity (each task should be 2-5 minutes of work)
-- TDD steps included for each task
+- TDD steps included for each task (if applicable)
 - File paths are specific and accurate
 - Plan follows DRY, YAGNI principles
 - Test strategy is comprehensive
 - Dependencies and task order are correct
 - Edge cases are covered
+</focus_areas>
 
+<output_format>
 Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
 If you find NO issues, explicitly state: "Plan looks good to proceed."
+</output_format>
 ```
 
 3. For Claude mode: dispatch code-reviewer subagent to review the plan document
@@ -301,8 +310,8 @@ If you find NO issues, explicitly state: "Plan looks good to proceed."
 
 1. Mark Phase 6 as `in_progress`
 2. Initialize `retryCount: 0` in phase state (Note: Phase 6 does not use `lastIssues` - test pass/fail is binary)
-3. Run: `make lint`
-4. Run: `make test`
+3. Run: `make lint` (skip if no test infrastructure)
+4. Run: `make test` (skip if no test infrastructure)
 5. **Evaluate test results:**
 
    **If all tests pass:**
@@ -360,13 +369,13 @@ If you find NO issues, explicitly state: "Plan looks good to proceed."
    ```
 3. Review suggestions
 4. Apply appropriate simplifications
-5. Re-run tests to verify no breakage
+5. Re-run tests to verify no breakage (skip for documentation-only projects)
 
 **Exit criteria:**
 
 - Code simplifier has reviewed changes
 - Appropriate simplifications applied
-- Tests still pass
+- Tests still pass (or no test infrastructure)
 
 **Transition:** Mark Phase 7 complete, advance to Phase 8
 
@@ -385,19 +394,28 @@ If you find NO issues, explicitly state: "Plan looks good to proceed."
 3. Review prompt for Codex mode:
 
 ```
-Iteration {N}/{max} final review for merge readiness. Run these commands first (if test infrastructure exists):
+<instructions>
+Final review for merge readiness. Iteration {N}/{maxIterations}.
+</instructions>
+
+<context>
+Run these commands first (if test infrastructure exists):
 1. make lint
 2. make test
+</context>
 
-Focus on:
+<focus_areas>
 - Documentation accuracy
 - Edge cases and error handling
 - Test coverage completeness
 - Code quality and maintainability
 - Merge readiness
+</focus_areas>
 
+<output_format>
 Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
 If you find NO issues, explicitly state: "No issues found."
+</output_format>
 ```
 
 4. For Claude mode: dispatch code-reviewer with WHAT_WAS_IMPLEMENTED, PLAN_OR_REQUIREMENTS, BASE_SHA, HEAD_SHA
@@ -407,7 +425,7 @@ If you find NO issues, explicitly state: "No issues found."
 - Fix ALL issues before restarting
 - Re-run project's test commands if available (skip for documentation-only projects)
 - If `currentIteration < maxIterations`: loop back to Phase 1
-- If at `maxIterations`: proceed with issues noted
+- If at `maxIterations`: proceed with MEDIUM/LOW issues noted (HIGH severity must still be fixed)
 
 **Transition:**
 
@@ -429,20 +447,29 @@ If you find NO issues, explicitly state: "No issues found."
 2. Invoke `mcp__codex-high__codex` with final validation prompt:
 
    ```
-   Final validation review. Run these commands first (if test infrastructure exists):
+   <instructions>
+   Final validation review. This is the FINAL check before merge. Be thorough.
+   </instructions>
+
+   <context>
+   Run these commands first (if test infrastructure exists):
    1. make lint
    2. make test
+   </context>
 
-   This is the FINAL check before merge. Be thorough.
-
-   Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
-   Focus on:
+   <focus_areas>
    - Correctness and logic errors
    - Idempotency of operations
    - Documentation accuracy
    - Test coverage gaps
    - Security concerns
    - Edge cases missed in earlier reviews
+   </focus_areas>
+
+   <output_format>
+   Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
+   If you find NO issues, explicitly state: "No issues found."
+   </output_format>
    ```
 
 3. Address any HIGH severity issues
@@ -487,8 +514,8 @@ If iteration was interrupted:
 - Skip phases (all 8 phases per iteration are mandatory, Phase 9 runs once at end)
 - Advance without meeting exit criteria
 - Ignore issues from Phase 8 review (must fix or note if at max iterations)
-- Skip test runs
-- Skip TDD (write tests after implementation)
+- Skip test runs (unless documentation-only project with no test infrastructure)
+- Skip TDD (write tests after implementation) - unless documentation-only project
 - Dispatch parallel implementation subagents (conflicts)
 - Exceed maxIterations without proceeding to completion
 
