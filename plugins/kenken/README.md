@@ -49,9 +49,12 @@ The `gh-repo-setup` skill sets up GitHub repositories with best practices:
 
 - **GitFlow branching** - Creates main and develop branches
 - **Branch protection** - Requires PR reviews, admins can bypass
+- **Squash merge only** - Merge commit and rebase disabled
+- **Auto-delete branches** - Branches deleted after merge
 - **Issue templates** - Bug report and feature request templates
 - **PR template** - Standardized pull request format
 - **CI workflow** - Label-triggered GitHub Actions (add `ci` label to run)
+- **Dependabot** - Weekly updates for github-actions
 
 ## The 4 Stages
 
