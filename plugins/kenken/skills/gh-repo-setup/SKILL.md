@@ -230,7 +230,14 @@ If any files exist, use AskUserQuestion:
 | ---------- | ---------------------------------------- | -------------------------------- |
 | "Existing" | "These files exist: {files}. Overwrite?" | "Overwrite all", "Skip existing" |
 
-**Create bug report template at `.github/ISSUE_TEMPLATE/bug_report.md`:**
+**Based on user choice:**
+
+- **Overwrite all**: Create all template files (overwriting existing)
+- **Skip existing**: Only create files that don't exist yet
+
+For each file below, check if it should be created based on user choice:
+
+**Create bug report template at `.github/ISSUE_TEMPLATE/bug_report.md` (if not skipping):**
 
 ```markdown
 ---
