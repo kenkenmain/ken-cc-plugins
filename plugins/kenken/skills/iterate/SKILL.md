@@ -394,7 +394,8 @@ Before using state or config files:
     "implement": {
       "status": "in_progress",
       "phase": "2.1",
-      "retryCount": 0
+      "retryCount": 0,
+      "maxRetries": 3
     },
     "test": { "status": "pending", "enabled": true },
     "final": { "status": "pending" }
@@ -430,7 +431,7 @@ mkdir -p .agents/logs/errors
 - Advance without meeting exit criteria
 - Ignore HIGH severity issues from any review
 - Skip test runs when TEST stage is enabled
-- Proceed without project-specific test instructions when TEST is enabled
+- Proceed without test instructions when TEST is enabled (auto-detect must verify with user first)
 - Dispatch parallel implementation subagents (conflicts)
 
 **Note:** TEST stage (Stage 3) can be skipped entirely when `stages.test.enabled=false` in config. This is not the same as skipping individual phases.

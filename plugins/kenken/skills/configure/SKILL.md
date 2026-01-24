@@ -88,7 +88,7 @@ Ask for each phase:
 
 - brainstorm: model (inherit/sonnet/opus/haiku), parallel (true/false)
 - writePlan: model, parallel
-- planReview: tool (codex/codex-high/claude-review)
+- planReview: tool (mcp__codex__codex/mcp__codex-high__codex/claude-review)
 
 **For IMPLEMENT Stage:**
 
