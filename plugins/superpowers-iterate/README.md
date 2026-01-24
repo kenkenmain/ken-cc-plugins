@@ -89,7 +89,7 @@ Progress tracked in `.agents/iteration-state.json`. See [AGENTS.md](../../AGENTS
 
 ## Project Requirements
 
-- `make lint` and `make test` targets
+- `make lint` and `make test` targets (optional - documentation-only projects work without test infrastructure)
 - `.agents/` directory (created automatically)
 
 ## License

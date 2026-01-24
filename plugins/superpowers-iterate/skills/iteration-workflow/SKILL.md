@@ -31,17 +31,51 @@ See AGENTS.md for model configuration and state schema details.
 
 **State file:** `.agents/iteration-state.json`
 
-Initialize at start with version 3 schema. Update state after each phase transition. See AGENTS.md for full schema.
+Initialize at start with version 4 schema. Update state after each phase transition. See AGENTS.md for full schema.
+
+**Review phase state fields:**
+
+- `retryCount`: Number of mini-loop retries within the phase
+- `lastIssues`: Array of issues from most recent review (severity, message, location)
 
 ## Configuration Loading
 
-At workflow start, load configuration using the `configuration` skill. The skill handles:
-
-- Default values
-- Merging global config (`~/.claude/iterate-config.json`)
-- Merging project config (`.claude/iterate-config.local.json`)
+At workflow start, load configuration using the `configuration` skill. The skill handles merging defaults, global config (`~/.claude/iterate-config.json`), and project config (`.claude/iterate-config.local.json`).
 
 Run `/superpowers-iterate:configure --show` to see current config.
+
+## Review Phase Behavior (Phases 3, 5, 8)
+
+Review phases share common failure handling logic:
+
+| onFailure   | Behavior                                                             |
+| ----------- | -------------------------------------------------------------------- |
+| `restart`   | Increment iteration, reset to Phase 1 (or proceed if at max)         |
+| `mini-loop` | Fix issues, increment `retryCount`, re-run review (check maxRetries) |
+| `proceed`   | Announce issues, continue to next phase                              |
+| `stop`      | Halt workflow                                                        |
+
+**`onMaxRetries` behavior (when `retryCount >= maxRetries` in mini-loop):**
+
+| onMaxRetries | Behavior                                 |
+| ------------ | ---------------------------------------- |
+| `stop`       | Halt workflow, report what failed        |
+| `ask`        | Prompt user to decide next action        |
+| `restart`    | Increment iteration, reset to Phase 1    |
+| `proceed`    | Continue to next phase with issues noted |
+
+**Note:** `maxRetries: null` means unlimited retries (skip maxRetries check).
+
+**Common steps for all review phases:**
+
+1. Mark phase `in_progress`, initialize `retryCount: 0` and `lastIssues: []`
+2. Run review (Codex or Claude depending on config/mode)
+3. Parse issues, filter by `failOnSeverity` threshold
+4. Store filtered issues in `lastIssues` state field
+5. If no issues at threshold: pass and advance
+6. If issues found: execute `onFailure` behavior
+   - For `mini-loop`: check `maxRetries` first (if `retryCount >= maxRetries`, execute `onMaxRetries` instead)
+   - When fixing issues in `mini-loop`: if `parallelFixes=true`, dispatch parallel agents for independent fixes; otherwise fix sequentially
 
 ## Phase 1: Brainstorm
 
@@ -146,21 +180,14 @@ Run `/superpowers-iterate:configure --show` to see current config.
 
 **Purpose:** Validate plan quality before implementation begins
 
-**Required Tool (from config `phases.3.tool`):**
+**Tool:** From config `phases.3.tool` (default: `mcp__codex__codex`). Lite mode uses `superpowers:requesting-code-review`.
 
-- `mcp__codex__codex` (default): Codex with medium reasoning
-- `mcp__codex-high__codex`: Codex with high reasoning
-- `claude-review`: Use `superpowers:requesting-code-review`
-- Lite mode always uses `superpowers:requesting-code-review`
+**Default `onFailure`:** `restart`
 
 **Actions:**
 
-1. Mark Phase 3 as `in_progress` in state file
-2. Run review based on configured tool:
-
-### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
-
-Invoke `mcp__codex__codex` with plan review prompt:
+1. Follow common review phase steps (see "Review Phase Behavior" above)
+2. Review prompt for Codex mode:
 
 ```
 Review the implementation plan at docs/plans/YYYY-MM-DD-<feature-name>.md
@@ -178,30 +205,7 @@ Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
 If you find NO issues, explicitly state: "Plan looks good to proceed."
 ```
 
-### Claude Review Mode (claude-review or lite mode)
-
-Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to review the plan document.
-
-3. **Evaluate review results:**
-
-   **If ZERO issues found:**
-   - Announce: "Plan review passed. Proceeding to implementation."
-   - Proceed to Phase 4
-
-   **If HIGH/MEDIUM issues found:**
-   - Fix plan issues
-   - Re-run plan review
-   - Do not proceed until plan is clean
-
-   **If only LOW issues found:**
-   - Note them for awareness
-   - Proceed to Phase 4
-
-**Exit criteria:**
-
-- Plan review completed
-- No HIGH or MEDIUM severity issues in plan
-- Plan ready for implementation
+3. For Claude mode: dispatch code-reviewer subagent to review the plan document
 
 **Transition:** Mark Phase 3 complete, advance to Phase 4
 
@@ -250,7 +254,7 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to revi
        e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
        f. Mark task complete in TodoWrite
 
-3. Run `make lint && make test` to verify all tests pass
+3. Run project's test commands (e.g., `make lint && make test`) to verify all tests pass. Skip if no test infrastructure exists.
 4. Commit after tests pass
 
 **Note:** Implementation subagents run sequentially (to avoid file conflicts), but reviewer subagents can run in parallel.
@@ -258,44 +262,26 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to revi
 **Exit criteria:**
 
 - All tasks from plan implemented
-- Tests written for new functionality (TDD)
-- `make lint && make test` pass
+- Tests written for new functionality (TDD) - skip for documentation-only projects
+- Tests pass (or no test infrastructure)
 - Code committed
 
 **Transition:** Mark Phase 4 complete, advance to Phase 5
 
-## Phase 5: Review (1 Round)
+## Phase 5: Review
 
-**Purpose:** Quick code review sanity check before Phase 8's thorough review
+**Purpose:** Code review with configurable failure behavior
 
-**Required Skill:** `superpowers:requesting-code-review`
+**Skill:** `superpowers:requesting-code-review`
+
+**Default `onFailure`:** `mini-loop`
 
 **Actions:**
 
-1. Mark Phase 5 as `in_progress`
-2. Get git SHAs for the changes:
-   ```bash
-   BASE_SHA=$(git merge-base HEAD main)
-   HEAD_SHA=$(git rev-parse HEAD)
-   ```
+1. Follow common review phase steps (see "Review Phase Behavior" above)
+2. Get git SHAs: `BASE_SHA=$(git merge-base HEAD main)` and `HEAD_SHA=$(git rev-parse HEAD)`
 3. Dispatch code-reviewer subagent per `superpowers:requesting-code-review`
-4. Provide:
-   - WHAT_WAS_IMPLEMENTED: Description of changes
-   - PLAN_OR_REQUIREMENTS: Reference to plan file
-   - BASE_SHA and HEAD_SHA
-5. Categorize issues:
-   - **Critical:** Must fix immediately
-   - **Important:** Fix now
-   - **Minor:** Note for Phase 8
-6. Fix Critical and Important issues
-7. Re-run tests after fixes
-8. Document findings in state
-
-**Exit criteria:**
-
-- 1 review round completed
-- No Critical issues remaining
-- Important issues addressed
+4. For `mini-loop`: run project's test commands (e.g., `make lint && make test`) after fixes before re-running review. Skip if no test infrastructure exists.
 
 **Transition:** Mark Phase 5 complete, advance to Phase 6
 
@@ -303,19 +289,55 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to revi
 
 **Purpose:** Run lint and test suites
 
+**Note:** If the project has no test infrastructure (e.g., documentation-only repos), this phase passes automatically.
+
+**Config options:**
+
+- `onFailure`: `restart` (default), `mini-loop`, `proceed`, `stop`
+- `maxRetries`: `10` (default)
+- `onMaxRetries`: `stop` (default), `ask`, `restart`, `proceed`
+
 **Actions:**
 
 1. Mark Phase 6 as `in_progress`
-2. Run: `make lint`
-   - If fails: Fix issues, re-run until pass
-3. Run: `make test`
-   - If fails: Fix issues, re-run until pass
-4. Record results in state
+2. Initialize `retryCount: 0` in phase state (Note: Phase 6 does not use `lastIssues` - test pass/fail is binary)
+3. Run: `make lint`
+4. Run: `make test`
+5. **Evaluate test results:**
+
+   **If all tests pass:**
+   - Announce: "All tests passed."
+   - Mark Phase 6 complete, advance to Phase 7
+
+   **If tests fail:**
+   - Check `onFailure` config:
+
+   **onFailure = "restart":**
+   - Announce: "Tests failed. Restarting iteration."
+   - Increment `currentIteration`, reset to Phase 1
+   - If at `maxIterations`, proceed with failures noted
+
+   **onFailure = "mini-loop":**
+   - Check `retryCount` against `maxRetries` (skip if `maxRetries: null`)
+   - If `retryCount >= maxRetries`: execute `onMaxRetries` behavior and exit
+   - Otherwise:
+     - Plan fixes for failing tests
+     - Execute fixes (ask user if stuck)
+     - Increment `retryCount`
+     - Loop back to step 3 (re-run tests)
+
+   **onFailure = "proceed":**
+   - Announce: "Tests failed. Proceeding anyway (failures noted)."
+   - Mark Phase 6 complete, advance to Phase 7
+
+   **onFailure = "stop":**
+   - Announce: "Tests failed. Stopping workflow."
+   - Halt workflow
 
 **Exit criteria:**
 
-- `make lint` passes
-- `make test` passes
+- Tests pass, OR
+- `onFailure` behavior triggered
 
 **Transition:** Mark Phase 6 complete, advance to Phase 7
 
@@ -352,25 +374,18 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to revi
 
 **Purpose:** Thorough review that determines whether to loop back to Phase 1 or proceed to completion.
 
-**Required Tool (from config `phases.8.tool`):**
+**Tool:** From config `phases.8.tool` (default: `mcp__codex__codex`). Lite mode uses `superpowers:requesting-code-review`.
 
-- `mcp__codex__codex` (default): Codex with medium reasoning
-- `mcp__codex-high__codex`: Codex with high reasoning
-- `claude-review`: Use `superpowers:requesting-code-review`
-- Lite mode always uses `superpowers:requesting-code-review`
+**Default `onFailure`:** `restart`
 
 **Actions:**
 
-1. Mark Phase 8 as `in_progress`
+1. Follow common review phase steps (see "Review Phase Behavior" above)
 2. Check current iteration count against `maxIterations`
-3. Run review based on configured tool:
-
-### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
-
-Invoke `mcp__codex__codex` with review prompt:
+3. Review prompt for Codex mode:
 
 ```
-Iteration {N}/{max} final review for merge readiness. Run these commands first:
+Iteration {N}/{max} final review for merge readiness. Run these commands first (if test infrastructure exists):
 1. make lint
 2. make test
 
@@ -385,45 +400,20 @@ Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
 If you find NO issues, explicitly state: "No issues found."
 ```
 
-### Claude Review Mode (claude-review or lite mode)
+4. For Claude mode: dispatch code-reviewer with WHAT_WAS_IMPLEMENTED, PLAN_OR_REQUIREMENTS, BASE_SHA, HEAD_SHA
 
-Dispatch code-reviewer subagent via `superpowers:requesting-code-review`:
+**Special `restart` behavior for Phase 8:**
 
-- WHAT_WAS_IMPLEMENTED: Full description of all changes
-- PLAN_OR_REQUIREMENTS: Reference to plan file
-- BASE_SHA and HEAD_SHA from git
-
-4. **Evaluate review results:**
-
-   **If ZERO issues found:**
-   - Announce: "Iteration {N} review found no issues. Proceeding to completion."
-   - Store `phase8Issues: []` in state
-   - **Full mode:** Proceed to Phase 9
-   - **Lite mode:** Skip to Completion
-
-   **If ANY issues found (HIGH, MEDIUM, or LOW):**
-   - Announce: "Iteration {N} found {count} issues. Fixing and starting new iteration."
-   - Fix ALL issues
-   - Re-run `make lint && make test`
-   - Store issues in `phase8Issues` array in state
-   - **If currentIteration < maxIterations:**
-     - Increment `currentIteration`
-     - Add new iteration entry to state
-     - **Loop back to Phase 1**
-   - **If currentIteration >= maxIterations:**
-     - Announce: "Reached max iterations ({max}). Proceeding with {count} unresolved issues noted."
-     - **Full mode:** Proceed to Phase 9
-     - **Lite mode:** Skip to Completion
-
-**Exit criteria:**
-
-- Review completed
-- Either: zero issues found, OR all issues fixed and looping, OR max iterations reached
+- Fix ALL issues before restarting
+- Re-run project's test commands if available (skip for documentation-only projects)
+- If `currentIteration < maxIterations`: loop back to Phase 1
+- If at `maxIterations`: proceed with issues noted
 
 **Transition:**
 
-- Zero issues OR max iterations → Phase 9 (full) or Completion (lite)
-- Issues found AND iterations remaining → Phase 1 (new iteration)
+- Pass or proceed: Phase 9 (full) or Completion (lite)
+- Restart: Phase 1 (new iteration)
+- Stop: Halt workflow
 
 ## Phase 9: Codex-High Final Validation (Full Mode Only)
 
@@ -439,7 +429,7 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review`:
 2. Invoke `mcp__codex-high__codex` with final validation prompt:
 
    ```
-   Final validation review. Run these commands first:
+   Final validation review. Run these commands first (if test infrastructure exists):
    1. make lint
    2. make test
 

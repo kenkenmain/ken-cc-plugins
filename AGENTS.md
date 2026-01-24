@@ -56,17 +56,38 @@ Phase 9: Codex Final   -> mcp__codex-high__codex (full mode only)
 
 ## Model Configuration
 
-| Phase | Activity     | Model     | MCP Tool                 | Rationale                            |
-| ----- | ------------ | --------- | ------------------------ | ------------------------------------ |
-| 1     | Brainstorm   | `inherit` | N/A                      | User controls via /configure         |
-| 2     | Plan         | `inherit` | N/A                      | User controls via /configure         |
-| 3     | Plan Review  | N/A       | `mcp__codex__codex`      | Medium reasoning for plan validation |
-| 4     | Implement    | `inherit` | N/A                      | User controls quality                |
-| 5     | Review       | `inherit` | N/A                      | Quick sanity check                   |
-| 6     | Test         | N/A       | N/A                      | Bash commands                        |
-| 7     | Simplify     | `inherit` | N/A                      | Code quality                         |
-| 8     | Final Review | N/A       | `mcp__codex__codex`      | Medium reasoning for iteration       |
-| 9     | Codex Final  | N/A       | `mcp__codex-high__codex` | High reasoning for final validation  |
+| Phase | Activity     | Tool / Model             | onFailure | Notes                        |
+| ----- | ------------ | ------------------------ | --------- | ---------------------------- |
+| 1     | Brainstorm   | `inherit`                | N/A       | Parallel agents configurable |
+| 2     | Plan         | `inherit`                | N/A       | Parallel agents configurable |
+| 3     | Plan Review  | `mcp__codex__codex`      | restart   | Configurable via /configure  |
+| 4     | Implement    | `inherit`                | N/A       | Sequential subagents         |
+| 5     | Review       | `inherit`                | mini-loop | Fix issues within phase      |
+| 6     | Test         | Bash (`make lint/test`)  | restart   | No model needed              |
+| 7     | Simplify     | `inherit`                | N/A       | code-simplifier agent        |
+| 8     | Final Review | `mcp__codex__codex`      | restart   | Configurable via /configure  |
+| 9     | Codex Final  | `mcp__codex-high__codex` | N/A       | Full mode only               |
+
+## Review Phase Configuration
+
+Review phases (3, 5, 8) support these config options:
+
+| Option         | Values                                    | Default |
+| -------------- | ----------------------------------------- | ------- |
+| onFailure      | `mini-loop`, `restart`, `proceed`, `stop` | varies  |
+| failOnSeverity | `LOW`, `MEDIUM`, `HIGH`, `NONE`           | `LOW`   |
+| maxRetries     | positive integer or `null`                | `10`    |
+| onMaxRetries   | `stop`, `ask`, `restart`, `proceed`       | `stop`  |
+| parallelFixes  | `true`, `false`                           | `true`  |
+
+Phase 6 (Test) only supports `onFailure`, `maxRetries`, and `onMaxRetries` (no severity filtering - tests are pass/fail).
+
+**`onMaxRetries` behaviors:**
+
+- `stop`: Halt workflow, report what failed (default)
+- `ask`: Prompt user to decide next action
+- `restart`: Go back to Phase 1, start new iteration
+- `proceed`: Continue to next phase with issues noted
 
 ## Configuration
 
@@ -89,7 +110,7 @@ State tracked in `.agents/iteration-state.json`:
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "task": "<description>",
   "mode": "full",
   "maxIterations": 10,
@@ -103,17 +124,41 @@ State tracked in `.agents/iteration-state.json`:
       "phases": {
         "1": { "status": "..." },
         "2": { "status": "..." },
-        "3": { "status": "...", "planReviewIssues": [] },
+        "3": {
+          "status": "...",
+          "retryCount": 0,
+          "lastIssues": []
+        },
         "4": { "status": "..." },
-        "5": { "status": "..." },
-        "6": { "status": "..." },
+        "5": {
+          "status": "...",
+          "retryCount": 0,
+          "lastIssues": []
+        },
+        "6": {
+          "status": "...",
+          "retryCount": 0
+        },
         "7": { "status": "..." },
-        "8": { "status": "..." }
-      },
-      "phase8Issues": []
+        "8": {
+          "status": "...",
+          "retryCount": 0,
+          "lastIssues": []
+        }
+      }
     }
   ],
   "phase9": { "status": "pending" }
+}
+```
+
+**Issue format in `lastIssues`:**
+
+```json
+{
+  "severity": "HIGH|MEDIUM|LOW",
+  "message": "description",
+  "location": "file:line"
 }
 ```
 

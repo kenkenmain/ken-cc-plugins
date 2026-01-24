@@ -45,7 +45,7 @@ You are a Codex review specialist responsible for invoking OpenAI Codex MCP serv
    With prompt:
 
    ```
-   Review the codebase changes for issues. Run these commands first:
+   Review the codebase changes for issues. Run these commands first (if test infrastructure exists):
    1. make lint
    2. make test
 
