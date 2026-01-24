@@ -346,11 +346,12 @@ jobs:
 
 ## Phase 7: Commit and Summary
 
-**Stage and commit all template files:**
+**Stage and commit all template files (only if changes exist):**
 
 ```bash
 git add .github/
-git commit -m "chore: add GitHub templates and CI workflow
+# Only commit if there are staged changes
+git diff --staged --quiet || git commit -m "chore: add GitHub templates and CI workflow
 
 - Bug report and feature request issue templates
 - Pull request template
@@ -359,10 +360,11 @@ git commit -m "chore: add GitHub templates and CI workflow
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-**Push changes:**
+**Push changes (only if there were commits):**
 
 ```bash
-git push
+# Only push if there are commits to push
+git diff origin/main --quiet || git push
 ```
 
 **Display summary:**
