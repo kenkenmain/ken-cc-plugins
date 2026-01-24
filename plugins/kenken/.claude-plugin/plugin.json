@@ -1,0 +1,19 @@
+{
+  "name": "kenken",
+  "version": "2.0.0",
+  "description": "4-stage iterative development workflow (PLAN → IMPLEMENT → TEST → FINAL)",
+  "author": "Kennard Ng <kennard.ng.pool.hua@gmail.com>",
+  "license": "MIT",
+  "repository": "https://github.com/kenkenmain/ken-cc-plugins",
+  "skills": [
+    "skills/iterate/SKILL.md",
+    "skills/configure/SKILL.md",
+    "skills/status/SKILL.md",
+    "skills/resume/SKILL.md"
+  ],
+  "agents": ["agents/codex-reviewer.md"],
+  "dependencies": {
+    "plugins": ["superpowers", "code-simplifier"],
+    "mcp": ["codex", "codex-high"]
+  }
+}
