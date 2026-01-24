@@ -253,15 +253,15 @@ If you find NO issues, explicitly state: "Plan looks good to proceed."
 
      b. Answer any questions from subagent
      c. Subagent follows `superpowers:test-driven-development`:
-        - Write failing test first
-        - Run to verify it fails
-        - Write minimal code to pass
-        - Run to verify it passes
-        - Use `mcp__lsp__get_diagnostics` to check for errors
-        - Self-review and commit
-     d. Dispatch spec reviewer subagent
-     e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
-     f. Mark task complete in TodoWrite
+     - Write failing test first
+     - Run to verify it fails
+     - Write minimal code to pass
+     - Run to verify it passes
+     - Use `mcp__lsp__get_diagnostics` to check for errors
+     - Self-review and commit
+       d. Dispatch spec reviewer subagent
+       e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
+       f. Mark task complete in TodoWrite
 
 3. Run project's test commands (e.g., `make lint && make test`) to verify all tests pass. Skip if no test infrastructure exists.
 4. Commit after tests pass
@@ -288,7 +288,7 @@ If you find NO issues, explicitly state: "Plan looks good to proceed."
 **Actions:**
 
 1. Follow common review phase steps (see "Review Phase Behavior" above)
-2. Get git SHAs: `BASE_SHA=$(git merge-base HEAD main)` and `HEAD_SHA=$(git rev-parse HEAD)`
+2. Get git SHAs: `MAIN=$(git remote show origin | grep 'HEAD branch' | awk '{print $NF}'); BASE_SHA=$(git merge-base HEAD $MAIN)` and `HEAD_SHA=$(git rev-parse HEAD)`
 3. Dispatch code-reviewer subagent per `superpowers:requesting-code-review`
 4. For `mini-loop`: run project's test commands (e.g., `make lint && make test`) after fixes before re-running review. Skip if no test infrastructure exists.
 

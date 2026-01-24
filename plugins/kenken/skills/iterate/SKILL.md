@@ -371,7 +371,7 @@ If test configuration is not set, auto-detect and verify with user:
 
 **If Commit:**
 
-- Stage all relevant files (exclude `.agents/`, temporary files)
+- Stage all relevant files (exclude `.agents/`, `docs/plans/`, temporary files)
 - Generate commit message from task description
 - Commit with `Co-Authored-By: Claude`
 - Summarize and clear state
