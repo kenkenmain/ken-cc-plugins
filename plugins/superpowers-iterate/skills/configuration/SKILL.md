@@ -5,7 +5,7 @@ description: Read, write, and merge iterate configuration from global and projec
 
 # Configuration Management
 
-Manage iteration workflow configuration for models and parallel agents.
+Manage iteration workflow configuration for models, parallel agents, and review behavior.
 
 ## Config File Locations
 
@@ -18,20 +18,28 @@ Project config overrides global config, which overrides defaults.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
+  "reviewDefaults": {
+    "failOnSeverity": "LOW",
+    "maxRetries": 10,
+    "onMaxRetries": "stop",
+    "parallelFixes": true
+  },
   "phases": {
     "1": { "model": "inherit", "parallel": true, "parallelModel": "inherit" },
     "2": { "model": "inherit", "parallel": true, "parallelModel": "inherit" },
-    "3": { "tool": "mcp__codex__codex" },
+    "3": { "tool": "mcp__codex__codex", "onFailure": "restart" },
     "4": { "model": "inherit", "parallel": false },
-    "5": { "model": "inherit", "parallel": false },
-    "6": { "model": null },
+    "5": { "model": "inherit", "onFailure": "mini-loop" },
+    "6": { "model": null, "onFailure": "restart" },
     "7": { "model": "inherit", "parallel": false },
-    "8": { "tool": "mcp__codex__codex" },
+    "8": { "tool": "mcp__codex__codex", "onFailure": "restart" },
     "9": { "tool": "mcp__codex-high__codex" }
   }
 }
 ```
+
+**Note:** Review phases (3, 5, 8) inherit `failOnSeverity`, `maxRetries`, `onMaxRetries`, and `parallelFixes` from `reviewDefaults`. Phase 6 (Test) only inherits `maxRetries` and `onMaxRetries` (no severity filtering for test failures). Only `onFailure` and phase-specific settings (like `tool` or `model`) are specified per-phase.
 
 ## Reading Configuration
 
@@ -42,18 +50,24 @@ Project config overrides global config, which overrides defaults.
 5. Deep merge project over global (per-phase override)
 6. Return merged config
 
-## Merge Logic (Per-Phase Deep Merge)
+## Merge Logic
 
-Each phase's config is merged individually:
+Each phase is merged individually with this priority (highest wins):
+
+1. Default `reviewDefaults` + default phase settings
+2. Global `reviewDefaults` + global phase settings
+3. Project `reviewDefaults` + project phase settings
+
+**Example:**
 
 ```
-Default:  { "phases": { "1": { "model": "inherit", "parallel": true } } }
-Global:   { "phases": { "1": { "model": "sonnet" } } }
-Project:  { "phases": { "1": { "parallel": false } } }
-Result:   { "phases": { "1": { "model": "sonnet", "parallel": false } } }
+defaults:  reviewDefaults.maxRetries=10, phases.3.onFailure=restart
+global:    reviewDefaults.maxRetries=5
+project:   phases.3.onFailure=mini-loop
+result:    phases.3 = { onFailure: "mini-loop", maxRetries: 5, failOnSeverity: "LOW", ... }
 ```
 
-To "unset" a value back to default: delete the key from config file.
+To reset a value to default, delete the key from the config file.
 
 ## Writing Configuration
 
@@ -65,13 +79,37 @@ To "unset" a value back to default: delete the key from config file.
 
 ## Validation Rules
 
-| Phase     | Key      | Valid Values                                                   |
-| --------- | -------- | -------------------------------------------------------------- |
-| 1,2,4,5,7 | model    | `inherit`, `sonnet`, `opus`, `haiku`                           |
-| 1,2       | parallel | `true`, `false`                                                |
-| 3,8       | tool     | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` |
-| 6         | model    | `null` only (bash phase, not configurable)                     |
-| 9         | tool     | `mcp__codex-high__codex` only (not configurable)               |
+**Phase-specific settings:**
+
+| Phase     | Key            | Valid Values                                                   |
+| --------- | -------------- | -------------------------------------------------------------- |
+| 1,2,4,5,7 | model          | `inherit`, `sonnet`, `opus`, `haiku`                           |
+| 1,2       | parallel       | `true`, `false`                                                |
+| 1,2       | parallelModel  | `inherit`, `sonnet`, `opus`, `haiku`                           |
+| 3,8       | tool           | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` |
+| 3,5,6,8   | onFailure      | `mini-loop`, `restart`, `proceed`, `stop`                      |
+| 3,5,8     | failOnSeverity | `LOW`, `MEDIUM`, `HIGH`, `NONE`                                |
+| 3,5,6,8   | maxRetries     | positive integer or `null` (unlimited)                         |
+| 3,5,6,8   | onMaxRetries   | `stop`, `ask`, `restart`, `proceed`                            |
+| 3,5,8     | parallelFixes  | `true`, `false`                                                |
+| 6         | model          | `null` only (bash phase, not configurable)                     |
+| 9         | tool           | `mcp__codex-high__codex` only (not configurable)               |
+
+**reviewDefaults keys:**
+
+| Key            | Valid Values                           |
+| -------------- | -------------------------------------- |
+| failOnSeverity | `LOW`, `MEDIUM`, `HIGH`, `NONE`        |
+| maxRetries     | positive integer or `null` (unlimited) |
+| onMaxRetries   | `stop`, `ask`, `restart`, `proceed`    |
+| parallelFixes  | `true`, `false`                        |
+
+**`onMaxRetries` behaviors:**
+
+- `stop`: Halt workflow, report what failed (default)
+- `ask`: Prompt user to decide next action
+- `restart`: Go back to Phase 1, start new iteration
+- `proceed`: Continue to next phase with issues noted
 
 ## Error Handling
 

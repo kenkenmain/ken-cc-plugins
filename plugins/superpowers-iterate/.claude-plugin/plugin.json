@@ -1,6 +1,6 @@
 {
   "name": "superpowers-iterate",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "description": "Orchestrates iterative 9-phase workflow with configurable models and full/lite modes.",
   "author": {
     "name": "Kennard Ng",
