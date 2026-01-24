@@ -244,15 +244,15 @@ If you find NO issues, explicitly state: "Plan looks good to proceed."
 
      b. Answer any questions from subagent
      c. Subagent follows `superpowers:test-driven-development`:
-     - Write failing test first
-     - Run to verify it fails
-     - Write minimal code to pass
-     - Run to verify it passes
-     - Use `mcp__lsp__get_diagnostics` to check for errors
-     - Self-review and commit
-       d. Dispatch spec reviewer subagent
-       e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
-       f. Mark task complete in TodoWrite
+        - Write failing test first
+        - Run to verify it fails
+        - Write minimal code to pass
+        - Run to verify it passes
+        - Use `mcp__lsp__get_diagnostics` to check for errors
+        - Self-review and commit
+     d. Dispatch spec reviewer subagent
+     e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
+     f. Mark task complete in TodoWrite
 
 3. Run project's test commands (e.g., `make lint && make test`) to verify all tests pass. Skip if no test infrastructure exists.
 4. Commit after tests pass
