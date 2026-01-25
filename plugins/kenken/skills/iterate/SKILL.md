@@ -81,9 +81,11 @@ Complete all phases before advancing to IMPLEMENT.
 
 ### Phase 1.1: Brainstorm
 
-**Goal:** Understand the problem and design a solution.
+**Goal:** Understand the problem and design a production-ready solution.
 
 **Skill:** `superpowers:brainstorming` + `superpowers:dispatching-parallel-agents`
+
+**Prompt:** See `prompts/brainstorm.md`
 
 **Actions:**
 
@@ -91,9 +93,16 @@ Complete all phases before advancing to IMPLEMENT.
 2. Dispatch parallel agents to research:
    - Existing patterns in codebase
    - Requirements and constraints
-   - Edge cases
+   - Edge cases and failure modes
+   - Security considerations
 3. Ask clarifying questions (one at a time)
-4. Propose 2-3 approaches with trade-offs
+4. Propose 2-3 approaches with honest trade-offs, addressing:
+   - Core functionality
+   - Error handling strategy
+   - Edge cases and boundary conditions
+   - Security implications
+   - Observability (logging, monitoring)
+   - Maintainability
 5. Get user agreement on approach
 6. Save design to `docs/plans/{date}-{topic}-design.md`
 
