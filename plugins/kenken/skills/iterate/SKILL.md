@@ -142,15 +142,15 @@ tasks:
 
 **Task API Format Reference:**
 
-| Field               | Required | Description                                            |
-| ------------------- | -------- | ------------------------------------------------------ |
-| `id`                | Yes      | Unique task identifier (number)                        |
-| `description`       | Yes      | Short description for Task tool (3-5 words)            |
-| `subagent_type`     | Yes      | Agent type: `general-purpose`, `Bash`, `Explore`, etc. |
-| `prompt`            | Yes      | Full prompt with all context needed                    |
-| `dependencies`      | No       | List of task IDs that must complete first              |
-| `model`             | No       | Override model: `sonnet`, `opus`, `haiku`              |
-| `run_in_background` | No       | Run async: `true`/`false`                              |
+| Field               | Required | Description                                                             |
+| ------------------- | -------- | ----------------------------------------------------------------------- |
+| `id`                | Yes      | Unique task identifier (number)                                         |
+| `description`       | Yes      | Short description for Task tool (3-5 words)                             |
+| `subagent_type`     | Yes      | Agent type: `general-purpose`, `Bash`, `Explore`, etc.                  |
+| `prompt`            | Yes      | Full prompt with all context needed                                     |
+| `dependencies`      | No       | List of task IDs that must complete first                               |
+| `model`             | No       | Override model: `sonnet`, `opus`, `haiku`, or versioned like `opus-4.5` |
+| `run_in_background` | No       | Run async: `true`/`false`                                               |
 
 **Exit criteria:** Plan saved with all tasks in Task API format.
 
@@ -464,9 +464,21 @@ If test configuration is not set, auto-detect and verify with user:
 
 ## Configuration
 
-Load from `.claude/kenken-config.json` (project) or `~/.claude/kenken-config.json` (global).
+**IMPORTANT:** Configuration MUST be loaded fresh each time the workflow is invoked. Always read both global and project config files at the start.
+
+**Config file locations:**
+
+- **Global:** `~/.claude/kenken-config.json`
+- **Project:** `.claude/kenken-config.json`
 
 Project config overrides global config.
+
+**On each invocation:**
+
+1. Read global config file (if exists)
+2. Read project config file (if exists)
+3. Merge: defaults → global → project
+4. Use merged config for all phases in this run
 
 ### Schema
 

@@ -94,9 +94,11 @@ For each selected phase, ask appropriate questions:
 
 Ask three questions:
 
-1. **Model:** inherit (recommended), sonnet, opus, or haiku
+1. **Model:** inherit (recommended), or model name (see Model Names in configuration skill)
 2. **Parallel agents:** Yes (recommended) or No
-3. **Parallel model** (if parallel=Yes): inherit, sonnet, opus, or haiku
+3. **Parallel model** (if parallel=Yes): inherit, or model name
+
+Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-4`, `sonnet-3.5`
 
 ### For Phases 3, 8 (MCP review phases)
 
@@ -112,7 +114,9 @@ Ask which tool: codex (recommended), codex-high, or claude-review
 
 ### For Phases 4, 5, 7 (Sequential phases)
 
-Ask which model: inherit (recommended), sonnet, opus, or haiku
+Ask which model: inherit (recommended), or model name
+
+Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-4`, `sonnet-3.5`
 
 ## Step 6: Ask Where to Save
 
