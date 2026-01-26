@@ -86,9 +86,11 @@ Use AskUserQuestion with multiSelect:
 
 Ask for each phase:
 
-- brainstorm: model (inherit/sonnet/opus/haiku), parallel (true/false)
+- brainstorm: model (see Model Names section), parallel (true/false)
 - writePlan: model, parallel
 - planReview: tool (mcp**codex**codex/mcp**codex-high**codex/claude-review)
+
+Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-4`, `sonnet-3.5`
 
 **For IMPLEMENT Stage:**
 
@@ -197,7 +199,7 @@ Ask: "Where to save?"
 
 | Setting        | Valid Values                                                              |
 | -------------- | ------------------------------------------------------------------------- |
-| model          | `inherit`, `sonnet`, `opus`, `haiku`                                      |
+| model          | `inherit`, or any valid model name (see Model Names below)                |
 | tool (review)  | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` (see note) |
 | tool (final)   | `mcp__codex-high__codex` only (fixed)                                     |
 | threshold      | 0-100                                                                     |
@@ -212,3 +214,33 @@ Ask: "Where to save?"
 | mainBranch     | `auto`, `main`, `master`, or custom branch name                           |
 
 **Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex MCP. It's available as a fallback when Codex MCP is not configured, or for users who prefer Claude-native reviews. No additional dependencies required.
+
+## Model Names
+
+The `model` field accepts several formats:
+
+### Short Names (latest version)
+
+- `sonnet` - Claude Sonnet (latest)
+- `opus` - Claude Opus (latest)
+- `haiku` - Claude Haiku (latest)
+
+### Versioned Names (specific version)
+
+- `opus-4.5` - Claude Opus 4.5
+- `opus-4` - Claude Opus 4
+- `sonnet-4` - Claude Sonnet 4
+- `sonnet-3.5` - Claude Sonnet 3.5
+- `haiku-3.5` - Claude Haiku 3.5
+
+### Full Model IDs
+
+For maximum control, use the full model identifier:
+
+- `claude-opus-4-5-20251101`
+- `claude-sonnet-4-20250514`
+- `claude-sonnet-3-5-20241022`
+
+### Special Value
+
+- `inherit` - Use the current session's model (recommended default)

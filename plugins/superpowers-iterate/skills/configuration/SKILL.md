@@ -67,11 +67,41 @@ To "unset" a value back to default: delete the key from config file.
 
 | Phase     | Key      | Valid Values                                                   |
 | --------- | -------- | -------------------------------------------------------------- |
-| 1,2,4,5,7 | model    | `inherit`, `sonnet`, `opus`, `haiku`                           |
+| 1,2,4,5,7 | model    | `inherit`, or any valid model name (see Model Names below)     |
 | 1,2       | parallel | `true`, `false`                                                |
 | 3,8       | tool     | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` |
 | 6         | model    | `null` only (bash phase, not configurable)                     |
 | 9         | tool     | `mcp__codex-high__codex` only (not configurable)               |
+
+## Model Names
+
+The `model` field accepts several formats:
+
+### Short Names (latest version)
+
+- `sonnet` - Claude Sonnet (latest)
+- `opus` - Claude Opus (latest)
+- `haiku` - Claude Haiku (latest)
+
+### Versioned Names (specific version)
+
+- `opus-4.5` - Claude Opus 4.5
+- `opus-4` - Claude Opus 4
+- `sonnet-4` - Claude Sonnet 4
+- `sonnet-3.5` - Claude Sonnet 3.5
+- `haiku-3.5` - Claude Haiku 3.5
+
+### Full Model IDs
+
+For maximum control, use the full model identifier:
+
+- `claude-opus-4-5-20251101`
+- `claude-sonnet-4-20250514`
+- `claude-sonnet-3-5-20241022`
+
+### Special Value
+
+- `inherit` - Use the current session's model (recommended default)
 
 ## Error Handling
 

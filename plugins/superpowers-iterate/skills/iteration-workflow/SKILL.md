@@ -35,11 +35,20 @@ Initialize at start with version 3 schema. Update state after each phase transit
 
 ## Configuration Loading
 
-At workflow start, load configuration using the `configuration` skill. The skill handles:
+**IMPORTANT:** Configuration MUST be loaded fresh each time the workflow is invoked. Always read both global and project config files at the start.
+
+Load configuration using the `configuration` skill. The skill handles:
 
 - Default values
 - Merging global config (`~/.claude/iterate-config.json`)
 - Merging project config (`.claude/iterate-config.local.json`)
+
+**On each invocation:**
+
+1. Read global config file (if exists)
+2. Read project config file (if exists)
+3. Merge: defaults → global → project
+4. Use merged config for all phases in this run
 
 Run `/superpowers-iterate:configure --show` to see current config.
 
