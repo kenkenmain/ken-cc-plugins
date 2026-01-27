@@ -19,6 +19,7 @@ Project config overrides global config, which overrides defaults.
 ```json
 {
   "version": 1,
+  "blockOnSeverity": "low",
   "phases": {
     "1": { "model": "inherit", "parallel": true, "parallelModel": "inherit" },
     "2": { "model": "inherit", "parallel": true, "parallelModel": "inherit" },
@@ -64,6 +65,10 @@ To "unset" a value back to default: delete the key from config file.
 5. Report success with backup location if created
 
 ## Validation Rules
+
+| Setting         | Valid Values                                                  |
+| --------------- | ------------------------------------------------------------- |
+| blockOnSeverity | `high`, `medium`, `low` (blocks on specified level and above) |
 
 | Phase     | Key      | Valid Values                                                   |
 | --------- | -------- | -------------------------------------------------------------- |

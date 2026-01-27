@@ -28,6 +28,8 @@ Display current configuration by:
 ```
 kenken Configuration
 
+Block on severity: low
+
 PLAN Stage:
   brainstorm: model=inherit, parallel=true
   writePlan: model=inherit, parallel=true
@@ -135,6 +137,7 @@ Ask: "Where to save?"
 ```json
 {
   "version": 1,
+  "blockOnSeverity": "low",
   "stages": {
     "plan": {
       "brainstorm": { "model": "inherit", "parallel": true },
@@ -183,6 +186,7 @@ Ask: "Where to save?"
 
 | Setting            | Default                  |
 | ------------------ | ------------------------ |
+| blockOnSeverity    | `low`                    |
 | All models         | `inherit`                |
 | Review tools       | `mcp__codex__codex`      |
 | Final tool         | `mcp__codex-high__codex` |
@@ -197,21 +201,22 @@ Ask: "Where to save?"
 
 ## Validation Rules
 
-| Setting        | Valid Values                                                              |
-| -------------- | ------------------------------------------------------------------------- |
-| model          | `inherit`, or any valid model name (see Model Names below)                |
-| tool (review)  | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` (see note) |
-| tool (final)   | `mcp__codex-high__codex` only (fixed)                                     |
-| threshold      | 0-100                                                                     |
-| maxRetries     | 1-10                                                                      |
-| timeout        | 60-3600 (seconds)                                                         |
-| maxSuggestions | 1-5                                                                       |
-| instructions   | non-empty string (required when test.enabled=true)                        |
-| commands.\*    | valid shell command string                                                |
-| coverageFormat | `auto`, `lcov`, `cobertura`, `json`                                       |
-| branchFormat   | string with placeholders: `{type}`, `{slug}`, `{date}`, `{user}`          |
-| defaultType    | `feat`, `fix`, `chore`, `refactor`, `docs`, `test`                        |
-| mainBranch     | `auto`, `main`, `master`, or custom branch name                           |
+| Setting         | Valid Values                                                              |
+| --------------- | ------------------------------------------------------------------------- |
+| blockOnSeverity | `high`, `medium`, `low` (blocks on specified level and above)             |
+| model           | `inherit`, or any valid model name (see Model Names below)                |
+| tool (review)   | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` (see note) |
+| tool (final)    | `mcp__codex-high__codex` only (fixed)                                     |
+| threshold       | 0-100                                                                     |
+| maxRetries      | 1-10                                                                      |
+| timeout         | 60-3600 (seconds)                                                         |
+| maxSuggestions  | 1-5                                                                       |
+| instructions    | non-empty string (required when test.enabled=true)                        |
+| commands.\*     | valid shell command string                                                |
+| coverageFormat  | `auto`, `lcov`, `cobertura`, `json`                                       |
+| branchFormat    | string with placeholders: `{type}`, `{slug}`, `{date}`, `{user}`          |
+| defaultType     | `feat`, `fix`, `chore`, `refactor`, `docs`, `test`                        |
+| mainBranch      | `auto`, `main`, `master`, or custom branch name                           |
 
 **Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex MCP. It's available as a fallback when Codex MCP is not configured, or for users who prefer Claude-native reviews. No additional dependencies required.
 
