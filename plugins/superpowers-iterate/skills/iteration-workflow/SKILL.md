@@ -218,51 +218,85 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to revi
 
 **Purpose:** TDD-style implementation following the plan
 
-**Required Skill:** `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**Implementer (from config `phases.4.implementer`):**
+
+- `claude` (default): Use Claude subagents via `superpowers:subagent-driven-development`
+- `codex-high`: Use `mcp__codex-high__codex` for implementation
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` for implementation
+
+**Required Skill (claude mode):** `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
 
 **Required Plugins:** LSP plugins for code intelligence
 
 **Actions:**
 
 1. Mark Phase 4 as `in_progress`
-2. Follow `superpowers:subagent-driven-development` process (model from `phases.4.model`):
-   - Read plan, extract all tasks, create TodoWrite
-   - **Launch as many subagents as needed** for implementation:
-     - One implementer subagent per task (sequential to avoid conflicts)
-     - Multiple reviewer subagents can run in parallel
-   - For each task:
-     a. Dispatch implementer subagent with full task text AND LSP context:
+2. Check `phases.4.implementer` config to determine implementation mode:
 
-     ```
-     You have access to LSP (Language Server Protocol) tools:
-     - mcp__lsp__get_diagnostics: Get errors/warnings for a file
-     - mcp__lsp__get_hover: Get type info and documentation at position
-     - mcp__lsp__goto_definition: Jump to symbol definition
-     - mcp__lsp__find_references: Find all references to a symbol
-     - mcp__lsp__get_completions: Get code completions at position
+### Claude Mode (default)
 
-     Use LSP tools to:
-     - Check for errors before committing
-     - Understand existing code via hover/go-to-definition
-     - Find all usages before refactoring
-     ```
+Follow `superpowers:subagent-driven-development` process (model from `phases.4.model`):
 
-     b. Answer any questions from subagent
-     c. Subagent follows `superpowers:test-driven-development`:
-     - Write failing test first
-     - Run to verify it fails
-     - Write minimal code to pass
-     - Run to verify it passes
-     - Use `mcp__lsp__get_diagnostics` to check for errors
-     - Self-review and commit
-       d. Dispatch spec reviewer subagent
-       e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
-       f. Mark task complete in TodoWrite
+- Read plan, extract all tasks, create TodoWrite
+- **Launch as many subagents as needed** for implementation:
+  - One implementer subagent per task (sequential to avoid conflicts)
+  - Multiple reviewer subagents can run in parallel
+- For each task:
+  a. Dispatch implementer subagent with full task text AND LSP context:
+
+  ```
+  You have access to LSP (Language Server Protocol) tools:
+  - mcp__lsp__get_diagnostics: Get errors/warnings for a file
+  - mcp__lsp__get_hover: Get type info and documentation at position
+  - mcp__lsp__goto_definition: Jump to symbol definition
+  - mcp__lsp__find_references: Find all references to a symbol
+  - mcp__lsp__get_completions: Get code completions at position
+
+  Use LSP tools to:
+  - Check for errors before committing
+  - Understand existing code via hover/go-to-definition
+  - Find all usages before refactoring
+  ```
+
+  b. Answer any questions from subagent
+  c. Subagent follows `superpowers:test-driven-development`:
+  - Write failing test first
+  - Run to verify it fails
+  - Write minimal code to pass
+  - Run to verify it passes
+  - Use `mcp__lsp__get_diagnostics` to check for errors
+  - Self-review and commit
+    d. Dispatch spec reviewer subagent
+    e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
+    f. Mark task complete in TodoWrite
+
+### Codex Mode (codex-high or codex-xhigh)
+
+Invoke the configured Codex tool with implementation prompt:
+
+```
+Implement the following tasks from the plan at docs/plans/YYYY-MM-DD-<feature-name>.md
+
+For each task:
+1. Read the task requirements
+2. Write the code following TDD:
+   - Write failing test first
+   - Implement minimal code to pass
+   - Verify tests pass
+3. Follow existing code patterns and conventions
+4. Add appropriate logging and error handling
+
+Run these commands after implementation:
+1. make lint
+2. make test
+
+If tests fail, fix issues and re-run until passing.
+```
 
 3. Run `make lint && make test` to verify all tests pass
 4. Commit after tests pass
 
-**Note:** Implementation subagents run sequentially (to avoid file conflicts), but reviewer subagents can run in parallel.
+**Note (Claude mode):** Implementation subagents run sequentially (to avoid file conflicts), but reviewer subagents can run in parallel.
 
 **Exit criteria:**
 

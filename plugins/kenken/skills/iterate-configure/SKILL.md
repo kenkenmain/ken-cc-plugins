@@ -36,7 +36,7 @@ PLAN Stage:
   planReview: tool=mcp__codex-high__codex
 
 IMPLEMENT Stage:
-  implementation: model=inherit, enforceLogging=true
+  implementation: model=inherit, implementer=claude, enforceLogging=true
   simplify: model=inherit
   implementReview: tool=mcp__codex-high__codex
 
@@ -96,7 +96,7 @@ Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-
 
 **For IMPLEMENT Stage:**
 
-- implementation: model, enforceLogging (true/false)
+- implementation: model, implementer (claude/codex-high/codex-xhigh), enforceLogging (true/false)
 - simplify: model
 - implementReview: tool
 
@@ -145,7 +145,11 @@ Ask: "Where to save?"
       "planReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
     },
     "implement": {
-      "implementation": { "model": "inherit", "enforceLogging": true },
+      "implementation": {
+        "model": "inherit",
+        "implementer": "claude",
+        "enforceLogging": true
+      },
       "simplify": { "model": "inherit" },
       "implementReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
     },
@@ -188,6 +192,7 @@ Ask: "Where to save?"
 | ------------------ | ------------------------- |
 | blockOnSeverity    | `low`                     |
 | All models         | `inherit`                 |
+| Implementer        | `claude`                  |
 | Review tools       | `mcp__codex-high__codex`  |
 | Final tool         | `mcp__codex-xhigh__codex` |
 | Test stage         | disabled                  |
@@ -205,6 +210,7 @@ Ask: "Where to save?"
 | --------------- | ------------------------------------------------------------------------------- |
 | blockOnSeverity | `high`, `medium`, `low` (blocks on specified level and above)                   |
 | model           | `inherit`, or any valid model name (see Model Names below)                      |
+| implementer     | `claude`, `codex-high`, `codex-xhigh` (who writes the code)                     |
 | tool (review)   | `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`, `claude-review` (see note) |
 | tool (final)    | `mcp__codex-xhigh__codex` only (fixed)                                          |
 | threshold       | 0-100                                                                           |
