@@ -178,35 +178,70 @@ Complete all phases before advancing to TEST or FINAL.
 
 ### Phase 2.1: Implementation
 
-**Goal:** Execute the plan task by task using Task API.
+**Goal:** Execute the plan task by task.
 
-**Skill:** `superpowers:subagent-driven-development`
+**Implementer (from config `stages.implement.implementation.implementer`):**
+
+- `claude` (default): Use Claude subagents via `superpowers:subagent-driven-development`
+- `codex-high`: Use `mcp__codex-high__codex` for implementation
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` for implementation
 
 **Actions:**
 
 1. Load plan from `docs/plans/{date}-{topic}-plan.md`
 2. Parse the `tasks:` YAML block into task list
-3. Create TodoWrite with all tasks
-4. For each task (respecting `dependencies`):
-   - Mark task in_progress in TodoWrite
-   - **Dispatch using Task tool:**
-     ```
-     Task(
-       description: task.description,
-       prompt: task.prompt,
-       subagent_type: task.subagent_type,
-       model: task.model,  // optional
-       run_in_background: task.run_in_background  // optional
-     )
-     ```
-   - Add logging (match repo conventions, include error context)
-   - Dispatch spec reviewer subagent
-   - Dispatch code quality reviewer subagent
-   - Mark task completed in TodoWrite
-5. **Parallel execution:** Tasks with no unmet dependencies can run in parallel using `run_in_background: true`
-6. Commit after each task or logical group
+3. Check `stages.implement.implementation.implementer` config:
 
-**Logging requirements:**
+#### Claude Mode (default)
+
+Create TodoWrite with all tasks. For each task (respecting `dependencies`):
+
+- Mark task in_progress in TodoWrite
+- **Dispatch using Task tool:**
+  ```
+  Task(
+    description: task.description,
+    prompt: task.prompt,
+    subagent_type: task.subagent_type,
+    model: task.model,  // optional
+    run_in_background: task.run_in_background  // optional
+  )
+  ```
+- Add logging (match repo conventions, include error context)
+- Dispatch spec reviewer subagent
+- Dispatch code quality reviewer subagent
+- Mark task completed in TodoWrite
+
+**Parallel execution:** Tasks with no unmet dependencies can run in parallel using `run_in_background: true`
+
+Commit after each task or logical group.
+
+#### Codex Mode (codex-high or codex-xhigh)
+
+Invoke the configured Codex tool with implementation prompt:
+
+```
+Implement the following tasks from the plan at docs/plans/{date}-{topic}-plan.md
+
+For each task:
+1. Read the task requirements
+2. Write the code following TDD:
+   - Write failing test first (if applicable)
+   - Implement minimal code to pass
+   - Verify tests pass
+3. Follow existing code patterns and conventions
+4. Add appropriate logging and error handling
+
+Run these commands after implementation:
+1. make lint (if available)
+2. make test (if available)
+
+If tests fail, fix issues and re-run until passing.
+```
+
+Commit after implementation is complete.
+
+**Logging requirements (both modes):**
 
 - Detect repo's logging library (winston, pino, console, etc.)
 - Add logs at: function entry, errors, warnings, state changes
@@ -236,13 +271,19 @@ Complete all phases before advancing to TEST or FINAL.
 
 **Tool:** Configured tool (default: `mcp__codex-high__codex`)
 
+**Bug Fixer (from config `stages.implement.implementReview.bugFixer`):**
+
+- `claude`: Use Claude subagents to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+
 **Prompt:** See `prompts/implement-review.md`
 
 **Actions:**
 
 1. Submit for review
 2. If issues found:
-   - Fix issues
+   - **Fix issues using configured bugFixer**
    - Re-run review (increment retryCount)
 3. If approved, advance to TEST stage (if enabled) or FINAL stage
 
@@ -370,12 +411,18 @@ If test configuration is not set, auto-detect and verify with user:
 
 **Tool:** Always uses `mcp__codex-xhigh__codex`
 
+**Bug Fixer (from config `stages.final.codexFinal.bugFixer`):**
+
+- `claude`: Use Claude subagents to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+
 **Prompt:** See `prompts/final-review.md`
 
 **Actions:**
 
 1. Submit all changes for final review
-2. Fix any HIGH severity issues
+2. **Fix any HIGH severity issues using configured bugFixer**
 3. Re-run if significant changes made
 
 **Exit criteria:** No HIGH severity issues.
