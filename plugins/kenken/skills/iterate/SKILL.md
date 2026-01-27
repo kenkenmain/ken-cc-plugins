@@ -158,7 +158,7 @@ tasks:
 
 **Goal:** Validate plan quality before implementation.
 
-**Tool:** Configured tool (default: `mcp__codex__codex`)
+**Tool:** Configured tool (default: `mcp__codex-high__codex`)
 
 **Prompt:** See `prompts/plan-review.md`
 
@@ -234,7 +234,7 @@ Complete all phases before advancing to TEST or FINAL.
 
 **Goal:** Validate implementation quality.
 
-**Tool:** Configured tool (default: `mcp__codex__codex`)
+**Tool:** Configured tool (default: `mcp__codex-high__codex`)
 
 **Prompt:** See `prompts/implement-review.md`
 
@@ -350,7 +350,7 @@ If test configuration is not set, auto-detect and verify with user:
 
 **Goal:** Validate test quality.
 
-**Tool:** Configured tool (default: `mcp__codex__codex`)
+**Tool:** Configured tool (default: `mcp__codex-high__codex`)
 
 **Prompt:** See `prompts/test-review.md`
 
@@ -368,7 +368,7 @@ If test configuration is not set, auto-detect and verify with user:
 
 **Goal:** Final validation with high reasoning.
 
-**Tool:** Always uses `mcp__codex-high__codex`
+**Tool:** Always uses `mcp__codex-xhigh__codex`
 
 **Prompt:** See `prompts/final-review.md`
 
@@ -588,5 +588,5 @@ mkdir -p .agents/logs/errors
 
 ### Required MCP Tools
 
-- `mcp__codex__codex` - Plan Review, Implement Review, Test Review (configurable)
-- `mcp__codex-high__codex` - Final Review (fixed)
+- `mcp__codex-high__codex` - Plan Review, Implement Review, Test Review (configurable)
+- `mcp__codex-xhigh__codex` - Final Review (fixed)

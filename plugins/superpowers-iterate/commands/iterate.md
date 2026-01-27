@@ -1,7 +1,7 @@
 ---
 description: Start 9-phase iteration workflow for a task (brainstorm->plan->plan-review->implement->review->test->simplify->final-review->codex-final)
 argument-hint: [--max-iterations N] <task-description>
-allowed-tools: Task, Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp__codex__codex, mcp__codex-high__codex, mcp__lsp__get_diagnostics, mcp__lsp__get_hover, mcp__lsp__goto_definition, mcp__lsp__find_references, mcp__lsp__get_completions
+allowed-tools: Task, Read, Write, Edit, Grep, Glob, Bash, TodoWrite, Skill, mcp__codex-high__codex, mcp__codex-xhigh__codex, mcp__lsp__get_diagnostics, mcp__lsp__get_hover, mcp__lsp__goto_definition, mcp__lsp__find_references, mcp__lsp__get_completions
 ---
 
 # Iteration Workflow

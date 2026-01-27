@@ -65,7 +65,7 @@ Project config overrides global config.
 - **superpowers plugin** - brainstorming, writing-plans, subagent-driven-development, requesting-code-review
 - **code-simplifier plugin** - Phase 7
 - **LSP plugins** (optional) - typescript-lsp, pyright-lsp, gopls-lsp
-- **Codex MCP servers** (full mode only) - `mcp__codex__codex`, `mcp__codex-high__codex`
+- **Codex MCP servers** (full mode only) - `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`
 
 ## The 9 Phases
 
@@ -79,7 +79,7 @@ Project config overrides global config.
 | 6     | Test         | make lint && make test               |
 | 7     | Simplify     | code-simplifier                      |
 | 8     | Final Review | Codex (full) or Claude review (lite) |
-| 9     | Codex Final  | `mcp__codex-high__codex` (full only) |
+| 9     | Codex Final  | `mcp__codex-xhigh__codex` (full only) |
 
 **Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or max iterations reached.
 
