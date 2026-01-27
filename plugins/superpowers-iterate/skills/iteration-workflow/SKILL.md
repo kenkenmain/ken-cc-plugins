@@ -313,6 +313,12 @@ If tests fail, fix issues and re-run until passing.
 
 **Required Skill:** `superpowers:requesting-code-review`
 
+**Bug Fixer (from config `phases.5.bugFixer`):**
+
+- `claude`: Use Claude subagents to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+
 **Actions:**
 
 1. Mark Phase 5 as `in_progress`
@@ -330,7 +336,9 @@ If tests fail, fix issues and re-run until passing.
    - **Critical:** Must fix immediately
    - **Important:** Fix now
    - **Minor:** Note for Phase 8
-6. Fix Critical and Important issues
+6. **Fix issues using configured bugFixer:**
+   - If `claude`: Dispatch Claude subagent to fix
+   - If `codex-high`/`codex-xhigh`: Invoke Codex with fix prompt including issue details
 7. Re-run tests after fixes
 8. Document findings in state
 
@@ -397,10 +405,16 @@ If tests fail, fix issues and re-run until passing.
 
 **Required Tool (from config `phases.8.tool`):**
 
-- `mcp__codex-high__codex` (default): Codex with medium reasoning
-- `mcp__codex-xhigh__codex`: Codex with high reasoning
+- `mcp__codex-high__codex` (default): Codex with high reasoning
+- `mcp__codex-xhigh__codex`: Codex with extra-high reasoning
 - `claude-review`: Use `superpowers:requesting-code-review`
 - Lite mode always uses `superpowers:requesting-code-review`
+
+**Bug Fixer (from config `phases.8.bugFixer`):**
+
+- `claude`: Use Claude subagents to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
 
 **Actions:**
 
@@ -446,7 +460,9 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review`:
 
    **If ANY issues found (HIGH, MEDIUM, or LOW):**
    - Announce: "Iteration {N} found {count} issues. Fixing and starting new iteration."
-   - Fix ALL issues
+   - **Fix ALL issues using configured bugFixer:**
+     - If `claude`: Dispatch Claude subagent with issue details
+     - If `codex-high`/`codex-xhigh`: Invoke Codex with fix prompt
    - Re-run `make lint && make test`
    - Store issues in `phase8Issues` array in state
    - **If currentIteration < maxIterations:**

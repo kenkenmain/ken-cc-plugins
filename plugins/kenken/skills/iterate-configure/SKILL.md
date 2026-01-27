@@ -36,9 +36,9 @@ PLAN Stage:
   planReview: tool=mcp__codex-high__codex
 
 IMPLEMENT Stage:
-  implementation: model=inherit, implementer=claude, enforceLogging=true
-  simplify: model=inherit
-  implementReview: tool=mcp__codex-high__codex
+  implementation: model=inherit, implementer=claude, bugFixer=codex-high, enforceLogging=true
+  simplify: model=inherit, bugFixer=codex-high
+  implementReview: tool=mcp__codex-high__codex, bugFixer=codex-high
 
 TEST Stage: [disabled]
   instructions: (not configured)
@@ -96,9 +96,9 @@ Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-
 
 **For IMPLEMENT Stage:**
 
-- implementation: model, implementer (claude/codex-high/codex-xhigh), enforceLogging (true/false)
-- simplify: model
-- implementReview: tool
+- implementation: model, implementer (claude/codex-high/codex-xhigh), bugFixer (claude/codex-high/codex-xhigh), enforceLogging (true/false)
+- simplify: model, bugFixer
+- implementReview: tool, bugFixer
 
 **For TEST Stage:**
 
@@ -148,10 +148,15 @@ Ask: "Where to save?"
       "implementation": {
         "model": "inherit",
         "implementer": "claude",
+        "bugFixer": "codex-high",
         "enforceLogging": true
       },
-      "simplify": { "model": "inherit" },
-      "implementReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
+      "simplify": { "model": "inherit", "bugFixer": "codex-high" },
+      "implementReview": {
+        "tool": "mcp__codex-high__codex",
+        "bugFixer": "codex-high",
+        "maxRetries": 3
+      }
     },
     "test": {
       "enabled": false,
@@ -164,12 +169,19 @@ Ask: "Where to save?"
       "coverageThreshold": 80,
       "coverageFormat": "auto",
       "testPlan": { "model": "inherit" },
-      "testImplementation": { "model": "inherit" },
+      "testImplementation": { "model": "inherit", "bugFixer": "codex-high" },
       "runTests": { "timeout": 300 },
-      "testReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
+      "testReview": {
+        "tool": "mcp__codex-high__codex",
+        "bugFixer": "codex-high",
+        "maxRetries": 3
+      }
     },
     "final": {
-      "codexFinal": { "tool": "mcp__codex-xhigh__codex" },
+      "codexFinal": {
+        "tool": "mcp__codex-xhigh__codex",
+        "bugFixer": "codex-high"
+      },
       "suggestExtensions": { "enabled": true, "maxSuggestions": 3 }
     }
   },
@@ -193,6 +205,7 @@ Ask: "Where to save?"
 | blockOnSeverity    | `low`                     |
 | All models         | `inherit`                 |
 | Implementer        | `claude`                  |
+| Bug fixer          | `codex-high`              |
 | Review tools       | `mcp__codex-high__codex`  |
 | Final tool         | `mcp__codex-xhigh__codex` |
 | Test stage         | disabled                  |
@@ -210,7 +223,8 @@ Ask: "Where to save?"
 | --------------- | ------------------------------------------------------------------------------- |
 | blockOnSeverity | `high`, `medium`, `low` (blocks on specified level and above)                   |
 | model           | `inherit`, or any valid model name (see Model Names below)                      |
-| implementer     | `claude`, `codex-high`, `codex-xhigh` (who writes the code)                     |
+| implementer     | `claude`, `codex-high`, `codex-xhigh` (who writes initial code)                 |
+| bugFixer        | `claude`, `codex-high`, `codex-xhigh` (who fixes issues found by reviews)       |
 | tool (review)   | `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`, `claude-review` (see note) |
 | tool (final)    | `mcp__codex-xhigh__codex` only (fixed)                                          |
 | threshold       | 0-100                                                                           |

@@ -24,11 +24,16 @@ Project config overrides global config, which overrides defaults.
     "1": { "model": "inherit", "parallel": true, "parallelModel": "inherit" },
     "2": { "model": "inherit", "parallel": true, "parallelModel": "inherit" },
     "3": { "tool": "mcp__codex-high__codex" },
-    "4": { "model": "inherit", "parallel": false, "implementer": "claude" },
-    "5": { "model": "inherit", "parallel": false },
+    "4": {
+      "model": "inherit",
+      "parallel": false,
+      "implementer": "claude",
+      "bugFixer": "codex-high"
+    },
+    "5": { "model": "inherit", "parallel": false, "bugFixer": "codex-high" },
     "6": { "model": null },
-    "7": { "model": "inherit", "parallel": false },
-    "8": { "tool": "mcp__codex-high__codex" },
+    "7": { "model": "inherit", "parallel": false, "bugFixer": "codex-high" },
+    "8": { "tool": "mcp__codex-high__codex", "bugFixer": "codex-high" },
     "9": { "tool": "mcp__codex-xhigh__codex" }
   }
 }
@@ -75,7 +80,8 @@ To "unset" a value back to default: delete the key from config file.
 | 1,2,4,5,7 | model       | `inherit`, or any valid model name (see Model Names below)           |
 | 1,2       | parallel    | `true`, `false`                                                      |
 | 3,8       | tool        | `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`, `claude-review` |
-| 4         | implementer | `claude`, `codex-high`, `codex-xhigh` (who writes the code)          |
+| 4         | implementer | `claude`, `codex-high`, `codex-xhigh` (who writes initial code)      |
+| 4,5,7,8   | bugFixer    | `claude`, `codex-high`, `codex-xhigh` (who fixes review issues)      |
 | 6         | model       | `null` only (bash phase, not configurable)                           |
 | 9         | tool        | `mcp__codex-xhigh__codex` only (not configurable)                    |
 

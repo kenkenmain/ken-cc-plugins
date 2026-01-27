@@ -271,13 +271,19 @@ Commit after implementation is complete.
 
 **Tool:** Configured tool (default: `mcp__codex-high__codex`)
 
+**Bug Fixer (from config `stages.implement.implementReview.bugFixer`):**
+
+- `claude`: Use Claude subagents to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+
 **Prompt:** See `prompts/implement-review.md`
 
 **Actions:**
 
 1. Submit for review
 2. If issues found:
-   - Fix issues
+   - **Fix issues using configured bugFixer**
    - Re-run review (increment retryCount)
 3. If approved, advance to TEST stage (if enabled) or FINAL stage
 
@@ -405,12 +411,18 @@ If test configuration is not set, auto-detect and verify with user:
 
 **Tool:** Always uses `mcp__codex-xhigh__codex`
 
+**Bug Fixer (from config `stages.final.codexFinal.bugFixer`):**
+
+- `claude`: Use Claude subagents to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+
 **Prompt:** See `prompts/final-review.md`
 
 **Actions:**
 
 1. Submit all changes for final review
-2. Fix any HIGH severity issues
+2. **Fix any HIGH severity issues using configured bugFixer**
 3. Re-run if significant changes made
 
 **Exit criteria:** No HIGH severity issues.
