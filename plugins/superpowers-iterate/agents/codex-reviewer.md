@@ -13,8 +13,8 @@ tools:
   - Bash
   - Read
   - Grep
-  - mcp__codex__codex
   - mcp__codex-high__codex
+  - mcp__codex-xhigh__codex
 ---
 
 # Codex Reviewer Agent
@@ -25,8 +25,8 @@ You are a Codex review specialist responsible for invoking OpenAI Codex MCP serv
 
 1. **Assess Complexity**
    - Analyze the scope of changes
-   - Standard tasks -> use `mcp__codex__codex`
-   - Complex analysis -> use `mcp__codex-high__codex`
+   - Standard tasks -> use `mcp__codex-high__codex`
+   - Complex analysis -> use `mcp__codex-xhigh__codex`
 
 2. **Construct Review Prompt**
    Include:
@@ -39,7 +39,7 @@ You are a Codex review specialist responsible for invoking OpenAI Codex MCP serv
    Use the appropriate tool:
 
    ```
-   mcp__codex__codex or mcp__codex-high__codex
+   mcp__codex-high__codex or mcp__codex-xhigh__codex
    ```
 
    With prompt:

@@ -43,30 +43,30 @@ This plugin orchestrates a 9-phase development iteration:
 ```
 Phase 1: Brainstorm    -> superpowers:brainstorming + parallel agents
 Phase 2: Plan          -> superpowers:writing-plans + parallel agents
-Phase 3: Plan Review   -> mcp__codex__codex (default, configurable via /configure)
+Phase 3: Plan Review   -> mcp__codex-high__codex (default, configurable via /configure)
 Phase 4: Implement     -> superpowers:subagent-driven-development
 Phase 5: Review        -> superpowers:requesting-code-review
 Phase 6: Test          -> make lint && make test
 Phase 7: Simplify      -> code-simplifier agent
-Phase 8: Final Review  -> mcp__codex__codex (default, configurable via /configure)
-Phase 9: Codex Final   -> mcp__codex-high__codex (full mode only)
+Phase 8: Final Review  -> mcp__codex-high__codex (default, configurable via /configure)
+Phase 9: Codex Final   -> mcp__codex-xhigh__codex (full mode only)
 ```
 
 **Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or max iterations reached.
 
 ## Model Configuration
 
-| Phase | Activity     | Model     | MCP Tool                 | Rationale                            |
-| ----- | ------------ | --------- | ------------------------ | ------------------------------------ |
-| 1     | Brainstorm   | `inherit` | N/A                      | User controls via /configure         |
-| 2     | Plan         | `inherit` | N/A                      | User controls via /configure         |
-| 3     | Plan Review  | N/A       | `mcp__codex__codex`      | Medium reasoning for plan validation |
-| 4     | Implement    | `inherit` | N/A                      | User controls quality                |
-| 5     | Review       | `inherit` | N/A                      | Quick sanity check                   |
-| 6     | Test         | N/A       | N/A                      | Bash commands                        |
-| 7     | Simplify     | `inherit` | N/A                      | Code quality                         |
-| 8     | Final Review | N/A       | `mcp__codex__codex`      | Medium reasoning for iteration       |
-| 9     | Codex Final  | N/A       | `mcp__codex-high__codex` | High reasoning for final validation  |
+| Phase | Activity     | Model     | MCP Tool                  | Rationale                            |
+| ----- | ------------ | --------- | ------------------------- | ------------------------------------ |
+| 1     | Brainstorm   | `inherit` | N/A                       | User controls via /configure         |
+| 2     | Plan         | `inherit` | N/A                       | User controls via /configure         |
+| 3     | Plan Review  | N/A       | `mcp__codex-high__codex`       | Medium reasoning for plan validation |
+| 4     | Implement    | `inherit` | N/A                       | User controls quality                |
+| 5     | Review       | `inherit` | N/A                       | Quick sanity check                   |
+| 6     | Test         | N/A       | N/A                       | Bash commands                        |
+| 7     | Simplify     | `inherit` | N/A                       | Code quality                         |
+| 8     | Final Review | N/A       | `mcp__codex-high__codex`       | Medium reasoning for iteration       |
+| 9     | Codex Final  | N/A       | `mcp__codex-xhigh__codex` | High reasoning for final validation  |
 
 ## Configuration
 

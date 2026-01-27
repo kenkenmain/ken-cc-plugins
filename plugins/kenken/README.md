@@ -129,8 +129,8 @@ Project config overrides global.
 
 **Required MCP servers (full mode):**
 
-- codex (`mcp__codex__codex`)
-- codex-high (`mcp__codex-high__codex`)
+- codex (`mcp__codex-high__codex`)
+- codex-high (`mcp__codex-xhigh__codex`)
 
 ## State Management
 

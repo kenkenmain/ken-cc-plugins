@@ -28,15 +28,17 @@ Display current configuration by:
 ```
 kenken Configuration
 
+Block on severity: low
+
 PLAN Stage:
   brainstorm: model=inherit, parallel=true
   writePlan: model=inherit, parallel=true
-  planReview: tool=mcp__codex__codex
+  planReview: tool=mcp__codex-high__codex
 
 IMPLEMENT Stage:
   implementation: model=inherit, enforceLogging=true
   simplify: model=inherit
-  implementReview: tool=mcp__codex__codex
+  implementReview: tool=mcp__codex-high__codex
 
 TEST Stage: [disabled]
   instructions: (not configured)
@@ -44,10 +46,10 @@ TEST Stage: [disabled]
   coverageThreshold: 80%
   testPlan: model=inherit
   testImplementation: model=inherit
-  testReview: tool=mcp__codex__codex
+  testReview: tool=mcp__codex-high__codex
 
 FINAL Stage:
-  codexFinal: tool=mcp__codex-high__codex (fixed)
+  codexFinal: tool=mcp__codex-xhigh__codex (fixed)
   suggestExtensions: enabled=true, maxSuggestions=3
 
 Config files:
@@ -135,16 +137,17 @@ Ask: "Where to save?"
 ```json
 {
   "version": 1,
+  "blockOnSeverity": "low",
   "stages": {
     "plan": {
       "brainstorm": { "model": "inherit", "parallel": true },
       "writePlan": { "model": "inherit", "parallel": true },
-      "planReview": { "tool": "mcp__codex__codex", "maxRetries": 3 }
+      "planReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
     },
     "implement": {
       "implementation": { "model": "inherit", "enforceLogging": true },
       "simplify": { "model": "inherit" },
-      "implementReview": { "tool": "mcp__codex__codex", "maxRetries": 3 }
+      "implementReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
     },
     "test": {
       "enabled": false,
@@ -159,10 +162,10 @@ Ask: "Where to save?"
       "testPlan": { "model": "inherit" },
       "testImplementation": { "model": "inherit" },
       "runTests": { "timeout": 300 },
-      "testReview": { "tool": "mcp__codex__codex", "maxRetries": 3 }
+      "testReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
     },
     "final": {
-      "codexFinal": { "tool": "mcp__codex-high__codex" },
+      "codexFinal": { "tool": "mcp__codex-xhigh__codex" },
       "suggestExtensions": { "enabled": true, "maxSuggestions": 3 }
     }
   },
@@ -181,37 +184,39 @@ Ask: "Where to save?"
 
 ## Defaults Summary
 
-| Setting            | Default                  |
-| ------------------ | ------------------------ |
-| All models         | `inherit`                |
-| Review tools       | `mcp__codex__codex`      |
-| Final tool         | `mcp__codex-high__codex` |
-| Test stage         | disabled                 |
-| Coverage threshold | 80%                      |
-| Max retries        | 3                        |
-| Extensions         | enabled                  |
-| Test instructions  | (must be provided)       |
-| Branch format      | `{type}/{slug}`          |
-| Default type       | `feat`                   |
-| Main branch        | `auto` (detect)          |
+| Setting            | Default                   |
+| ------------------ | ------------------------- |
+| blockOnSeverity    | `low`                     |
+| All models         | `inherit`                 |
+| Review tools       | `mcp__codex-high__codex`  |
+| Final tool         | `mcp__codex-xhigh__codex` |
+| Test stage         | disabled                  |
+| Coverage threshold | 80%                       |
+| Max retries        | 3                         |
+| Extensions         | enabled                   |
+| Test instructions  | (must be provided)        |
+| Branch format      | `{type}/{slug}`           |
+| Default type       | `feat`                    |
+| Main branch        | `auto` (detect)           |
 
 ## Validation Rules
 
-| Setting        | Valid Values                                                              |
-| -------------- | ------------------------------------------------------------------------- |
-| model          | `inherit`, or any valid model name (see Model Names below)                |
-| tool (review)  | `mcp__codex__codex`, `mcp__codex-high__codex`, `claude-review` (see note) |
-| tool (final)   | `mcp__codex-high__codex` only (fixed)                                     |
-| threshold      | 0-100                                                                     |
-| maxRetries     | 1-10                                                                      |
-| timeout        | 60-3600 (seconds)                                                         |
-| maxSuggestions | 1-5                                                                       |
-| instructions   | non-empty string (required when test.enabled=true)                        |
-| commands.\*    | valid shell command string                                                |
-| coverageFormat | `auto`, `lcov`, `cobertura`, `json`                                       |
-| branchFormat   | string with placeholders: `{type}`, `{slug}`, `{date}`, `{user}`          |
-| defaultType    | `feat`, `fix`, `chore`, `refactor`, `docs`, `test`                        |
-| mainBranch     | `auto`, `main`, `master`, or custom branch name                           |
+| Setting         | Valid Values                                                                    |
+| --------------- | ------------------------------------------------------------------------------- |
+| blockOnSeverity | `high`, `medium`, `low` (blocks on specified level and above)                   |
+| model           | `inherit`, or any valid model name (see Model Names below)                      |
+| tool (review)   | `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`, `claude-review` (see note) |
+| tool (final)    | `mcp__codex-xhigh__codex` only (fixed)                                          |
+| threshold       | 0-100                                                                           |
+| maxRetries      | 1-10                                                                            |
+| timeout         | 60-3600 (seconds)                                                               |
+| maxSuggestions  | 1-5                                                                             |
+| instructions    | non-empty string (required when test.enabled=true)                              |
+| commands.\*     | valid shell command string                                                      |
+| coverageFormat  | `auto`, `lcov`, `cobertura`, `json`                                             |
+| branchFormat    | string with placeholders: `{type}`, `{slug}`, `{date}`, `{user}`                |
+| defaultType     | `feat`, `fix`, `chore`, `refactor`, `docs`, `test`                              |
+| mainBranch      | `auto`, `main`, `master`, or custom branch name                                 |
 
 **Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex MCP. It's available as a fallback when Codex MCP is not configured, or for users who prefer Claude-native reviews. No additional dependencies required.
 

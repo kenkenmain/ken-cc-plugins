@@ -6,8 +6,8 @@ tools:
   - Bash
   - Read
   - Grep
-  - mcp__codex__codex
   - mcp__codex-high__codex
+  - mcp__codex-xhigh__codex
 ---
 
 # Codex Reviewer Agent
@@ -53,11 +53,11 @@ Called by iterate skill during:
 
 ## Tool Selection
 
-| Review Type | Default Tool             | Configurable |
-| ----------- | ------------------------ | ------------ |
-| plan        | `mcp__codex__codex`      | Yes          |
-| implement   | `mcp__codex__codex`      | Yes          |
-| test        | `mcp__codex__codex`      | Yes          |
-| final       | `mcp__codex-high__codex` | No           |
+| Review Type | Default Tool              | Configurable |
+| ----------- | ------------------------- | ------------ |
+| plan        | `mcp__codex-high__codex`  | Yes          |
+| implement   | `mcp__codex-high__codex`  | Yes          |
+| test        | `mcp__codex-high__codex`  | Yes          |
+| final       | `mcp__codex-xhigh__codex` | No           |
 
 **Note on `claude-review`:** When configured, this agent delegates to `superpowers:requesting-code-review` instead of calling Codex MCP directly. The claude-review option uses the same prompt templates but invokes the superpowers code-reviewer subagent. This is a fallback for environments without Codex MCP configured.
