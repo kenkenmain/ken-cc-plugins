@@ -74,7 +74,7 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    ```
    Task(
      description: "Review: implementation",
-     prompt: "Review the implementation. Files: [modified files]. Use prompts/high-stakes/implementation.md criteria.",
+     prompt: "Review the implementation. Files: [modified files]. Use prompts/high-stakes/implementation.md criteria. Tool: codex-high.",
      subagent_type: "subagents:codex-reviewer"
    )
    ```
@@ -103,7 +103,7 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    ```
    Task(
      description: "Review: tests",
-     prompt: "Review test coverage and quality. Files: [test files]. Verify coverage, edge cases, assertions.",
+     prompt: "Review test coverage and quality. Files: [test files]. Verify coverage, edge cases, assertions. Tool: codex-high.",
      subagent_type: "subagents:codex-reviewer"
    )
    ```

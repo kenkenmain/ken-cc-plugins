@@ -54,13 +54,15 @@ Task 1 → Task 2
 
 ## Required Fields Per Task
 
-| Field        | Type     | Max Length | Description                                   |
-| ------------ | -------- | ---------- | --------------------------------------------- |
-| id           | string   | 20 chars   | Unique task identifier (task-1, task-2, etc.) |
-| description  | string   | 100 chars  | Brief task summary                            |
-| targetFiles  | string[] | 10 files   | Files this task will modify                   |
-| instructions | string   | 2000 chars | Detailed implementation guidance              |
-| dependencies | string[] | -          | Task IDs that must complete first             |
+Each `### Task N: {name}` section MUST include:
+
+| Field             | Format                      | Description                        |
+| ----------------- | --------------------------- | ---------------------------------- |
+| Task header       | `### Task N: {name}`        | Number + short name (used as ID)   |
+| **Files:**        | Comma-separated paths       | Files this task will create/modify |
+| **Dependencies:** | `none` or `Task N, Task M`  | Tasks that must complete first     |
+| **Complexity:**   | `easy`, `medium`, or `hard` | Determines execution method        |
+| **Instructions:** | Multi-line text             | Detailed implementation guidance   |
 
 ## Output
 

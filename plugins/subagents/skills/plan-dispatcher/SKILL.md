@@ -62,14 +62,19 @@ Write merged plan to `.agents/tmp/phases/1.2-plan.md`:
 
 ### Task 1: {name}
 
-- **Area:** {area}
 - **Files:** {files to create/modify}
-- **Dependencies:** {task dependencies}
+- **Dependencies:** none
 - **Complexity:** easy|medium|hard
+- **Instructions:**
+  {detailed implementation guidance}
 
 ### Task 2: {name}
 
-...
+- **Files:** {files}
+- **Dependencies:** Task 1
+- **Complexity:** easy|medium|hard
+- **Instructions:**
+  {detailed implementation guidance}
 
 ## Dependency Graph
 

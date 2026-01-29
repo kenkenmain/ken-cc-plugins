@@ -151,10 +151,12 @@ Project configuration overrides global.
     "EXPLORE": { "maxParallelAgents": 10 },
     "PLAN": { "maxParallelAgents": 10 },
     "IMPLEMENT": {
-      "complexityModels": {
-        "easy": "sonnet-4.5",
-        "medium": "opus-4.5",
-        "hard": "codex-xhigh"
+      "tasks": {
+        "complexityModels": {
+          "easy": "sonnet-4.5",
+          "medium": "opus-4.5",
+          "hard": "codex-xhigh"
+        }
       }
     }
   },

@@ -73,12 +73,7 @@ Task(
 ```
 Task(
   description: "Task: {task name} (codex)",
-  prompt: {
-    reviewType: "implementation",
-    tool: "codex-xhigh",
-    task: "{task details from plan}",
-    files: [target files]
-  },
+  prompt: "Implement the following task using codex-xhigh. Task: {task name}. Files: {target files}. Instructions: {task details from plan}.",
   subagent_type: "subagents:codex-reviewer"
 )
 ```
