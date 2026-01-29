@@ -64,6 +64,75 @@ jobs:
             fi
           done
 
+  marketplace-sync:
+    name: Marketplace Sync
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate marketplace versions
+        run: |
+          echo "Checking marketplace.json version sync..."
+
+          errors=0
+          marketplace_file=".claude-plugin/marketplace.json"
+
+          # Check marketplace.json exists
+          if [ ! -f "$marketplace_file" ]; then
+            echo "ERROR: $marketplace_file not found"
+            exit 1
+          fi
+
+          echo ""
+          echo "Plugin Version Comparison:"
+          echo "=========================="
+          printf "%-25s %-15s %-15s %s\n" "PLUGIN" "PLUGIN.JSON" "MARKETPLACE" "STATUS"
+          echo "---------------------------------------------------------------------------"
+
+          # Iterate over all plugins
+          for plugin_dir in plugins/*/; do
+            if [ -d "$plugin_dir" ]; then
+              plugin_name=$(basename "$plugin_dir")
+              plugin_json="${plugin_dir}.claude-plugin/plugin.json"
+
+              # Get actual version from plugin.json
+              if [ ! -f "$plugin_json" ]; then
+                echo "ERROR: Missing $plugin_json"
+                errors=$((errors + 1))
+                continue
+              fi
+
+              actual_version=$(jq -r '.version' "$plugin_json")
+
+              # Get marketplace version
+              marketplace_version=$(jq -r --arg name "$plugin_name" '.plugins[] | select(.name == $name) | .version' "$marketplace_file")
+
+              if [ -z "$marketplace_version" ] || [ "$marketplace_version" = "null" ]; then
+                printf "%-25s %-15s %-15s %s\n" "$plugin_name" "$actual_version" "MISSING" "FAIL"
+                echo "  -> Plugin '$plugin_name' not found in marketplace.json"
+                errors=$((errors + 1))
+              elif [ "$actual_version" != "$marketplace_version" ]; then
+                printf "%-25s %-15s %-15s %s\n" "$plugin_name" "$actual_version" "$marketplace_version" "FAIL"
+                echo "  -> Version mismatch: expected $actual_version, got $marketplace_version"
+                errors=$((errors + 1))
+              else
+                printf "%-25s %-15s %-15s %s\n" "$plugin_name" "$actual_version" "$marketplace_version" "OK"
+              fi
+            fi
+          done
+
+          echo ""
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors version sync error(s) found"
+            echo ""
+            echo "To fix: Update .claude-plugin/marketplace.json to match plugin versions"
+            exit 1
+          fi
+
+          echo "SUCCESS: All plugin versions in sync"
+
   version-bump-check:
     name: Version Bump Check
     runs-on: ubuntu-latest
