@@ -18,66 +18,63 @@ Project overrides global, which overrides defaults.
 
 ```json
 {
-  "version": "1.1",
+  "version": "2.0",
   "defaults": {
-    "model": "sonnet",
-    "testStage": true,
+    "model": "sonnet-4.5",
     "gitWorkflow": "branch+PR",
     "blockOnSeverity": "low"
   },
-  "complexityScoring": {
-    "easy": { "model": "sonnet" },
-    "medium": { "model": "opus" },
-    "hard": { "model": "opus", "needsCodexReview": true }
-  },
   "stages": {
+    "EXPLORE": {
+      "enabled": true,
+      "model": "sonnet-4.5",
+      "maxParallelAgents": 10
+    },
     "PLAN": {
       "enabled": true,
-      "planReview": { "tool": "codex-high", "maxRetries": 3 }
+      "brainstorm": { "inline": true },
+      "planning": {
+        "model": "sonnet-4.5",
+        "maxParallelAgents": 10,
+        "mode": "parallel"
+      },
+      "review": { "tool": "codex-high", "maxRetries": 3 }
     },
     "IMPLEMENT": {
       "enabled": true,
-      "useComplexityScoring": true,
-      "implementReview": {
-        "tool": "codex-high",
-        "bugFixer": { "type": "mcp", "tool": "codex-high" },
-        "maxRetries": 3
-      }
+      "tasks": {
+        "maxParallelAgents": 10,
+        "useComplexityScoring": true,
+        "complexityModels": {
+          "easy": "sonnet-4.5",
+          "medium": "opus-4.5",
+          "hard": "codex-xhigh"
+        }
+      },
+      "review": { "tool": "codex-high", "maxRetries": 3 }
     },
     "TEST": {
       "enabled": true,
-      "commands": {
-        "lint": "make lint",
-        "test": "make test",
-        "coverage": "make coverage"
-      },
-      "coverageThreshold": 80,
-      "testReview": {
-        "tool": "codex-high",
-        "blockOnSeverity": "low",
-        "maxRetries": 3
-      }
+      "commands": { "lint": "make lint", "test": "make test" },
+      "review": { "tool": "codex-high" }
     },
     "FINAL": {
       "enabled": true,
-      "documentUpdates": { "enabled": true, "model": "sonnet" },
-      "codexFinal": {
-        "tool": "codex-xhigh",
-        "bugFixer": { "type": "mcp", "tool": "codex-high" }
-      },
-      "completion": {
-        "git": {
-          "enabled": true,
-          "workflow": "branch+PR",
-          "branchFormat": "{type}/{slug}",
-          "defaultType": "feat",
-          "excludePatterns": [".agents/**", "docs/plans/**", "*.tmp", "*.log"]
-        }
+      "review": { "tool": "codex-xhigh" },
+      "git": {
+        "workflow": "branch+PR",
+        "excludePatterns": [".agents/**"]
       }
     }
   },
-  "parallelism": {
-    "maxParallelTasks": 5
+  "compaction": {
+    "betweenStages": true,
+    "betweenPhases": false
+  },
+  "retries": {
+    "maxPerPhase": 3,
+    "maxPerTask": 2,
+    "backoffSeconds": [5, 15, 30]
   }
 }
 ```
@@ -88,7 +85,7 @@ Start with defaults, deep merge global config, deep merge project config, return
 
 ## Merge Logic
 
-Deep recursive merge. Example: defaults provide "easy: sonnet", global overrides to "easy: haiku", project adds "medium: sonnet".
+Deep recursive merge. Example: defaults provide "easy: sonnet-4.5", global overrides to "easy: haiku", project adds "medium: sonnet".
 
 ## Writing Configuration
 
@@ -98,12 +95,14 @@ Determine target, create directory if needed, backup existing file, write JSON w
 
 For Task tool dispatch. Valid values:
 
-| Short Name | Full Model ID               |
-| ---------- | --------------------------- |
-| `sonnet`   | `claude-sonnet-4-20250514`  |
-| `opus`     | `claude-opus-4-20250514`    |
-| `haiku`    | `claude-3-5-haiku-20241022` |
-| `inherit`  | Use session's current model |
+| Alias        | Full Model ID                |
+| ------------ | ---------------------------- |
+| `sonnet-4.5` | `claude-sonnet-4-5-20250514` |
+| `sonnet`     | `claude-sonnet-4-20250514`   |
+| `opus-4.5`   | `claude-opus-4-5-20251101`   |
+| `opus`       | `claude-opus-4-20250514`     |
+| `haiku`      | `claude-3-5-haiku-20241022`  |
+| `inherit`    | Use session's current model  |
 
 ## MCP Tool Namespace (McpToolId)
 
@@ -116,18 +115,13 @@ For review phases using Codex MCP. Valid values:
 
 **Critical:** ModelId and McpToolId are DIFFERENT namespaces. Never mix them.
 
-## bugFixer Format
-
-Structured format: `{ "type": "mcp|model", "tool": "codex-high|codex-xhigh|sonnet|opus" }`
-
 ## Validation Rules
 
 | Setting             | Valid Values                  |
 | ------------------- | ----------------------------- |
 | `blockOnSeverity`   | `high`, `medium`, `low`       |
 | `gitWorkflow`       | `none`, `commit`, `branch+PR` |
-| `coverageThreshold` | 0-100 (percentage)            |
-| `maxParallelTasks`  | 1-10                          |
+| `maxParallelAgents` | 1-10                          |
 
 ## Error Handling
 
