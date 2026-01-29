@@ -15,6 +15,21 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 
 ## Execution Flow
 
+### Schedule-Driven Execution
+
+The workflow iterates over `state.schedule` entries instead of hardcoded stage logic:
+
+1. Read `state.schedule` from state
+2. Find current position (first entry where phase matches `state.currentPhase`, or first `pending` phase)
+3. For each schedule entry from current position:
+   a. Execute the phase based on its `type` (see per-stage sections below)
+   b. Mark phase as `completed` in state
+   c. Call `Advance Phase` (state-manager) to move to next entry
+   d. If `Advance Phase` returns gate failure → halt, report missing phases
+4. After all entries complete → workflow is done
+
+**CRITICAL: Never skip a schedule entry.** Every phase in the schedule must either complete or be explicitly handled (stage disabled/skipped). The schedule is the single source of truth for phase ordering.
+
 ### EXPLORE Stage (Phase 0)
 
 1. Use `explore-dispatcher` skill
@@ -53,6 +68,8 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 3. Write review to `.agents/tmp/phases/1.3-plan-review.json`
 4. Update state, compact context
 
+**Gate enforcement:** Phase 1.3 output (`1.3-plan-review.json`) is a required gate artifact for the PLAN→IMPLEMENT transition. The workflow CANNOT proceed to Phase 2.1 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to IMPLEMENT.
+
 ### IMPLEMENT Stage
 
 **Phase 2.1: Task Execution**
@@ -85,6 +102,8 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 3. Write review to `.agents/tmp/phases/2.3-impl-review.json`
 4. Update state, compact context
 
+**Gate enforcement:** Phase 2.3 output (`2.3-impl-review.json`) is a required gate artifact for the IMPLEMENT→TEST transition. The workflow CANNOT proceed to Phase 3.1 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to TEST.
+
 ### TEST Stage
 
 **Phase 3.1: Run Tests**
@@ -114,6 +133,8 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 3. Write review to `.agents/tmp/phases/3.3-test-review.json`
 4. Update state, compact context
 
+**Gate enforcement:** Phase 3.3 output (`3.3-test-review.json`) is a required gate artifact for the TEST→FINAL transition. The workflow CANNOT proceed to Phase 4.1 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to FINAL.
+
 ### FINAL Stage
 
 **Phase 4.1: Documentation Updates**
@@ -134,6 +155,8 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    - Dispatch bugFixer (default: codex-high) to fix each issue
    - Re-run codex-reviewer
    - Repeat until no blocking issues or max retries
+
+**Gate enforcement:** Phase 4.2 output (`4.2-final-review.json`) is a required gate artifact for the FINAL→COMPLETE transition. The workflow CANNOT proceed to Phase 4.3 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to Completion.
 
 **Phase 4.3: Completion**
 
@@ -156,22 +179,16 @@ Between phases (when `compaction.betweenPhases: true`):
 
 ## State Updates
 
-After each phase:
+After each phase, use the `Advance Phase` operation from state-manager:
 
-```json
-{
-  "currentStage": "IMPLEMENT",
-  "currentPhase": "2.1",
-  "stages": {
-    "IMPLEMENT": {
-      "status": "in_progress",
-      "phases": {
-        "2.1": { "status": "in_progress" }
-      }
-    }
-  }
-}
-```
+1. Mark current phase as completed in `stages[currentStage].phases[phaseId]`
+2. Record output file in `state.files` if applicable
+3. Call `Advance Phase` to determine and set the next phase
+4. If `Advance Phase` triggers a gate check:
+   - Gate passes → currentPhase/currentStage updated automatically
+   - Gate fails → workflow halts with blocked status and missing file details
+
+**Never manually set `currentPhase` or `currentStage`.** Always go through `Advance Phase` to ensure gate checks fire.
 
 ## Review Status Handling
 
