@@ -1,7 +1,7 @@
 ---
 description: Checkpoint and pause the current subagent workflow
 argument-hint:
-allowed-tools: Read, Write, Bash
+allowed-tools: Read, Write, Bash, Skill
 ---
 
 # Stop Subagent Workflow

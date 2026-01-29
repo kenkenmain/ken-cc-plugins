@@ -17,7 +17,7 @@ Manage subagents workflow state with file-based persistence.
 {
   "version": 2,
   "task": "<task description>",
-  "status": "pending|in_progress|completed|failed",
+  "status": "pending|in_progress|stopped|completed|failed",
   "currentStage": "EXPLORE|PLAN|IMPLEMENT|TEST|FINAL",
   "currentPhase": "0|1.1|1.2|1.3|2.1|2.2|2.3|3.1|3.2|3.3|4.1|4.2|4.3",
   "stages": {
@@ -31,7 +31,8 @@ Manage subagents workflow state with file-based persistence.
   "failure": null,
   "compaction": { "lastCompactedAt": null, "history": [] },
   "startedAt": null,
-  "updatedAt": null
+  "updatedAt": null,
+  "stoppedAt": null
 }
 ```
 

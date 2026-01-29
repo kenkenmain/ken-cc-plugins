@@ -1,6 +1,6 @@
 ---
 description: Start a subagent workflow for complex task execution
-argument-hint: <task description> [--no-test] [--stage STAGE]
+argument-hint: <task description> [--no-test] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList, mcp__codex-high__codex, mcp__codex-xhigh__codex
 ---
 
@@ -13,6 +13,7 @@ Start a workflow for complex task execution with parallel subagents and file-bas
 - `<task description>`: Required. The task to execute
 - `--no-test`: Optional. Skip the TEST stage
 - `--stage STAGE`: Optional. Start from specific stage (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
+- `--plan PATH`: Optional. Specify plan file path (for starting at IMPLEMENT with external plan)
 
 Parse from $ARGUMENTS to extract task description and flags.
 
@@ -48,16 +49,23 @@ Use `state-manager` skill to create `.agents/tmp/state.json`:
 
 Set `stages.TEST.enabled: false` if `--no-test`.
 
-## Step 3: Handle --stage
+## Step 3: Handle --stage and --plan
 
 If `--stage` provided:
 
 1. Validate stage name (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
 2. Check if required prior state exists:
-   - IMPLEMENT requires `.agents/tmp/phases/1.2-plan.md`
+   - IMPLEMENT requires plan file (see below)
    - TEST requires completed IMPLEMENT stage
    - FINAL requires completed TEST stage (or TEST disabled)
 3. Set currentStage and currentPhase appropriately
+
+**If --stage IMPLEMENT or later:**
+
+1. If `--plan PATH` provided: use that path, copy to `.agents/tmp/phases/1.2-plan.md`
+2. Else if `.agents/tmp/phases/1.2-plan.md` exists: use existing plan
+3. Else: use AskUserQuestion to request plan file path from user
+4. Validate the plan file exists before proceeding
 
 ## Step 4: Execute Workflow
 
