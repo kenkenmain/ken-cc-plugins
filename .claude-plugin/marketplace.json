@@ -13,8 +13,8 @@
     {
       "name": "superpowers-iterate",
       "source": "./plugins/superpowers-iterate",
-      "description": "Orchestrates iterative 8-phase workflow with full/lite modes. Loops until clean or max iterations.",
-      "version": "1.1.0",
+      "description": "Orchestrates iterative 9-phase workflow with configurable models and full/lite modes.",
+      "version": "1.8.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -29,7 +29,7 @@
       "name": "kenken",
       "source": "./plugins/kenken",
       "description": "4-stage iterative development workflow (PLAN → IMPLEMENT → TEST → FINAL)",
-      "version": "2.0.0",
+      "version": "2.5.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
