@@ -9,7 +9,7 @@ Analyze a task and classify its complexity to determine the appropriate model fo
 
 ## When to Use
 
-Invoked by phase-executor before dispatching each task agent (dynamically at execution time).
+Invoked by task-dispatcher before dispatching each task agent (dynamically at execution time).
 
 ## Input
 

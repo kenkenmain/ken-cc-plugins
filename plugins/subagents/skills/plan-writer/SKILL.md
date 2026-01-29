@@ -5,7 +5,7 @@ description: Write implementation plans with required schema for phase execution
 
 # Plan Writer Skill
 
-Creates implementation plans with the required schema for phase-executor to parse tasks.
+Creates implementation plans with the required schema for task-dispatcher to parse tasks.
 
 ## When to Use
 
@@ -13,7 +13,7 @@ Invoked during Phase 1.2 (Write Plan) to create the plan file.
 
 ## Plan File Schema
 
-The plan file MUST contain a `tasks:` YAML block that phase-executor can parse:
+The plan file MUST contain a `tasks:` YAML block that task-dispatcher can parse:
 
 ```yaml
 # docs/plans/YYYY-MM-DD-feature-plan.md

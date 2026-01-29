@@ -25,13 +25,15 @@ Tasks are dispatched in waves based on dependencies:
 
 ## Complexity Scoring
 
-For each task, determine complexity and model:
+For each task, determine complexity and execution method:
 
-| Complexity | Criteria                                 | Model       |
-| ---------- | ---------------------------------------- | ----------- |
-| Easy       | Single file, <50 LOC                     | sonnet-4.5  |
-| Medium     | 2-3 files, 50-200 LOC                    | opus-4.5    |
-| Hard       | 4+ files, >200 LOC, security/concurrency | codex-xhigh |
+| Complexity | Criteria                                 | Execution               |
+| ---------- | ---------------------------------------- | ----------------------- |
+| Easy       | Single file, <50 LOC                     | Task agent (sonnet-4.5) |
+| Medium     | 2-3 files, 50-200 LOC                    | Task agent (opus-4.5)   |
+| Hard       | 4+ files, >200 LOC, security/concurrency | Codex MCP (codex-xhigh) |
+
+**Note:** Easy/medium use Task tool with model parameter. Hard uses `mcp__codex-xhigh__codex` directly.
 
 Override with `config.stages.IMPLEMENT.tasks.complexityModels`.
 
