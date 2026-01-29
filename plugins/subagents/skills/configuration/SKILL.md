@@ -81,6 +81,7 @@ Project overrides global, which overrides defaults.
   },
   "retries": {
     "maxPerPhase": 3,
+    "maxPerStage": 3,
     "maxPerTask": 2,
     "backoffSeconds": [5, 15, 30]
   }

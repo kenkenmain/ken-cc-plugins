@@ -191,6 +191,69 @@ On failure:
    - **Skip** - Continue with warning
    - **Abort** - Stop workflow, save state
 
+## Stage Restarts
+
+A stage can be restarted at any point — automatically on classified errors, or manually via resume flags.
+
+### When Restarts Happen
+
+| Trigger                               | Restart Target                       |
+| ------------------------------------- | ------------------------------------ |
+| IMPLEMENT review fails (max retries)  | IMPLEMENT                            |
+| TEST code logic error (source file)   | IMPLEMENT                            |
+| FINAL review fails (max retries)      | TEST (or IMPLEMENT if TEST disabled) |
+| User chooses "Restart stage"          | Current stage                        |
+| User chooses "Restart previous stage" | Previous stage                       |
+
+### Restart Procedure
+
+When restarting a stage:
+
+1. **Reset phase states** - Set all phases in that stage back to `pending`
+2. **Preserve prior stage outputs** - EXPLORE/PLAN outputs remain (don't re-explore)
+3. **Clear stage output files** - Delete `.agents/tmp/phases/{stage phases}` files:
+   - IMPLEMENT restart: delete `2.1-tasks.json`, `2.2-simplify.md`, `2.3-impl-review.json`
+   - TEST restart: delete `3.1-test-results.json`, `3.2-*`, `3.3-*`
+4. **Update state** via `state-manager`:
+   ```json
+   {
+     "currentStage": "IMPLEMENT",
+     "currentPhase": "2.1",
+     "stages": {
+       "IMPLEMENT": {
+         "status": "in_progress",
+         "restartCount": 1,
+         "phases": {
+           "2.1": { "status": "pending" },
+           "2.2": { "status": "pending" },
+           "2.3": { "status": "pending" }
+         }
+       }
+     }
+   }
+   ```
+5. **Resume execution** from first phase of restarted stage
+6. **Increment restartCount** - Track for max restart limits
+
+### Max Restarts
+
+Default: 3 restarts per stage (configurable via `retries.maxPerStage`).
+
+After max restarts, ask user:
+
+- **Force continue** - Proceed despite issues
+- **Abort** - Stop workflow
+
+### Cross-Stage Restarts
+
+When restarting a previous stage (e.g., IMPLEMENT from TEST):
+
+1. Mark current stage as `blocked` with reason
+2. Mark target stage as `restarting`
+3. Reset target stage phases
+4. Clear output files from target stage AND current stage
+5. Resume from target stage
+
 ## Skip Stages
 
 If stage disabled in config (e.g., `stages.TEST.enabled: false`):
