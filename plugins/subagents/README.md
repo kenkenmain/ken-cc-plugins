@@ -65,6 +65,8 @@ Resume stopped workflow from last checkpoint.
 
 - `--from-phase X.X` - Resume from specific phase
 - `--retry-failed` - Retry failed phase/task
+- `--restart-stage` - Restart current stage from first phase
+- `--restart-previous` - Restart previous stage (fix root cause)
 
 ### `/subagents:configure`
 
@@ -74,6 +76,7 @@ Configure plugin settings (models, timeouts, severity thresholds).
 
 - `--show` - Display current configuration
 - `--reset` - Reset to defaults
+- `--edit` - Open config file for editing
 
 ## Stages and Phases
 

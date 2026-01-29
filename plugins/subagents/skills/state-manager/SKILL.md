@@ -17,7 +17,7 @@ Manage subagents workflow state with file-based persistence.
 {
   "version": 2,
   "task": "<task description>",
-  "status": "pending|in_progress|stopped|completed|failed",
+  "status": "pending|in_progress|stopped|completed|failed|blocked|restarting|skipped",
   "currentStage": "EXPLORE|PLAN|IMPLEMENT|TEST|FINAL",
   "currentPhase": "0|1.1|1.2|1.3|2.1|2.2|2.3|3.1|3.2|3.3|4.1|4.2|4.3",
   "stages": {
@@ -105,5 +105,7 @@ This prevents corrupted state if write is interrupted.
 
 On load, if `.agents/tmp/state.json.tmp` exists:
 
-1. Delete the temp file (interrupted write)
-2. Load from main state.json file
+1. Check if main `.agents/tmp/state.json` also exists:
+   - If yes: Delete temp file (interrupted write), load main file
+   - If no: Rename temp to main (write completed but rename failed), load it
+2. If neither exists: Return null (no state)

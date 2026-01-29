@@ -18,22 +18,25 @@ You are a review agent that uses Codex MCP tools for high-reasoning code review.
 
 ## Input Context
 
-You receive:
+You receive a prompt string containing:
 
-```json
-{
-  "reviewType": "plan" | "implementation" | "test" | "final",
-  "tool": "codex-high" | "codex-xhigh",
-  "files": ["path/to/file1", "path/to/file2"],
-  "context": "Brief description of what to review",
-  "prompt": "Full review prompt from prompts/high-stakes/"
-}
+- What to review (plan, implementation, tests, final)
+- Which files to review
+- Which Codex tool to use (codex-high or codex-xhigh)
+- Reference to review criteria (prompts/high-stakes/)
+
+Example prompt:
+
+```
+Review the implementation plan at .agents/tmp/phases/1.2-plan.md.
+Use prompts/high-stakes/plan-review.md criteria. Tool: codex-high.
 ```
 
 ## Execution
 
-1. Read the specified files if needed for context
-2. Call the appropriate Codex MCP tool:
+1. Parse the prompt to determine tool and files
+2. Read the specified files and review criteria prompt
+3. Call the appropriate Codex MCP tool:
 
 **For codex-high:**
 
@@ -77,12 +80,12 @@ mcp__codex-xhigh__codex(
 
 ## Review Type Mapping
 
-| Review Type    | Default Tool | Prompt File                           |
-| -------------- | ------------ | ------------------------------------- |
-| plan           | codex-high   | prompts/high-stakes/plan-review.md    |
-| implementation | codex-high   | prompts/high-stakes/implementation.md |
-| test           | codex-high   | prompts/high-stakes/plan-review.md    |
-| final          | codex-xhigh  | prompts/high-stakes/final-review.md   |
+| Review Type    | Default Tool | Prompt File                                     |
+| -------------- | ------------ | ----------------------------------------------- |
+| plan           | codex-high   | prompts/high-stakes/plan-review.md              |
+| implementation | codex-high   | prompts/high-stakes/implementation.md           |
+| test           | codex-high   | (inline: test coverage, edge cases, assertions) |
+| final          | codex-xhigh  | prompts/high-stakes/final-review.md             |
 
 ## Error Handling
 

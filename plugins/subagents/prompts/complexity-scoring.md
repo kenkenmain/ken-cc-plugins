@@ -4,11 +4,11 @@ You are classifying tasks for appropriate model assignment. Analyze each task an
 
 ## Classification Criteria
 
-| Level  | Execution               | Criteria                                          |
-| ------ | ----------------------- | ------------------------------------------------- |
-| Easy   | Task agent (sonnet-4.5) | Single file, <50 LOC changes, well-defined scope  |
-| Medium | Task agent (opus-4.5)   | 2-3 files, 50-200 LOC, moderate dependencies      |
-| Hard   | Codex MCP (codex-xhigh) | 4+ files, >200 LOC, security/concurrency concerns |
+| Level  | Execution                    | Criteria                                          |
+| ------ | ---------------------------- | ------------------------------------------------- |
+| Easy   | Task agent (sonnet-4.5)      | Single file, <50 LOC changes, well-defined scope  |
+| Medium | Task agent (opus-4.5)        | 2-3 files, 50-200 LOC, moderate dependencies      |
+| Hard   | codex-reviewer (codex-xhigh) | 4+ files, >200 LOC, security/concurrency concerns |
 
 ## Task Analysis Checklist
 

@@ -42,7 +42,7 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    ```
    Task(
      description: "Review: plan",
-     prompt: {reviewType: "plan", tool: "codex-high", files: [".agents/tmp/phases/1.2-plan.md"]},
+     prompt: "Review the implementation plan at .agents/tmp/phases/1.2-plan.md. Use prompts/high-stakes/plan-review.md criteria. Tool: codex-high.",
      subagent_type: "subagents:codex-reviewer"
    )
    ```
@@ -74,12 +74,16 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    ```
    Task(
      description: "Review: implementation",
-     prompt: {reviewType: "implementation", tool: "codex-high", files: [modified files]},
+     prompt: "Review the implementation. Files: [modified files]. Use prompts/high-stakes/implementation.md criteria.",
      subagent_type: "subagents:codex-reviewer"
    )
    ```
-2. Write review to `.agents/tmp/phases/2.3-impl-review.json`
-3. Update state, compact context
+2. If issues found (based on blockOnSeverity, default: low):
+   - Dispatch bugFixer (default: codex-high) to fix each issue
+   - Re-run codex-reviewer
+   - Repeat until no blocking issues or max retries
+3. Write review to `.agents/tmp/phases/2.3-impl-review.json`
+4. Update state, compact context
 
 ### TEST Stage
 
@@ -99,11 +103,15 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    ```
    Task(
      description: "Review: tests",
-     prompt: {reviewType: "test", tool: "codex-high", files: [test files]},
+     prompt: "Review test coverage and quality. Files: [test files]. Verify coverage, edge cases, assertions.",
      subagent_type: "subagents:codex-reviewer"
    )
    ```
-2. Update state, compact context
+2. If issues found (based on blockOnSeverity, default: low):
+   - Dispatch bugFixer (default: codex-high) to fix each issue
+   - Re-run codex-reviewer
+   - Repeat until no blocking issues or max retries
+3. Update state, compact context
 
 ### FINAL Stage
 
@@ -117,7 +125,7 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    ```
    Task(
      description: "Review: final",
-     prompt: {reviewType: "final", tool: "codex-xhigh", files: [all modified files]},
+     prompt: "Final review of all changes. Use prompts/high-stakes/final-review.md criteria. Tool: codex-xhigh. Files: [all modified files].",
      subagent_type: "subagents:codex-reviewer"
    )
    ```

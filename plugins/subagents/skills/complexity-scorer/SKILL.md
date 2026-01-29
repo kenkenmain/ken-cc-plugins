@@ -33,7 +33,7 @@ Single file, <50 LOC, no external dependencies, pure logic, no security/concurre
 
 **Examples:** API endpoint, service method, database query, form validation, UI component
 
-### Hard → Codex MCP (codex-xhigh)
+### Hard → codex-reviewer subagent (codex-xhigh)
 
 4+ files, >200 LOC, external dependencies, cross-layer logic, security/concurrency concerns, complex state.
 

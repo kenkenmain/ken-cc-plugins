@@ -13,40 +13,43 @@ Invoked during Phase 1.2 (Write Plan) to create the plan file.
 
 ## Plan File Schema
 
-The plan file MUST contain a `tasks:` YAML block that task-dispatcher can parse:
+The plan file MUST use markdown format that task-dispatcher can parse:
 
-```yaml
-# docs/plans/YYYY-MM-DD-feature-plan.md
----
-tasks:
-  - id: task-1
-    description: "Create User model with email and password fields"
-    targetFiles:
-      - src/models/user.ts
-    instructions: |
-      Create a User model with:
-      - email: string (unique, validated)
-      - passwordHash: string
-      - createdAt: Date
-      - updatedAt: Date
-    dependencies: []
+```markdown
+# Implementation Plan
 
-  - id: task-2
-    description: "Implement OAuth flow with Google provider"
-    targetFiles:
-      - src/auth/oauth.ts
-      - src/routes/auth.ts
-    instructions: |
-      Implement OAuth 2.0 with Google:
-      - Authorization URL generation
-      - Token exchange
-      - User info retrieval
-    dependencies:
-      - task-1
----
-## Implementation Details
+## Overview
 
-[Prose description of the feature...]
+{summary of what this plan builds}
+
+## Tasks
+
+### Task 1: Create User model
+
+- **Files:** src/models/user.ts
+- **Dependencies:** none
+- **Complexity:** easy
+- **Instructions:**
+  Create a User model with:
+  - email: string (unique, validated)
+  - passwordHash: string
+  - createdAt: Date
+  - updatedAt: Date
+
+### Task 2: Implement OAuth flow
+
+- **Files:** src/auth/oauth.ts, src/routes/auth.ts
+- **Dependencies:** Task 1
+- **Complexity:** medium
+- **Instructions:**
+  Implement OAuth 2.0 with Google:
+  - Authorization URL generation
+  - Token exchange
+  - User info retrieval
+
+## Dependency Graph
+
+Task 1 → Task 2
 ```
 
 ## Required Fields Per Task
