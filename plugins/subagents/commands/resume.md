@@ -1,7 +1,7 @@
 ---
 description: Resume a stopped subagent workflow from checkpoint
 argument-hint: [--from-phase X.X] [--retry-failed]
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList, mcp__codex-high__codex, mcp__codex-xhigh__codex
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
 # Resume Subagent Workflow
@@ -12,6 +12,8 @@ Resume a previously stopped or failed workflow from the last checkpoint.
 
 - `--from-phase X.X`: Optional. Override resume point to specific phase (e.g., `--from-phase 2.1`)
 - `--retry-failed`: Optional. Retry the failed phase/task if workflow is in failed state
+- `--restart-stage`: Optional. Restart current stage from first phase
+- `--restart-previous`: Optional. Restart previous stage (for fixing root cause errors)
 
 Parse from $ARGUMENTS.
 

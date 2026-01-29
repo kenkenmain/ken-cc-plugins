@@ -135,7 +135,7 @@ Controls which Codex review issues trigger automatic fixes. Default: `low` (stri
 
 When an issue meets the threshold:
 
-1. Dispatch `bugFixer` agent (default: opus-4.5) to fix
+1. Dispatch `bugFixer` (default: codex-high) to fix
 2. Re-run Codex review
 3. Repeat until no blocking issues or max retries
 

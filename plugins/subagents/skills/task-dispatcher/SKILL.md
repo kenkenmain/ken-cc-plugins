@@ -33,7 +33,7 @@ For each task, determine complexity and execution method:
 | Medium     | 2-3 files, 50-200 LOC                    | Task agent (opus-4.5)   |
 | Hard       | 4+ files, >200 LOC, security/concurrency | Codex MCP (codex-xhigh) |
 
-**Note:** Easy/medium use Task tool with model parameter. Hard uses `mcp__codex-xhigh__codex` directly.
+**Note:** Easy/medium use Task agent. Hard uses codex-reviewer subagent (which calls codex-xhigh MCP).
 
 Override with `config.stages.IMPLEMENT.tasks.complexityModels`.
 

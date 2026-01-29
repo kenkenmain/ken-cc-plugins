@@ -82,4 +82,4 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 
 ## Note
 
-Invoked via `mcp__codex-xhigh__codex` for maximum reasoning depth.
+Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` for maximum reasoning depth.

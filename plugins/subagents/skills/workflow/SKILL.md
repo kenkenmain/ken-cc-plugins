@@ -169,8 +169,27 @@ After each phase:
 On failure:
 
 1. Record failure in state using `state-manager` skill
-2. Offer retry/skip/abort options via AskUserQuestion
-3. If retry, reload state and continue from failure point
+2. Classify error type:
+
+| Error Type       | Location                   | Action                           |
+| ---------------- | -------------------------- | -------------------------------- |
+| Review failure   | Any review phase           | Run bugFixer, retry review       |
+| Task failure     | Phase 2.1 task execution   | Retry task or skip with warning  |
+| Test failure     | Phase 3.1 (in test file)   | Return to Phase 3.2 to fix tests |
+| Code logic error | Phase 3.1 (in source file) | Restart IMPLEMENT stage          |
+| Max retries      | Any phase                  | Ask user: retry/skip/abort       |
+
+3. Auto-restart on stage failure:
+   - If IMPLEMENT review fails after max retries → restart IMPLEMENT stage
+   - If TEST fails with code logic error → restart IMPLEMENT stage
+   - If FINAL review fails after max retries → restart TEST stage (if enabled)
+
+4. User options via AskUserQuestion:
+   - **Retry phase** - Try current phase again
+   - **Restart stage** - Go back to start of current stage
+   - **Restart previous stage** - Go back to fix root cause
+   - **Skip** - Continue with warning
+   - **Abort** - Stop workflow, save state
 
 ## Skip Stages
 

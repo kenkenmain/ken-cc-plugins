@@ -1,7 +1,7 @@
 ---
 description: Start a subagent workflow for complex task execution
 argument-hint: <task description> [--no-test] [--stage STAGE] [--plan PATH]
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList, mcp__codex-high__codex, mcp__codex-xhigh__codex
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
 # Dispatch Subagent Workflow
