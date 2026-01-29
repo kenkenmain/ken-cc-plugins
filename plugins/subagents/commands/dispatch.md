@@ -34,16 +34,17 @@ Use `state-manager` skill to create `.agents/tmp/state.json`:
   "currentPhase": "0",
   "stages": {
     "EXPLORE": { "status": "pending", "agentCount": 0 },
-    "PLAN": { "status": "pending", "phases": {} },
-    "IMPLEMENT": { "status": "pending", "phases": {} },
-    "TEST": { "status": "pending", "enabled": true },
-    "FINAL": { "status": "pending" }
+    "PLAN": { "status": "pending", "phases": {}, "restartCount": 0 },
+    "IMPLEMENT": { "status": "pending", "phases": {}, "restartCount": 0 },
+    "TEST": { "status": "pending", "enabled": true, "restartCount": 0 },
+    "FINAL": { "status": "pending", "restartCount": 0 }
   },
   "files": {},
   "failure": null,
   "compaction": { "lastCompactedAt": null, "history": [] },
   "startedAt": "<ISO timestamp>",
-  "updatedAt": null
+  "updatedAt": null,
+  "stoppedAt": null
 }
 ```
 

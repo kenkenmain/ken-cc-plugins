@@ -80,12 +80,12 @@ mcp__codex-xhigh__codex(
 
 ## Review Type Mapping
 
-| Review Type    | Default Tool | Prompt File                                     |
-| -------------- | ------------ | ----------------------------------------------- |
-| plan           | codex-high   | prompts/high-stakes/plan-review.md              |
-| implementation | codex-high   | prompts/high-stakes/implementation.md           |
-| test           | codex-high   | (inline: test coverage, edge cases, assertions) |
-| final          | codex-xhigh  | prompts/high-stakes/final-review.md             |
+| Review Type    | Default Tool | Prompt File                           |
+| -------------- | ------------ | ------------------------------------- |
+| plan           | codex-high   | prompts/high-stakes/plan-review.md    |
+| implementation | codex-high   | prompts/high-stakes/implementation.md |
+| test           | codex-high   | prompts/high-stakes/test-review.md    |
+| final          | codex-xhigh  | prompts/high-stakes/final-review.md   |
 
 ## Error Handling
 

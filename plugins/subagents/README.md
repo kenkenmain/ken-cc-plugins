@@ -149,7 +149,7 @@ Project configuration overrides global.
   },
   "stages": {
     "EXPLORE": { "maxParallelAgents": 10 },
-    "PLAN": { "maxParallelAgents": 10 },
+    "PLAN": { "planning": { "maxParallelAgents": 10 } },
     "IMPLEMENT": {
       "tasks": {
         "complexityModels": {

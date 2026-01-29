@@ -103,7 +103,7 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    ```
    Task(
      description: "Review: tests",
-     prompt: "Review test coverage and quality. Files: [test files]. Verify coverage, edge cases, assertions. Tool: codex-high.",
+     prompt: "Review test coverage and quality. Files: [test files]. Use prompts/high-stakes/test-review.md criteria. Tool: codex-high.",
      subagent_type: "subagents:codex-reviewer"
    )
    ```
