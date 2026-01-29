@@ -37,6 +37,14 @@ Options:
 2. Manually repair state file
 ```
 
+If `state.schedule` is missing or empty:
+
+```
+State file missing schedule. This state was created before schedule support.
+Re-create with: /subagents:dispatch <task>
+Or use: /subagents:resume --from-phase X.X to continue without schedule
+```
+
 ## Step 2: Check Workflow Status
 
 Handle each status:
@@ -115,6 +123,8 @@ Config may have changed since workflow started.
 
 ## Step 5: Display Resume Point
 
+Read `state.schedule` and display per-phase progress:
+
 ```
 Resuming Subagent Workflow
 ==========================
@@ -122,15 +132,33 @@ Task: {task}
 Originally started: {startedAt}
 Last updated: {updatedAt}
 
-Resuming from: {currentStage} Stage → Phase {currentPhase}
+Schedule Progress:
+  ✓ Phase 0   │ EXPLORE   │ Explore                 │ completed
+  ✓ Phase 1.1 │ PLAN      │ Brainstorm              │ completed
+  ✓ Phase 1.2 │ PLAN      │ Plan                    │ completed
+  ✗ Phase 1.3 │ PLAN      │ Plan Review             │ BLOCKED     [GATE]
+  · Phase 2.1 │ IMPLEMENT │ Task Execution          │ pending
+  · Phase 2.2 │ IMPLEMENT │ Simplify                │ pending
+  · Phase 2.3 │ IMPLEMENT │ Implementation Review   │ pending     [GATE]
+  · Phase 3.1 │ TEST      │ Run Tests               │ pending
+  · Phase 3.2 │ TEST      │ Analyze Failures        │ pending
+  · Phase 3.3 │ TEST      │ Test Review             │ pending     [GATE]
+  · Phase 4.1 │ FINAL     │ Documentation           │ pending
+  · Phase 4.2 │ FINAL     │ Final Review            │ pending     [GATE]
+  · Phase 4.3 │ FINAL     │ Completion              │ pending
 
-Stage Progress:
-- EXPLORE: {stages.EXPLORE.status}
-- PLAN: {stages.PLAN.status}
-- IMPLEMENT: {stages.IMPLEMENT.status}
-- TEST: {stages.TEST.status} {stages.TEST.enabled ? '' : '(disabled)'}
-- FINAL: {stages.FINAL.status}
+Gate Status:
+  PLAN → IMPLEMENT:  ✗ missing 1.3-plan-review.json
+  IMPLEMENT → TEST:  · pending
+  TEST → FINAL:      · pending
+  FINAL → COMPLETE:  · pending
+
+Resuming from: Phase {currentPhase} ({schedule entry name})
 ```
+
+Status symbols: ✓ completed, ▶ in_progress, ✗ failed/blocked, · pending
+Show `[GATE]` marker on phases that produce gate artifacts (type: "review").
+Show actual gate file status (✓ file exists, ✗ missing, · pending).
 
 ## Step 6: Continue Workflow
 

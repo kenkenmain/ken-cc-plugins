@@ -23,32 +23,73 @@ No active workflow found.
 Start a new workflow with: /subagents:dispatch <task>
 ```
 
-## Step 2: Display Standard Status
+## Step 2: Display Status
+
+### Schedule-based display (when `state.schedule` exists)
+
+Count completed and total phases from `state.schedule` array to show progress.
 
 ```
-Subagents Workflow Status
-=========================
-Task: <task description>
-Status: <pending | in_progress | stopped | completed | failed | blocked | restarting>
-Started: <startedAt formatted>
-Current: <STAGE> Stage → Phase <X.X>
+Subagent Workflow Status
+========================
+Task: {task}
+Status: {status}
+Started: {startedAt}
 
-Progress:
-✓ EXPLORE Stage (completed)
-  ✓ 0 Explore (5 agents)
+Schedule ({completed}/{total} phases):
+  ✓ Phase 0   │ EXPLORE   │ Explore                 │ completed
+  ✓ Phase 1.1 │ PLAN      │ Brainstorm              │ completed
+  ▶ Phase 1.2 │ PLAN      │ Plan                    │ in_progress
+  · Phase 1.3 │ PLAN      │ Plan Review             │ pending     [GATE]
+  · Phase 2.1 │ IMPLEMENT │ Task Execution          │ pending
+  · Phase 2.2 │ IMPLEMENT │ Simplify                │ pending
+  · Phase 2.3 │ IMPLEMENT │ Implementation Review   │ pending     [GATE]
+  · Phase 3.1 │ TEST      │ Run Tests               │ pending
+  · Phase 3.2 │ TEST      │ Analyze Failures        │ pending
+  · Phase 3.3 │ TEST      │ Test Review             │ pending     [GATE]
+  · Phase 4.1 │ FINAL     │ Documentation           │ pending
+  · Phase 4.2 │ FINAL     │ Final Review            │ pending     [GATE]
+  · Phase 4.3 │ FINAL     │ Completion              │ pending
 
-✓ PLAN Stage (completed)
-  ✓ 1.1 Brainstorm
-  ✓ 1.2 Plan (3 agents)
-  ✓ 1.3 Plan Review (0 issues)
+Gates:
+  PLAN → IMPLEMENT:  · pending (requires 1.3-plan-review.json)
+  IMPLEMENT → TEST:  · pending (requires 2.3-impl-review.json)
+  TEST → FINAL:      · pending (requires 3.3-test-review.json)
+  FINAL → COMPLETE:  · pending (requires 4.2-final-review.json)
+```
 
-⟳ IMPLEMENT Stage (in_progress)
-  ⟳ 2.1 Tasks (Wave 2: 2/5 tasks)
-  ○ 2.2 Simplify (pending)
-  ○ 2.3 Implementation Review (pending)
+Status symbols: ✓ completed, ▶ in_progress, ✗ failed/blocked, · pending
 
-○ TEST Stage (pending)
-○ FINAL Stage (pending)
+Show `[GATE]` marker on review phases that produce gate artifacts.
+
+Gate status: ✓ file exists (gate satisfied), ✗ missing (gate blocking), · pending (not yet reached).
+
+For each entry in `state.schedule` (a flat array), display one row using:
+- **symbol**: derive from `stages[entry.stage].phases[entry.phase].status` — ✓ completed, ▶ in_progress, ✗ failed/blocked, · pending
+- **phase id**: from `entry.phase` (e.g., `0`, `1.1`, `2.3`)
+- **stage**: from `entry.stage` (e.g., `EXPLORE`, `PLAN`)
+- **name**: from `entry.name`
+- **status**: looked up from `stages[entry.stage].phases[entry.phase].status`
+- **[GATE]**: append if `entry.type === "review"`
+
+For the Gates section, iterate `state.gates` (a top-level map keyed by transition name like `"PLAN->IMPLEMENT"`):
+- Gate label: the key itself (e.g., `PLAN → IMPLEMENT`)
+- ✓ if the gate's `required` file(s) exist in `.agents/tmp/phases/`
+- ✗ if the gate phase has been reached but the file is missing
+- · if the gate phase has not been reached yet
+- Required filename from `gate.required[0]`
+
+### Legacy display (when `state.schedule` does not exist)
+
+Fall back to stage-level display for older state files:
+
+```
+Stage Progress:
+  EXPLORE:   {status}
+  PLAN:      {status}
+  IMPLEMENT: {status}
+  TEST:      {status} {enabled ? '' : '(disabled)'}
+  FINAL:     {status}
 ```
 
 ## Step 3: Display Verbose Details (if --verbose)
