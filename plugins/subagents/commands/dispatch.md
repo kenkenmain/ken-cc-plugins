@@ -1,19 +1,19 @@
 ---
-description: Start a hierarchical subagent workflow for complex task execution
+description: Start a subagent workflow for complex task execution
 argument-hint: <task description> [--no-test] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
 # Dispatch Subagent Workflow
 
-Start a 4-tier hierarchical agent workflow for complex task execution with context isolation.
+Start a workflow for complex task execution with parallel subagents and file-based state.
 
 ## Arguments
 
-- `<task description>`: Required. The task to execute (e.g., "Add user authentication with OAuth")
+- `<task description>`: Required. The task to execute
 - `--no-test`: Optional. Skip the TEST stage
-- `--stage STAGE`: Optional. Start from a specific stage (PLAN, IMPLEMENT, TEST, FINAL)
-- `--plan PATH`: Optional. Specify plan file path (required when --stage skips PLAN and no prior state exists)
+- `--stage STAGE`: Optional. Start from specific stage (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
+- `--plan PATH`: Optional. Specify plan file path (for starting at IMPLEMENT with external plan)
 
 Parse from $ARGUMENTS to extract task description and flags.
 
@@ -23,36 +23,71 @@ Use the `configuration` skill to load merged config (defaults → global → pro
 
 ## Step 2: Initialize State
 
-Create `.agents/subagents-state.json`:
+Use `state-manager` skill to create `.agents/tmp/state.json`:
 
 ```json
 {
+  "version": 2,
   "task": "<task description>",
-  "currentStage": "PLAN",
-  "currentPhase": "1.1",
-  "planFilePath": null,
-  "stages": { "PLAN": { "status": "pending" }, ... }
+  "status": "in_progress",
+  "currentStage": "EXPLORE",
+  "currentPhase": "0",
+  "stages": {
+    "EXPLORE": { "status": "pending", "agentCount": 0 },
+    "PLAN": { "status": "pending", "phases": {}, "restartCount": 0 },
+    "IMPLEMENT": { "status": "pending", "phases": {}, "restartCount": 0 },
+    "TEST": { "status": "pending", "enabled": true, "restartCount": 0 },
+    "FINAL": { "status": "pending", "restartCount": 0 }
+  },
+  "files": {},
+  "failure": null,
+  "compaction": { "lastCompactedAt": null, "history": [] },
+  "startedAt": "<ISO timestamp>",
+  "updatedAt": null,
+  "stoppedAt": null
 }
 ```
 
-Set `TEST.enabled: false` if `--no-test`. Note: `planFilePath` is null until Phase 1.2 creates the plan file.
+Set `stages.TEST.enabled: false` if `--no-test`.
 
-## Step 3: Handle --stage
+## Step 3: Handle --stage and --plan
 
-Validate stage name, set currentStage and currentPhase to specified stage's first phase.
+If `--stage` provided:
 
-**If --stage skips PLAN (IMPLEMENT/TEST/FINAL):**
+1. Validate stage name (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
+2. Check if required prior state exists:
+   - IMPLEMENT requires plan file (see below)
+   - TEST requires completed IMPLEMENT stage
+   - FINAL requires completed TEST stage (or TEST disabled)
+3. Set currentStage and currentPhase appropriately
 
-1. If `--plan PATH` provided: use that path
-2. Else if `.agents/subagents-state.json` exists with non-null `planFilePath`: use existing state
+**If --stage IMPLEMENT or later:**
+
+1. If `--plan PATH` provided: use that path, copy to `.agents/tmp/phases/1.2-plan.md`
+2. Else if `.agents/tmp/phases/1.2-plan.md` exists: use existing plan
 3. Else: use AskUserQuestion to request plan file path from user
-4. Validate the provided path exists before proceeding
-5. Set `planFilePath` in initial state
+4. Validate the plan file exists before proceeding
 
-## Step 4: Invoke Orchestration
+## Step 4: Execute Workflow
 
-Invoke `orchestration` skill with task, current stage/phase, and config. Orchestrator dispatches stage → phase → task agents, with results aggregating upward.
+Use `workflow` skill to execute stages sequentially:
+
+```
+EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
+```
+
+Each stage:
+
+1. Reads required files from previous stages
+2. Dispatches parallel subagents as needed
+3. Writes output to `.agents/tmp/phases/`
+4. Updates state via `state-manager`
+5. Compacts context (if configured)
 
 ## Step 5: Display Progress
 
-Use TaskCreate/TaskUpdate for progress tracking. Show task, mode, and current stage/phase.
+Use TaskCreate/TaskUpdate for visual progress tracking:
+
+- Create task for overall workflow
+- Update task as stages complete
+- Show current stage/phase in task description

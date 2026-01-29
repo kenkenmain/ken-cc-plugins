@@ -31,7 +31,7 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 
 ### 4. State Consistency
 
-- [ ] `.agents/subagents-state.json` reflects completion
+- [ ] `.agents/tmp/state.json` reflects completion
 - [ ] All phase statuses are "completed"
 - [ ] No orphaned locks or temporary files
 
@@ -59,7 +59,7 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
   "issues": [
     {
       "severity": "HIGH" | "MEDIUM" | "LOW",
-      "category": "completeness" | "integration" | "quality" | "state" | "git",
+      "location": "<file:line, section, or category>",
       "issue": "<description>",
       "suggestion": "<resolution>"
     }
@@ -82,4 +82,4 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 
 ## Note
 
-Invoked via `mcp__codex-xhigh__codex` for maximum reasoning depth.
+Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` for maximum reasoning depth.

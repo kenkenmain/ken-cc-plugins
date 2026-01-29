@@ -1,7 +1,7 @@
 ---
 description: Configure complexity scoring, models, and workflow options
 argument-hint: [--show | --reset | --edit]
-allowed-tools: Read, Write, Edit, Bash, AskUserQuestion, Glob
+allowed-tools: Read, Write, Edit, Bash, AskUserQuestion, Glob, Skill
 ---
 
 # Configure Subagents Workflow
@@ -18,9 +18,9 @@ Parse from $ARGUMENTS to determine mode.
 
 ## Step 1: Load Configuration
 
-Merge configuration: defaults → global → project
+Use `configuration` skill to merge: defaults → global → project
 
-1. Hardcoded defaults
+1. Hardcoded defaults (v2.0)
 2. Global: `~/.claude/subagents-config.json`
 3. Project: `.claude/subagents-config.json`
 
@@ -30,15 +30,22 @@ Display merged config and exit:
 
 ```
 Complexity Scoring:
-  Easy: sonnet  Medium: opus  Hard: opus + codex-xhigh
+  Easy: sonnet-4.5 (Task agent)
+  Medium: opus-4.5 (Task agent)
+  Hard: codex-xhigh (Codex MCP)
 
 Stages:
-  PLAN:      planReview=codex-high
-  IMPLEMENT: useComplexityScoring=true
-  TEST:      coverageThreshold=80%
-  FINAL:     codexFinal=codex-xhigh
+  EXPLORE:   enabled=true, maxParallelAgents=10
+  PLAN:      review=codex-high
+  IMPLEMENT: useComplexityScoring=true, maxParallelAgents=10
+  TEST:      enabled=true, lint="make lint", test="make test"
+  FINAL:     review=codex-xhigh, git.workflow=branch+PR
 
-Defaults: blockOnSeverity=low, gitWorkflow=branch+PR
+Compaction:
+  betweenStages: true
+  betweenPhases: false
+
+Defaults: blockOnSeverity=low, model=sonnet-4.5
 
 Config: Global [exists/not found] | Project [exists/not found]
 ```
@@ -57,15 +64,15 @@ Use AskUserQuestion to configure:
 
 ### Complexity Scoring
 
-- question: "Configure complexity scoring models?"
+- question: "Configure complexity scoring?"
 - header: "Complexity"
 - options:
-  - label: "Easy tasks model"
-    description: "Currently: sonnet"
-  - label: "Medium tasks model"
-    description: "Currently: opus"
-  - label: "Hard tasks model"
-    description: "Currently: opus + codex-xhigh review"
+  - label: "Easy tasks"
+    description: "Currently: sonnet-4.5 (Task agent)"
+  - label: "Medium tasks"
+    description: "Currently: opus-4.5 (Task agent)"
+  - label: "Hard tasks"
+    description: "Currently: codex-xhigh (Codex MCP)"
 
 ### Test Stage
 
@@ -83,6 +90,18 @@ Use AskUserQuestion to configure:
   - label: "branch+PR (Recommended)"
   - label: "commit only"
   - label: "none"
+
+### Context Compaction
+
+- question: "Configure context compaction?"
+- header: "Compaction"
+- options:
+  - label: "Between stages only (Recommended)"
+    description: "Compact after each stage completes"
+  - label: "Between stages and phases"
+    description: "More aggressive, may lose context"
+  - label: "Disabled"
+    description: "Keep full context (may hit limits)"
 
 ## Step 6: Save Configuration
 

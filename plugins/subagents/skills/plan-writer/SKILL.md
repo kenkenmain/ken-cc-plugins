@@ -5,7 +5,7 @@ description: Write implementation plans with required schema for phase execution
 
 # Plan Writer Skill
 
-Creates implementation plans with the required schema for phase-executor to parse tasks.
+Creates implementation plans with the required schema for task-dispatcher to parse tasks.
 
 ## When to Use
 
@@ -13,61 +13,66 @@ Invoked during Phase 1.2 (Write Plan) to create the plan file.
 
 ## Plan File Schema
 
-The plan file MUST contain a `tasks:` YAML block that phase-executor can parse:
+The plan file MUST use markdown format that task-dispatcher can parse:
 
-```yaml
-# docs/plans/YYYY-MM-DD-feature-plan.md
----
-tasks:
-  - id: task-1
-    description: "Create User model with email and password fields"
-    targetFiles:
-      - src/models/user.ts
-    instructions: |
-      Create a User model with:
-      - email: string (unique, validated)
-      - passwordHash: string
-      - createdAt: Date
-      - updatedAt: Date
-    dependencies: []
+```markdown
+# Implementation Plan
 
-  - id: task-2
-    description: "Implement OAuth flow with Google provider"
-    targetFiles:
-      - src/auth/oauth.ts
-      - src/routes/auth.ts
-    instructions: |
-      Implement OAuth 2.0 with Google:
-      - Authorization URL generation
-      - Token exchange
-      - User info retrieval
-    dependencies:
-      - task-1
----
-## Implementation Details
+## Overview
 
-[Prose description of the feature...]
+{summary of what this plan builds}
+
+## Tasks
+
+### Task 1: Create User model
+
+- **Files:** src/models/user.ts
+- **Dependencies:** none
+- **Complexity:** easy
+- **Instructions:**
+  Create a User model with:
+  - email: string (unique, validated)
+  - passwordHash: string
+  - createdAt: Date
+  - updatedAt: Date
+
+### Task 2: Implement OAuth flow
+
+- **Files:** src/auth/oauth.ts, src/routes/auth.ts
+- **Dependencies:** Task 1
+- **Complexity:** medium
+- **Instructions:**
+  Implement OAuth 2.0 with Google:
+  - Authorization URL generation
+  - Token exchange
+  - User info retrieval
+
+## Dependency Graph
+
+Task 1 → Task 2
 ```
 
 ## Required Fields Per Task
 
-| Field        | Type     | Max Length | Description                                   |
-| ------------ | -------- | ---------- | --------------------------------------------- |
-| id           | string   | 20 chars   | Unique task identifier (task-1, task-2, etc.) |
-| description  | string   | 100 chars  | Brief task summary                            |
-| targetFiles  | string[] | 10 files   | Files this task will modify                   |
-| instructions | string   | 2000 chars | Detailed implementation guidance              |
-| dependencies | string[] | -          | Task IDs that must complete first             |
+Each `### Task N: {name}` section MUST include:
+
+| Field             | Format                      | Description                        |
+| ----------------- | --------------------------- | ---------------------------------- |
+| Task header       | `### Task N: {name}`        | Number + short name (used as ID)   |
+| **Files:**        | Comma-separated paths       | Files this task will create/modify |
+| **Dependencies:** | `none` or `Task N, Task M`  | Tasks that must complete first     |
+| **Complexity:**   | `easy`, `medium`, or `hard` | Determines execution method        |
+| **Instructions:** | Multi-line text             | Detailed implementation guidance   |
 
 ## Output
 
-Return the plan file path to the stage agent:
+Write plan to `.agents/tmp/phases/1.2-plan.md` and update state:
 
 ```json
 {
   "phaseId": "1.2",
   "status": "completed",
-  "planFilePath": "docs/plans/2026-01-28-feature-plan.md",
+  "planFilePath": ".agents/tmp/phases/1.2-plan.md",
   "summary": "Created plan with 5 tasks",
   "taskCount": 5
 }
@@ -84,4 +89,4 @@ Before returning, validate:
 
 ## Integration
 
-The orchestrator persists `planFilePath` to state. Subsequent stages read from state and pass to phase agents for task loading.
+The workflow updates `state.files.plan` with the plan path. The task-dispatcher reads this path to load tasks for wave-based execution.

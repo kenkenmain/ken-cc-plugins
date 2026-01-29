@@ -45,12 +45,11 @@ You are reviewing code implementation produced by task agents. Focus on correctn
 
 ```json
 {
-  "status": "approved" | "needs_fixes",
+  "status": "approved" | "needs_revision",
   "issues": [
     {
       "severity": "HIGH" | "MEDIUM" | "LOW",
-      "file": "<filepath>",
-      "line": <number>,
+      "location": "<filepath:line>",
       "issue": "<description>",
       "suggestion": "<how to fix>"
     }
@@ -63,4 +62,4 @@ You are reviewing code implementation produced by task agents. Focus on correctn
 ## Decision Criteria
 
 - **APPROVE**: Zero HIGH issues, MEDIUM issues are acceptable tech debt
-- **NEEDS_FIXES**: Any HIGH issues OR multiple concerning MEDIUM issues
+- **NEEDS_REVISION**: Any HIGH issues OR multiple concerning MEDIUM issues

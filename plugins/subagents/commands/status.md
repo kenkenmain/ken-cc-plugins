@@ -16,7 +16,12 @@ Parse from $ARGUMENTS.
 
 ## Step 1: Load State
 
-Read state file. If not found, display error and exit.
+Read `.agents/tmp/state.json`. If not found, display:
+
+```
+No active workflow found.
+Start a new workflow with: /subagents:dispatch <task>
+```
 
 ## Step 2: Display Standard Status
 
@@ -24,21 +29,23 @@ Read state file. If not found, display error and exit.
 Subagents Workflow Status
 =========================
 Task: <task description>
-Status: <in_progress | stopped | completed | failed>
+Status: <pending | in_progress | stopped | completed | failed | blocked | restarting>
 Started: <startedAt formatted>
-Current: <STAGE> Stage → Phase <X.X> (<phase name>)
+Current: <STAGE> Stage → Phase <X.X>
 
 Progress:
+✓ EXPLORE Stage (completed)
+  ✓ 0 Explore (5 agents)
+
 ✓ PLAN Stage (completed)
   ✓ 1.1 Brainstorm
-  ✓ 1.2 Write Plan
+  ✓ 1.2 Plan (3 agents)
   ✓ 1.3 Plan Review (0 issues)
 
 ⟳ IMPLEMENT Stage (in_progress)
-  ✓ 2.0 Classification (3 tasks classified)
-  ⟳ 2.1 Implementation (2/5 tasks)
+  ⟳ 2.1 Tasks (Wave 2: 2/5 tasks)
   ○ 2.2 Simplify (pending)
-  ○ 2.3 Implement Review (pending)
+  ○ 2.3 Implementation Review (pending)
 
 ○ TEST Stage (pending)
 ○ FINAL Stage (pending)
@@ -51,16 +58,16 @@ If `--verbose` flag present, include task-level details:
 ```
 Task Details:
 -------------
-Phase 2.1 Implementation:
-  ✓ task-1: Create User model (sonnet, easy) - 45s
-  ⟳ task-2: Implement OAuth flow (opus, hard) - running
-  ○ task-3: Add JWT middleware (opus, medium) - pending
-  ○ task-4: Create auth routes (sonnet, easy) - pending
-  ○ task-5: Add session management (opus, medium) - pending
+Phase 2.1 Tasks (Wave 2):
+  Wave 1 (completed):
+    ✓ task-1: Create User model (sonnet-4.5, easy) - 45s
+    ✓ task-3: Add config (sonnet-4.5, easy) - 30s
 
-Active Subagents: 2
-  - stage-agent-abc123 (IMPLEMENT Stage)
-  - task-agent-xyz789 (task-2, opus)
+  Wave 2 (in_progress):
+    ⟳ task-2: Implement OAuth flow (opus-4.5, medium) - running
+    ○ task-4: Create auth routes (sonnet-4.5, easy) - pending
+
+Active Task Agents: 1
 ```
 
 ## Step 4: Display Stopped Info (if applicable)
@@ -70,4 +77,16 @@ If `status` is `stopped`:
 ```
 Workflow paused at: <stoppedAt formatted>
 To resume: /subagents:resume
+```
+
+## Step 5: Display Failed Info (if applicable)
+
+If `status` is `failed`:
+
+```
+Workflow failed at Phase <failure.phase>: <failure.error>
+Failed at: <failure.failedAt>
+
+To retry: /subagents:resume --retry-failed
+To skip: /subagents:resume --from-phase <next phase>
 ```

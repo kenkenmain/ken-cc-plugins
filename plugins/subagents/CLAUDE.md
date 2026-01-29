@@ -1,57 +1,107 @@
 # Subagents Plugin - Agent Instructions
 
-This plugin implements a 4-tier hierarchical agent architecture for Claude Code.
+This plugin implements a 2-level agent architecture for Claude Code with file-based state transfer.
 
-## Architecture Overview
+## Architecture Overview (v2)
 
 ```
-Tier 1: Orchestrator  - Full conversation context, coordinates stages
-Tier 2: Stage Agent   - Stage config only, executes phases sequentially
-Tier 3: Phase Agent   - Phase config + task IDs, dispatches task agents
-Tier 4: Task Agent    - Single task context only, executes one task
+Main Conversation (Orchestrator)
+├── Dispatches parallel Explore agents (1-10)
+├── Dispatches parallel Plan agents (1-10)
+├── Dispatches parallel Task agents in waves
+└── Coordinates via file-based state
 ```
 
-## Context Isolation
+**Key Design:** Main conversation handles all coordination inline via skills. Subagents are only spawned for parallel exploration, planning, and task execution.
 
-**Critical:** Context flows DOWNWARD only. Each tier receives minimal context:
+## Workflow Stages
 
-| Field                | Max Length     | Passed To    |
-| -------------------- | -------------- | ------------ |
-| Task description     | 100 chars      | Task agents  |
-| Instructions         | 2000 chars     | Task agents  |
-| Dependency summaries | 500 chars each | Task agents  |
-| Stage summary        | 1 paragraph    | Stage agents |
-| Phase summary        | 1 paragraph    | Phase agents |
+```
+EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
+```
+
+### EXPLORE Stage (Phase 0)
+
+- Dispatches 1-10 parallel Explore agents based on task complexity
+- Output: `.agents/tmp/phases/0-explore.md`
+
+### PLAN Stage (Phases 1.1-1.3)
+
+- 1.1: Inline brainstorming
+- 1.2: Parallel Plan agents for detailed planning
+- 1.3: Codex MCP review of plan
+- Output: `.agents/tmp/phases/1.2-plan.md`
+
+### IMPLEMENT Stage (Phases 2.1-2.3)
+
+- 2.1: Wave-based task execution with dependency ordering
+- 2.2: Code simplification pass
+- 2.3: Codex MCP implementation review
+- Output: `.agents/tmp/phases/2.1-tasks.json`
+
+### TEST Stage (Phases 3.1-3.3)
+
+- 3.1: Run lint and test commands
+- 3.2: Analyze failures and optionally fix
+- 3.3: Codex MCP test review
+
+### FINAL Stage (Phases 4.1-4.3)
+
+- 4.1: Documentation updates
+- 4.2: Final Codex MCP review (codex-xhigh)
+- 4.3: Git branch and PR creation
+
+## State Management
+
+State file: `.agents/tmp/state.json`
+
+All phase outputs: `.agents/tmp/phases/`
+
+State and phase files are excluded from git commits via `.gitignore`.
 
 ## Model vs MCP Tool Namespaces
 
 **These are SEPARATE namespaces. Never mix them.**
 
-| Type      | Valid Values                         | Usage                       |
-| --------- | ------------------------------------ | --------------------------- |
-| ModelId   | `sonnet`, `opus`, `haiku`, `inherit` | Task tool `model` parameter |
-| McpToolId | `codex-high`, `codex-xhigh`          | Review phase `tool` field   |
+| Type      | Valid Values                                        | Usage                       |
+| --------- | --------------------------------------------------- | --------------------------- |
+| ModelId   | `sonnet-4.5`, `opus-4.5`, `sonnet`, `opus`, `haiku` | Task tool `model` parameter |
+| McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
 
 ## Complexity Scoring
 
-Dynamic classification at runtime by the phase agent:
+Task complexity determines model selection:
 
-| Level  | Model                     | Criteria                                 |
-| ------ | ------------------------- | ---------------------------------------- |
-| Easy   | sonnet                    | Single file, <50 LOC                     |
-| Medium | opus                      | 2-3 files, 50-200 LOC                    |
-| Hard   | opus + codex-xhigh review | 4+ files, >200 LOC, security/concurrency |
+| Level  | Model       | Criteria                                 |
+| ------ | ----------- | ---------------------------------------- |
+| Easy   | sonnet-4.5  | Single file, <50 LOC                     |
+| Medium | opus-4.5    | 2-3 files, 50-200 LOC                    |
+| Hard   | codex-xhigh | 4+ files, >200 LOC, security/concurrency |
 
-## State Management
+## Context Compaction
 
-- State file: `.agents/subagents-state.json`
-- Use atomic writes (temp file + rename)
-- State files are excluded from git commits
+Configurable compaction between stages and/or phases:
+
+- `compaction.betweenStages: true` (default) - Compact after each stage
+- `compaction.betweenPhases: false` (default) - Optional per-phase compaction
+
+Compaction writes summary to file and clears conversation context.
 
 ## Commands
 
 - `/subagents:dispatch <task>` - Start workflow
-- `/subagents:stop` - Stop gracefully
+- `/subagents:stop` - Stop gracefully with checkpoint
 - `/subagents:resume` - Resume from checkpoint
 - `/subagents:status` - Show progress
 - `/subagents:configure` - Configure settings
+
+## Skills
+
+- `workflow` - Main orchestration (replaces orchestrator agent)
+- `state-manager` - File-based state persistence
+- `explore-dispatcher` - Parallel Explore agent dispatch
+- `plan-dispatcher` - Parallel Plan agent dispatch
+- `plan-writer` - Plan format schema and validation
+- `task-dispatcher` - Wave-based Task agent dispatch
+- `complexity-scorer` - Task complexity classification
+- `configuration` - Config loading and merging
