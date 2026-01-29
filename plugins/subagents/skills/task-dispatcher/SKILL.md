@@ -63,10 +63,12 @@ Read tasks from `.agents/tmp/phases/1.2-plan.md`:
 
 **Easy/Medium tasks → Task agent:**
 
+Construct the JSON payload that task-agent expects:
+
 ```
 Task(
   description: "Task: {task name}",
-  prompt: "{task details from plan}",
+  prompt: '{"taskId":"task-1","description":"{task name}","targetFiles":["{files from plan}"],"instructions":"{instructions from plan}","dependencyOutputs":[{"taskId":"task-N","summary":"{completed task summary}"}],"constraints":{"maxReadFiles":10,"maxWriteFiles":3,"allowBashCommands":false}}',
   subagent_type: "subagents:task-agent",
   model: "sonnet-4.5" | "opus-4.5"
 )

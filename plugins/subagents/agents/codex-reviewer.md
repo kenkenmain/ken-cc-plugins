@@ -65,7 +65,7 @@ This agent returns the raw Codex response. Each review type defines its own outp
 - **Test review:** `prompts/high-stakes/test-review.md` — returns `status`, `issues[]`, `summary`
 - **Final review:** `prompts/high-stakes/final-review.md` — returns `status`, `overallQuality`, `issues[]`, `metrics`, `summary`, `readyForCommit`
 
-All review types include `status` (`approved` | `needs_revision` | `blocked`) and `issues[]` with `severity`, `location`, `issue`, `suggestion`.
+All review types include `status` and `issues[]` with `severity`, `location`, `issue`, `suggestion`. Status values differ by type: plan/implementation/test reviews return `approved` | `needs_revision`; final review returns `approved` | `blocked`.
 
 ## Review Type Mapping
 

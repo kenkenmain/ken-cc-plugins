@@ -173,6 +173,19 @@ After each phase:
 }
 ```
 
+## Review Status Handling
+
+Review status values differ by type:
+
+- **Plan/Implementation/Test reviews:** `approved` or `needs_revision`
+- **Final review:** `approved` or `blocked`
+
+Handling logic:
+
+1. If status is `approved` → proceed to next phase
+2. If status is `needs_revision` → check `issues[]` against `blockOnSeverity`, dispatch bugFixer for matching issues, re-review
+3. If status is `blocked` (final review only) → hard stop regardless of blockOnSeverity, ask user via AskUserQuestion
+
 ## Error Handling
 
 On failure:
@@ -191,7 +204,7 @@ On failure:
 3. Auto-restart on stage failure:
    - If IMPLEMENT review fails after max retries → restart IMPLEMENT stage
    - If TEST fails with code logic error → restart IMPLEMENT stage
-   - If FINAL review fails after max retries → restart TEST stage (if enabled)
+   - If FINAL review fails after max retries → restart TEST stage (or IMPLEMENT if TEST disabled)
 
 4. User options via AskUserQuestion:
    - **Retry phase** - Try current phase again
@@ -221,8 +234,10 @@ When restarting a stage:
 1. **Reset phase states** - Set all phases in that stage back to `pending`
 2. **Preserve prior stage outputs** - EXPLORE/PLAN outputs remain (don't re-explore)
 3. **Clear stage output files** - Delete `.agents/tmp/phases/{stage phases}` files:
+   - PLAN restart: delete `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json`
    - IMPLEMENT restart: delete `2.1-tasks.json`, `2.2-simplify.md`, `2.3-impl-review.json`
-   - TEST restart: delete `3.1-test-results.json`, `3.2-*`, `3.3-*`
+   - TEST restart: delete `3.1-test-results.json`, `3.2-*`, `3.3-test-review.json`
+   - FINAL restart: delete `4.1-*`, `4.2-*` output files
 4. **Update state** via `state-manager`:
    ```json
    {

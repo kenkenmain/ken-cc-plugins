@@ -39,7 +39,22 @@ Options:
 
 ## Step 2: Check Workflow Status
 
-Handle different statuses:
+Handle each status:
+
+**status: "stopped"** → Normal resume case. Proceed to Step 3.
+
+**status: "in_progress"**
+
+```
+Workflow is already running (status: in_progress).
+If this is stale, use /subagents:stop first, then resume.
+```
+
+**status: "pending"**
+
+```
+Workflow has not started yet. Use /subagents:dispatch <task> to begin.
+```
 
 **status: "completed"**
 
@@ -47,6 +62,22 @@ Handle different statuses:
 Workflow already completed at {updatedAt}.
 Nothing to resume. Start a new workflow with: /subagents:dispatch <task>
 ```
+
+**status: "blocked"**
+
+```
+Workflow is blocked at {currentStage} Stage → Phase {currentPhase}.
+Reason: {stages[currentStage].blockReason}
+
+Options:
+1. Restart current stage (--restart-stage)
+2. Restart previous stage (--restart-previous)
+3. Abort and start fresh
+```
+
+Use AskUserQuestion to choose option.
+
+**status: "restarting"** → Stage restart was interrupted. Continue the restart from Step 3.
 
 **status: "failed"**
 
