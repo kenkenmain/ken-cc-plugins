@@ -29,7 +29,7 @@ Start a new workflow with: /subagents:dispatch <task>
 Subagents Workflow Status
 =========================
 Task: <task description>
-Status: <in_progress | stopped | completed | failed>
+Status: <pending | in_progress | stopped | completed | failed | blocked | restarting>
 Started: <startedAt formatted>
 Current: <STAGE> Stage → Phase <X.X>
 

@@ -22,10 +22,25 @@ Manage subagents workflow state with file-based persistence.
   "currentPhase": "0|1.1|1.2|1.3|2.1|2.2|2.3|3.1|3.2|3.3|4.1|4.2|4.3",
   "stages": {
     "EXPLORE": { "status": "pending", "agentCount": 0 },
-    "PLAN": { "status": "pending", "phases": {}, "restartCount": 0 },
-    "IMPLEMENT": { "status": "pending", "phases": {}, "restartCount": 0 },
-    "TEST": { "status": "pending", "enabled": true, "restartCount": 0 },
-    "FINAL": { "status": "pending", "restartCount": 0 }
+    "PLAN": {
+      "status": "pending",
+      "phases": {},
+      "restartCount": 0,
+      "blockReason": null
+    },
+    "IMPLEMENT": {
+      "status": "pending",
+      "phases": {},
+      "restartCount": 0,
+      "blockReason": null
+    },
+    "TEST": {
+      "status": "pending",
+      "enabled": true,
+      "restartCount": 0,
+      "blockReason": null
+    },
+    "FINAL": { "status": "pending", "restartCount": 0, "blockReason": null }
   },
   "files": {},
   "failure": null,

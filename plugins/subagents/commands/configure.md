@@ -39,7 +39,7 @@ Stages:
   PLAN:      review=codex-high
   IMPLEMENT: useComplexityScoring=true, maxParallelAgents=10
   TEST:      enabled=true, lint="make lint", test="make test"
-  FINAL:     review=codex-xhigh, gitWorkflow=branch+PR
+  FINAL:     review=codex-xhigh, git.workflow=branch+PR
 
 Compaction:
   betweenStages: true
