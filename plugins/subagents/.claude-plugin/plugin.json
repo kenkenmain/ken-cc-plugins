@@ -1,0 +1,13 @@
+{
+  "name": "subagents",
+  "version": "0.1.0",
+  "description": "4-tier hierarchical agent architecture with context isolation and complexity scoring",
+  "author": {
+    "name": "Kennard Ng",
+    "email": "kennard.ng.pool.hua@gmail.com"
+  },
+  "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
+  "repository": "https://github.com/kenkenmain/ken-cc-plugins",
+  "license": "MIT",
+  "keywords": ["subagents", "hierarchical", "context-isolation", "complexity-scoring", "parallel"]
+}

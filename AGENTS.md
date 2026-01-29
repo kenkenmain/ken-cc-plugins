@@ -60,12 +60,12 @@ Phase 9: Codex Final   -> mcp__codex-xhigh__codex (full mode only)
 | ----- | ------------ | --------- | ------------------------- | ------------------------------------ |
 | 1     | Brainstorm   | `inherit` | N/A                       | User controls via /configure         |
 | 2     | Plan         | `inherit` | N/A                       | User controls via /configure         |
-| 3     | Plan Review  | N/A       | `mcp__codex-high__codex`       | Medium reasoning for plan validation |
+| 3     | Plan Review  | N/A       | `mcp__codex-high__codex`  | Medium reasoning for plan validation |
 | 4     | Implement    | `inherit` | N/A                       | User controls quality                |
 | 5     | Review       | `inherit` | N/A                       | Quick sanity check                   |
 | 6     | Test         | N/A       | N/A                       | Bash commands                        |
 | 7     | Simplify     | `inherit` | N/A                       | Code quality                         |
-| 8     | Final Review | N/A       | `mcp__codex-high__codex`       | Medium reasoning for iteration       |
+| 8     | Final Review | N/A       | `mcp__codex-high__codex`  | Medium reasoning for iteration       |
 | 9     | Codex Final  | N/A       | `mcp__codex-xhigh__codex` | High reasoning for final validation  |
 
 ## Configuration
@@ -82,6 +82,24 @@ Project overrides global. See `plugins/superpowers-iterate/skills/configuration/
 - **Markdown:** Use YAML frontmatter, follow existing command/skill/agent structure
 - **Naming:** kebab-case for commands, skills, agents (e.g., `iterate-status.md`)
 - **Git Commits:** Prefix with `feat|fix|docs|chore|ci`, include co-author line
+- **Git Excludes:** Never commit `.agents/**`, `docs/plans/**`, `*.tmp`, `*.log`
+
+## Model vs MCP Tool Namespaces
+
+**Critical:** These are DIFFERENT namespaces. Never mix them in config.
+
+| Type        | Valid Values                         | Usage                     |
+| ----------- | ------------------------------------ | ------------------------- |
+| `ModelId`   | `sonnet`, `opus`, `haiku`, `inherit` | Task tool `model` param   |
+| `McpToolId` | `codex-high`, `codex-xhigh`          | Review phase `tool` field |
+
+**Actual Anthropic API IDs:**
+
+- `sonnet` → `claude-sonnet-4-20250514`
+- `opus` → `claude-opus-4-20250514`
+- `haiku` → `claude-3-5-haiku-20241022`
+
+**bugFixer format:** `{ "type": "mcp"|"model", "tool": "<id>" }` - never bare strings
 
 ## State Management
 
