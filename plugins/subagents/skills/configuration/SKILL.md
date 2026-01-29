@@ -38,7 +38,11 @@ Project overrides global, which overrides defaults.
         "maxParallelAgents": 10,
         "mode": "parallel"
       },
-      "review": { "tool": "codex-high", "maxRetries": 3 }
+      "review": {
+        "tool": "codex-high",
+        "bugFixer": "codex-high",
+        "maxRetries": 3
+      }
     },
     "IMPLEMENT": {
       "enabled": true,
@@ -51,16 +55,20 @@ Project overrides global, which overrides defaults.
           "hard": "codex-xhigh"
         }
       },
-      "review": { "tool": "codex-high", "maxRetries": 3 }
+      "review": {
+        "tool": "codex-high",
+        "bugFixer": "codex-high",
+        "maxRetries": 3
+      }
     },
     "TEST": {
       "enabled": true,
       "commands": { "lint": "make lint", "test": "make test" },
-      "review": { "tool": "codex-high" }
+      "review": { "tool": "codex-high", "bugFixer": "codex-high" }
     },
     "FINAL": {
       "enabled": true,
-      "review": { "tool": "codex-xhigh" },
+      "review": { "tool": "codex-xhigh", "bugFixer": "codex-high" },
       "git": {
         "workflow": "branch+PR",
         "excludePatterns": [".agents/**"]
@@ -115,6 +123,34 @@ For review phases using Codex MCP. Valid values:
 
 **Critical:** ModelId and McpToolId are DIFFERENT namespaces. Never mix them.
 
+## blockOnSeverity
+
+Controls which Codex review issues trigger automatic fixes. Default: `low` (strictest).
+
+| Value    | Behavior                                          |
+| -------- | ------------------------------------------------- |
+| `low`    | Fix ALL issues (LOW, MEDIUM, HIGH) before proceed |
+| `medium` | Fix MEDIUM and HIGH issues only                   |
+| `high`   | Fix HIGH issues only                              |
+
+When an issue meets the threshold:
+
+1. Dispatch `bugFixer` agent (default: opus-4.5) to fix
+2. Re-run Codex review
+3. Repeat until no blocking issues or max retries
+
+## bugFixer
+
+Tool used to fix issues found by Codex reviews. Default: `codex-high`.
+
+Can be either an MCP tool (codex-high, codex-xhigh) or a model (opus-4.5, sonnet-4.5).
+
+Configured per review phase:
+
+```json
+"review": { "tool": "codex-high", "bugFixer": "codex-high", "maxRetries": 3 }
+```
+
 ## Validation Rules
 
 | Setting             | Valid Values                  |
@@ -122,6 +158,7 @@ For review phases using Codex MCP. Valid values:
 | `blockOnSeverity`   | `high`, `medium`, `low`       |
 | `gitWorkflow`       | `none`, `commit`, `branch+PR` |
 | `maxParallelAgents` | 1-10                          |
+| `bugFixer`          | ModelId or McpToolId          |
 
 ## Error Handling
 

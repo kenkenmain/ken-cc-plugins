@@ -57,23 +57,33 @@ Read tasks from `.agents/tmp/phases/1.2-plan.md`:
 
 ## Task Agent Dispatch
 
+**Easy/Medium tasks → Task agent:**
+
 ```
 Task(
   description: "Task: {task name}",
   prompt: "{task details from plan}",
   subagent_type: "subagents:task-agent",
-  model: {complexity-based model}
+  model: "sonnet-4.5" | "opus-4.5"
 )
 ```
 
-For `codex-xhigh` complexity:
+**Hard tasks → Codex reviewer subagent:**
 
 ```
-mcp__codex-xhigh__codex(
-  prompt: "{task details}",
-  cwd: "{working directory}"
+Task(
+  description: "Task: {task name} (codex)",
+  prompt: {
+    reviewType: "implementation",
+    tool: "codex-xhigh",
+    task: "{task details from plan}",
+    files: [target files]
+  },
+  subagent_type: "subagents:codex-reviewer"
 )
 ```
+
+This maintains the 2-level architecture - main conversation only dispatches subagents, never calls MCP directly.
 
 ## Parallel Dispatch
 

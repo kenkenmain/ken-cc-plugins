@@ -38,8 +38,18 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 
 **Phase 1.3: Plan Review**
 
-1. Use Codex MCP (codex-high) to review plan
-2. If issues found, iterate or ask user
+1. Dispatch codex-reviewer subagent:
+   ```
+   Task(
+     description: "Review: plan",
+     prompt: {reviewType: "plan", tool: "codex-high", files: [".agents/tmp/phases/1.2-plan.md"]},
+     subagent_type: "subagents:codex-reviewer"
+   )
+   ```
+2. If issues found (based on blockOnSeverity, default: low):
+   - Dispatch bugFixer (default: codex-high) to fix issues
+   - Re-run codex-reviewer
+   - Repeat until approved or max retries
 3. Write review to `.agents/tmp/phases/1.3-plan-review.json`
 4. Update state, compact context
 
@@ -48,7 +58,9 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 **Phase 2.1: Task Execution**
 
 1. Use `task-dispatcher` skill
-2. Dispatch tasks in waves based on dependencies
+2. Dispatch tasks in waves based on dependencies:
+   - Easy/Medium → Task agents (sonnet-4.5/opus-4.5)
+   - Hard → Codex MCP (codex-xhigh) via codex-reviewer subagent
 3. Write results to `.agents/tmp/phases/2.1-tasks.json`
 
 **Phase 2.2: Simplify**
@@ -58,7 +70,14 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 
 **Phase 2.3: Implementation Review**
 
-1. Use Codex MCP to review implementation
+1. Dispatch codex-reviewer subagent:
+   ```
+   Task(
+     description: "Review: implementation",
+     prompt: {reviewType: "implementation", tool: "codex-high", files: [modified files]},
+     subagent_type: "subagents:codex-reviewer"
+   )
+   ```
 2. Write review to `.agents/tmp/phases/2.3-impl-review.json`
 3. Update state, compact context
 
@@ -76,7 +95,14 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 
 **Phase 3.3: Test Review**
 
-1. Use Codex MCP to review test coverage
+1. Dispatch codex-reviewer subagent:
+   ```
+   Task(
+     description: "Review: tests",
+     prompt: {reviewType: "test", tool: "codex-high", files: [test files]},
+     subagent_type: "subagents:codex-reviewer"
+   )
+   ```
 2. Update state, compact context
 
 ### FINAL Stage
@@ -87,7 +113,18 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 
 **Phase 4.2: Final Review**
 
-1. Use Codex MCP (codex-xhigh) for final review
+1. Dispatch codex-reviewer subagent with high reasoning:
+   ```
+   Task(
+     description: "Review: final",
+     prompt: {reviewType: "final", tool: "codex-xhigh", files: [all modified files]},
+     subagent_type: "subagents:codex-reviewer"
+   )
+   ```
+2. If issues found (based on blockOnSeverity, default: low):
+   - Dispatch bugFixer (default: codex-high) to fix each issue
+   - Re-run codex-reviewer
+   - Repeat until no blocking issues or max retries
 
 **Phase 4.3: Completion**
 
