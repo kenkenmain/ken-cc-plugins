@@ -169,6 +169,27 @@ Project configuration overrides global.
 
 See the `configuration` skill for the full schema with per-stage options.
 
+## Schedule & Stage Gates
+
+All phases are pre-scheduled when a workflow starts. Stage transitions are enforced by gates that require review output files to exist before proceeding.
+
+**Gates prevent review phases from being skipped.** If a review fails after max retries, the workflow blocks rather than silently skipping to the next stage.
+
+View schedule progress with `/subagents:status`:
+```
+Schedule (5/13 phases):
+  ✓ Phase 0   │ EXPLORE   │ Explore         │ completed
+  ✓ Phase 1.1 │ PLAN      │ Brainstorm      │ completed
+  ...
+  · Phase 2.3 │ IMPLEMENT │ Impl Review     │ pending   [GATE]
+```
+
+Gates:
+- PLAN → IMPLEMENT: requires `1.3-plan-review.json`
+- IMPLEMENT → TEST: requires `2.3-impl-review.json`
+- TEST → FINAL: requires `3.3-test-review.json`
+- FINAL → COMPLETE: requires `4.2-final-review.json`
+
 ## State Management
 
 Workflow state tracked in `.agents/tmp/state.json`:

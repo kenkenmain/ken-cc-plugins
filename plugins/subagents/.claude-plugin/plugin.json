@@ -1,6 +1,6 @@
 {
   "name": "subagents",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "2-level agent architecture with parallel subagents and file-based state transfer",
   "author": {
     "name": "Kennard Ng",

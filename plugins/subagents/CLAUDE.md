@@ -55,9 +55,43 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 
 State file: `.agents/tmp/state.json`
 
+Key state fields:
+- `schedule`: Ordered array of all phases to execute, built at workflow initialization
+- `gates`: Map of stage transitions to required output files (review artifacts)
+- `stages`: Per-stage status, phases, and restart counts
+
 All phase outputs: `.agents/tmp/phases/`
 
 State and phase files are excluded from git commits via `.gitignore`.
+
+## Schedule & Stage Gates
+
+All workflow phases are pre-scheduled at initialization. Stage transitions are enforced by gates.
+
+### Schedule
+
+The `schedule` array in state lists every phase in execution order. Each entry has:
+- `phase`: identifier (e.g., `"1.3"`)
+- `stage`: parent stage (`EXPLORE`, `PLAN`, `IMPLEMENT`, `TEST`, `FINAL`)
+- `name`: human-readable label
+- `type`: execution type (`dispatch`, `inline`, `review`, `command`)
+
+Disabled stages are filtered from the schedule at init time.
+
+### Gates
+
+Gates block stage transitions until required review artifacts exist:
+
+| Gate               | Required File            | Blocks Transition To |
+| ------------------ | ------------------------ | -------------------- |
+| PLAN→IMPLEMENT     | `1.3-plan-review.json`   | IMPLEMENT            |
+| IMPLEMENT→TEST     | `2.3-impl-review.json`   | TEST                 |
+| TEST→FINAL         | `3.3-test-review.json`   | FINAL                |
+| FINAL→COMPLETE     | `4.2-final-review.json`  | Completion           |
+
+Gate checks are enforced by the `Advance Phase` operation in the state-manager. The workflow CANNOT skip review phases — if a review fails after max retries, the workflow blocks rather than proceeding.
+
+If TEST is disabled, the `IMPLEMENT->TEST` and `TEST->FINAL` gates are replaced with a single `IMPLEMENT->FINAL` gate.
 
 ## Model vs MCP Tool Namespaces
 
