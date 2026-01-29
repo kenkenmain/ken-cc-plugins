@@ -1,6 +1,6 @@
 # Plan Review Prompt (High-Stakes)
 
-You are reviewing an implementation plan for a multi-tier agent workflow. This is a blocking review - issues found here MUST be resolved before implementation proceeds.
+You are reviewing an implementation plan for a 2-level agent workflow. This is a blocking review - issues found here MUST be resolved before implementation proceeds.
 
 ## Review Criteria
 
@@ -13,17 +13,17 @@ You are reviewing an implementation plan for a multi-tier agent workflow. This i
 
 ### 2. Technical Correctness
 
-- [ ] Model IDs are valid (`sonnet`, `opus`, `haiku` for Task tool)
+- [ ] Model IDs are valid (`sonnet-4.5`, `opus-4.5`, `sonnet`, `opus`, `haiku` for Task tool)
 - [ ] MCP tool IDs are valid (`codex-high`, `codex-xhigh`)
 - [ ] Context isolation rules are enforceable
 - [ ] Dependencies between tasks are correctly ordered
 
 ### 3. Architecture
 
-- [ ] 4-tier hierarchy properly maintained
-- [ ] Context flows downward only (no leakage upward)
+- [ ] 2-level architecture properly maintained (main conversation + parallel subagents)
+- [ ] Context flows via file-based state transfer
 - [ ] State management is atomic and recoverable
-- [ ] Parallel execution boundaries are clear
+- [ ] Wave-based parallel execution boundaries are clear
 
 ### 4. Security & Safety
 

@@ -31,7 +31,7 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 
 ### 4. State Consistency
 
-- [ ] `.agents/subagents-state.json` reflects completion
+- [ ] `.agents/tmp/state.json` reflects completion
 - [ ] All phase statuses are "completed"
 - [ ] No orphaned locks or temporary files
 

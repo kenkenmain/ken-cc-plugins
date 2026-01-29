@@ -61,13 +61,13 @@ tasks:
 
 ## Output
 
-Return the plan file path to the stage agent:
+Write plan to `.agents/tmp/phases/1.2-plan.md` and update state:
 
 ```json
 {
   "phaseId": "1.2",
   "status": "completed",
-  "planFilePath": "docs/plans/2026-01-28-feature-plan.md",
+  "planFilePath": ".agents/tmp/phases/1.2-plan.md",
   "summary": "Created plan with 5 tasks",
   "taskCount": 5
 }
@@ -84,4 +84,4 @@ Before returning, validate:
 
 ## Integration
 
-The orchestrator persists `planFilePath` to state. Subsequent stages read from state and pass to phase agents for task loading.
+The workflow updates `state.files.plan` with the plan path. The task-dispatcher reads this path to load tasks for wave-based execution.
