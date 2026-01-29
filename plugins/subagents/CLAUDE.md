@@ -101,5 +101,7 @@ Compaction writes summary to file and clears conversation context.
 - `state-manager` - File-based state persistence
 - `explore-dispatcher` - Parallel Explore agent dispatch
 - `plan-dispatcher` - Parallel Plan agent dispatch
+- `plan-writer` - Plan format schema and validation
 - `task-dispatcher` - Wave-based Task agent dispatch
+- `complexity-scorer` - Task complexity classification
 - `configuration` - Config loading and merging

@@ -64,7 +64,11 @@ Project overrides global, which overrides defaults.
     "TEST": {
       "enabled": true,
       "commands": { "lint": "make lint", "test": "make test" },
-      "review": { "tool": "codex-high", "bugFixer": "codex-high" }
+      "review": {
+        "tool": "codex-high",
+        "bugFixer": "codex-high",
+        "maxRetries": 3
+      }
     },
     "FINAL": {
       "enabled": true,

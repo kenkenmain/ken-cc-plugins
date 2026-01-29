@@ -59,7 +59,7 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
   "issues": [
     {
       "severity": "HIGH" | "MEDIUM" | "LOW",
-      "category": "completeness" | "integration" | "quality" | "state" | "git",
+      "location": "<file:line, section, or category>",
       "issue": "<description>",
       "suggestion": "<resolution>"
     }

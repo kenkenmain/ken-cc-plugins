@@ -55,7 +55,7 @@ Return classification result:
 }
 ```
 
-**Note:** Hard complexity uses `codex-xhigh` MCP directly, so `model` is null.
+**Note:** Hard complexity dispatches via codex-reviewer subagent (which calls codex-xhigh), so `model` is null.
 
 ## Algorithm
 

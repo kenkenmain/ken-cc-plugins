@@ -62,7 +62,10 @@ Create new state file with task and default values:
 
 ### Record Phase Output
 
-1. Write output to `.agents/tmp/phases/{phase}-output.{ext}`
+1. Write output to `.agents/tmp/phases/{phase}-{name}.{ext}` using descriptive names:
+   - `0-explore.md`, `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json`
+   - `2.1-tasks.json`, `2.2-simplify.md`, `2.3-impl-review.json`
+   - `3.1-test-results.json`, `3.3-test-review.json`
 2. Update `state.files` with path
 3. Save state
 

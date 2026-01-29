@@ -49,8 +49,7 @@ You are reviewing code implementation produced by task agents. Focus on correctn
   "issues": [
     {
       "severity": "HIGH" | "MEDIUM" | "LOW",
-      "file": "<filepath>",
-      "line": <number>,
+      "location": "<filepath:line>",
       "issue": "<description>",
       "suggestion": "<how to fix>"
     }

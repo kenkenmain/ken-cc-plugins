@@ -111,7 +111,8 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
    - Dispatch bugFixer (default: codex-high) to fix each issue
    - Re-run codex-reviewer
    - Repeat until no blocking issues or max retries
-3. Update state, compact context
+3. Write review to `.agents/tmp/phases/3.3-test-review.json`
+4. Update state, compact context
 
 ### FINAL Stage
 
