@@ -72,7 +72,7 @@ Project overrides global, which overrides defaults.
     },
     "FINAL": {
       "enabled": true,
-      "review": { "tool": "codex-xhigh", "bugFixer": "codex-high" },
+      "review": { "tool": "codex-xhigh", "bugFixer": "codex-high", "maxRetries": 3 },
       "git": {
         "workflow": "branch+PR",
         "excludePatterns": [".agents/**"]

@@ -1,6 +1,6 @@
 ---
 description: Resume a stopped subagent workflow from checkpoint
-argument-hint: [--from-phase X.X] [--retry-failed]
+argument-hint: [--from-phase X.X] [--retry-failed] [--restart-stage] [--restart-previous]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 

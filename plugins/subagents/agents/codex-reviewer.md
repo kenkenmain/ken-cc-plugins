@@ -58,22 +58,14 @@ mcp__codex-xhigh__codex(
 
 ## Return Format
 
-```json
-{
-  "reviewType": "plan",
-  "status": "approved" | "needs_revision" | "blocked",
-  "issues": [
-    {
-      "severity": "HIGH" | "MEDIUM" | "LOW",
-      "location": "file:line or section",
-      "issue": "Description",
-      "suggestion": "How to fix"
-    }
-  ],
-  "summary": "One paragraph assessment",
-  "rawResponse": "Full Codex response for logging"
-}
-```
+This agent returns the raw Codex response. Each review type defines its own output schema in the corresponding prompt file:
+
+- **Plan review:** `prompts/high-stakes/plan-review.md` — returns `status`, `issues[]`, `summary`
+- **Implementation review:** `prompts/high-stakes/implementation.md` — returns `status`, `issues[]`, `filesReviewed`, `summary`
+- **Test review:** `prompts/high-stakes/test-review.md` — returns `status`, `issues[]`, `summary`
+- **Final review:** `prompts/high-stakes/final-review.md` — returns `status`, `overallQuality`, `issues[]`, `metrics`, `summary`, `readyForCommit`
+
+All review types include `status` (`approved` | `needs_revision` | `blocked`) and `issues[]` with `severity`, `location`, `issue`, `suggestion`.
 
 ## Review Type Mapping
 

@@ -47,12 +47,16 @@ Read tasks from `.agents/tmp/phases/1.2-plan.md`:
 - **Files:** src/models/user.ts
 - **Dependencies:** none
 - **Complexity:** easy
+- **Instructions:**
+  Create a User model with email, passwordHash, createdAt, updatedAt fields.
 
 ### Task 2: Add auth middleware
 
 - **Files:** src/middleware/auth.ts, src/types/auth.ts
 - **Dependencies:** Task 1
 - **Complexity:** medium
+- **Instructions:**
+  Create auth middleware that validates JWT tokens and attaches user to request.
 ```
 
 ## Task Agent Dispatch
