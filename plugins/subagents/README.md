@@ -185,9 +185,10 @@ Schedule (5/13 phases):
 ```
 
 Gates:
-- PLAN → IMPLEMENT: requires `1.3-plan-review.json`
-- IMPLEMENT → TEST: requires `2.3-impl-review.json`
-- TEST → FINAL: requires `3.3-test-review.json`
+- EXPLORE → PLAN: requires `0-explore.md`
+- PLAN → IMPLEMENT: requires `1.2-plan.md`, `1.3-plan-review.json`
+- IMPLEMENT → TEST: requires `2.1-tasks.json`, `2.3-impl-review.json`
+- TEST → FINAL: requires `3.1-test-results.json`, `3.3-test-review.json`
 - FINAL → COMPLETE: requires `4.2-final-review.json`
 
 ## State Management

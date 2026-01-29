@@ -80,16 +80,17 @@ Disabled stages are filtered from the schedule at init time.
 
 ### Gates
 
-Gates block stage transitions until required review artifacts exist:
+Gates block stage transitions until required output artifacts exist:
 
-| Gate               | Required File            | Blocks Transition To |
-| ------------------ | ------------------------ | -------------------- |
-| PLAN→IMPLEMENT     | `1.3-plan-review.json`   | IMPLEMENT            |
-| IMPLEMENT→TEST     | `2.3-impl-review.json`   | TEST                 |
-| TEST→FINAL         | `3.3-test-review.json`   | FINAL                |
-| FINAL→COMPLETE     | `4.2-final-review.json`  | Completion           |
+| Gate               | Required Files                              | Blocks Transition To |
+| ------------------ | ------------------------------------------- | -------------------- |
+| EXPLORE→PLAN       | `0-explore.md`                              | PLAN                 |
+| PLAN→IMPLEMENT     | `1.2-plan.md`, `1.3-plan-review.json`       | IMPLEMENT            |
+| IMPLEMENT→TEST     | `2.1-tasks.json`, `2.3-impl-review.json`    | TEST                 |
+| TEST→FINAL         | `3.1-test-results.json`, `3.3-test-review.json` | FINAL           |
+| FINAL→COMPLETE     | `4.2-final-review.json`                     | Completion           |
 
-Gate checks are enforced by the `Advance Phase` operation in the state-manager. The workflow CANNOT skip review phases — if a review fails after max retries, the workflow blocks rather than proceeding.
+Gate checks are enforced by the `Advance Phase` operation in the state-manager. The workflow CANNOT skip any stage — if a phase fails after max retries, the workflow blocks rather than proceeding.
 
 If TEST is disabled, the `IMPLEMENT->TEST` and `TEST->FINAL` gates are replaced with a single `IMPLEMENT->FINAL` gate.
 

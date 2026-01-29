@@ -31,8 +31,8 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
 2. If `--no-test` or `config.stages.TEST.enabled: false`: remove phases 3.1, 3.2, 3.3
 3. If any other stage is disabled in config: remove its phases
 4. Build the `gates` map, adjusting for disabled stages:
-   - If TEST disabled: replace `IMPLEMENT->TEST` and `TEST->FINAL` with a single `IMPLEMENT->FINAL` gate requiring `2.3-impl-review.json`
-   - Gate `required` files always reference the last review phase of the source stage
+   - If TEST disabled: replace `IMPLEMENT->TEST` and `TEST->FINAL` with a single `IMPLEMENT->FINAL` gate requiring `2.1-tasks.json` and `2.3-impl-review.json`
+   - Gate `required` files always reference key output artifacts from the source stage
 
 ```json
 {
@@ -57,10 +57,11 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
     { "phase": "4.3", "stage": "FINAL",     "name": "Completion",            "type": "inline" }
   ],
   "gates": {
-    "PLAN->IMPLEMENT":  { "required": ["1.3-plan-review.json"],  "phase": "1.3" },
-    "IMPLEMENT->TEST":  { "required": ["2.3-impl-review.json"],  "phase": "2.3" },
-    "TEST->FINAL":      { "required": ["3.3-test-review.json"],  "phase": "3.3" },
-    "FINAL->COMPLETE":  { "required": ["4.2-final-review.json"], "phase": "4.2" }
+    "EXPLORE->PLAN":    { "required": ["0-explore.md"],                          "phase": "0" },
+    "PLAN->IMPLEMENT":  { "required": ["1.2-plan.md", "1.3-plan-review.json"],   "phase": "1.3" },
+    "IMPLEMENT->TEST":  { "required": ["2.1-tasks.json", "2.3-impl-review.json"],"phase": "2.3" },
+    "TEST->FINAL":      { "required": ["3.1-test-results.json", "3.3-test-review.json"], "phase": "3.3" },
+    "FINAL->COMPLETE":  { "required": ["4.2-final-review.json"],                 "phase": "4.2" }
   },
   "stages": {
     "EXPLORE": { "status": "pending", "agentCount": 0 },
@@ -87,24 +88,25 @@ Show the user the planned execution order and gate checkpoints:
 ```
 Workflow Schedule ({N} phases)
 ==============================
-Phase 0   │ EXPLORE   │ Explore                 │ dispatch
+Phase 0   │ EXPLORE   │ Explore                 │ dispatch  ← GATE: EXPLORE→PLAN
 Phase 1.1 │ PLAN      │ Brainstorm              │ inline
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch
-Phase 1.3 │ PLAN      │ Plan Review             │ review   ← GATE: PLAN→IMPLEMENT
+Phase 1.3 │ PLAN      │ Plan Review             │ review    ← GATE: PLAN→IMPLEMENT
 Phase 2.1 │ IMPLEMENT │ Task Execution          │ dispatch
 Phase 2.2 │ IMPLEMENT │ Simplify                │ inline
-Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review   ← GATE: IMPLEMENT→TEST
+Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review    ← GATE: IMPLEMENT→TEST
 Phase 3.1 │ TEST      │ Run Tests               │ command
 Phase 3.2 │ TEST      │ Analyze Failures        │ inline
-Phase 3.3 │ TEST      │ Test Review             │ review   ← GATE: TEST→FINAL
+Phase 3.3 │ TEST      │ Test Review             │ review    ← GATE: TEST→FINAL
 Phase 4.1 │ FINAL     │ Documentation           │ inline
-Phase 4.2 │ FINAL     │ Final Review            │ review   ← GATE: FINAL→COMPLETE
+Phase 4.2 │ FINAL     │ Final Review            │ review    ← GATE: FINAL→COMPLETE
 Phase 4.3 │ FINAL     │ Completion              │ inline
 
 Stage Gates:
-  PLAN → IMPLEMENT:  requires 1.3-plan-review.json
-  IMPLEMENT → TEST:  requires 2.3-impl-review.json
-  TEST → FINAL:      requires 3.3-test-review.json
+  EXPLORE → PLAN:    requires 0-explore.md
+  PLAN → IMPLEMENT:  requires 1.2-plan.md, 1.3-plan-review.json
+  IMPLEMENT → TEST:  requires 2.1-tasks.json, 2.3-impl-review.json
+  TEST → FINAL:      requires 3.1-test-results.json, 3.3-test-review.json
   FINAL → COMPLETE:  requires 4.2-final-review.json
 ```
 

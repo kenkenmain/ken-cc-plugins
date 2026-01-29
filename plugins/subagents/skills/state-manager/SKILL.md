@@ -36,10 +36,11 @@ Manage subagents workflow state with file-based persistence.
     { "phase": "4.3", "stage": "FINAL",     "name": "Completion",           "type": "inline" }
   ],
   "gates": {
-    "PLAN->IMPLEMENT":  { "required": ["1.3-plan-review.json"],  "phase": "1.3" },
-    "IMPLEMENT->TEST":  { "required": ["2.3-impl-review.json"],  "phase": "2.3" },
-    "TEST->FINAL":      { "required": ["3.3-test-review.json"],  "phase": "3.3" },
-    "FINAL->COMPLETE":  { "required": ["4.2-final-review.json"], "phase": "4.2" }
+    "EXPLORE->PLAN":    { "required": ["0-explore.md"],                          "phase": "0" },
+    "PLAN->IMPLEMENT":  { "required": ["1.2-plan.md", "1.3-plan-review.json"],   "phase": "1.3" },
+    "IMPLEMENT->TEST":  { "required": ["2.1-tasks.json", "2.3-impl-review.json"],"phase": "2.3" },
+    "TEST->FINAL":      { "required": ["3.1-test-results.json", "3.3-test-review.json"], "phase": "3.3" },
+    "FINAL->COMPLETE":  { "required": ["4.2-final-review.json"],                 "phase": "4.2" }
   },
   "stages": {
     "EXPLORE": { "status": "pending", "agentCount": 0 },

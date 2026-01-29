@@ -133,7 +133,7 @@ Originally started: {startedAt}
 Last updated: {updatedAt}
 
 Schedule Progress:
-  ✓ Phase 0   │ EXPLORE   │ Explore                 │ completed
+  ✓ Phase 0   │ EXPLORE   │ Explore                 │ completed   [GATE]
   ✓ Phase 1.1 │ PLAN      │ Brainstorm              │ completed
   ✓ Phase 1.2 │ PLAN      │ Plan                    │ completed
   ✗ Phase 1.3 │ PLAN      │ Plan Review             │ BLOCKED     [GATE]
@@ -148,6 +148,7 @@ Schedule Progress:
   · Phase 4.3 │ FINAL     │ Completion              │ pending
 
 Gate Status:
+  EXPLORE → PLAN:    ✓ satisfied
   PLAN → IMPLEMENT:  ✗ missing 1.3-plan-review.json
   IMPLEMENT → TEST:  · pending
   TEST → FINAL:      · pending

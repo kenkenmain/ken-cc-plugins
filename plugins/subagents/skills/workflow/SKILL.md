@@ -37,6 +37,8 @@ The workflow iterates over `state.schedule` entries instead of hardcoded stage l
 3. Write findings to `.agents/tmp/phases/0-explore.md`
 4. Update state, compact context
 
+**Gate enforcement:** Phase 0 output (`0-explore.md`) is a required gate artifact for the EXPLORE→PLAN transition. The workflow CANNOT proceed to Phase 1.1 without this file.
+
 ### PLAN Stage
 
 **Phase 1.1: Brainstorm (inline)**
@@ -68,7 +70,7 @@ The workflow iterates over `state.schedule` entries instead of hardcoded stage l
 3. Write review to `.agents/tmp/phases/1.3-plan-review.json`
 4. Update state, compact context
 
-**Gate enforcement:** Phase 1.3 output (`1.3-plan-review.json`) is a required gate artifact for the PLAN→IMPLEMENT transition. The workflow CANNOT proceed to Phase 2.1 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to IMPLEMENT.
+**Gate enforcement:** The PLAN→IMPLEMENT gate requires both `1.2-plan.md` and `1.3-plan-review.json`. The workflow CANNOT proceed to Phase 2.1 without both files. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to IMPLEMENT.
 
 ### IMPLEMENT Stage
 
@@ -102,7 +104,7 @@ The workflow iterates over `state.schedule` entries instead of hardcoded stage l
 3. Write review to `.agents/tmp/phases/2.3-impl-review.json`
 4. Update state, compact context
 
-**Gate enforcement:** Phase 2.3 output (`2.3-impl-review.json`) is a required gate artifact for the IMPLEMENT→TEST transition. The workflow CANNOT proceed to Phase 3.1 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to TEST.
+**Gate enforcement:** The IMPLEMENT→TEST gate requires both `2.1-tasks.json` and `2.3-impl-review.json`. The workflow CANNOT proceed to Phase 3.1 without both files. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to TEST.
 
 ### TEST Stage
 
@@ -133,7 +135,7 @@ The workflow iterates over `state.schedule` entries instead of hardcoded stage l
 3. Write review to `.agents/tmp/phases/3.3-test-review.json`
 4. Update state, compact context
 
-**Gate enforcement:** Phase 3.3 output (`3.3-test-review.json`) is a required gate artifact for the TEST→FINAL transition. The workflow CANNOT proceed to Phase 4.1 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to FINAL.
+**Gate enforcement:** The TEST→FINAL gate requires both `3.1-test-results.json` and `3.3-test-review.json`. The workflow CANNOT proceed to Phase 4.1 without both files. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to FINAL.
 
 ### FINAL Stage
 
