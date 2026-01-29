@@ -1,7 +1,7 @@
 {
   "name": "subagents",
-  "version": "0.1.0",
-  "description": "4-tier hierarchical agent architecture with context isolation and complexity scoring",
+  "version": "0.2.0",
+  "description": "2-level agent architecture with parallel subagents and file-based state transfer",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
