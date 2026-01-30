@@ -85,10 +85,35 @@ get_phase_input_files() {
 }
 
 # ---------------------------------------------------------------------------
+# get_phase_template <phase> -- Return the prompt template filename for a phase.
+#   Uses a deterministic lookup (not slug generation) to avoid mismatches.
+# ---------------------------------------------------------------------------
+get_phase_template() {
+  local phase="${1:?get_phase_template requires a phase ID}"
+
+  case "$phase" in
+    0)   echo "0-explore.md" ;;
+    1.1) echo "1.1-brainstorm.md" ;;
+    1.2) echo "1.2-plan.md" ;;
+    1.3) echo "1.3-plan-review.md" ;;
+    2.1) echo "2.1-implement.md" ;;
+    2.2) echo "2.2-simplify.md" ;;
+    2.3) echo "2.3-impl-review.md" ;;
+    3.1) echo "3.1-run-tests.md" ;;
+    3.2) echo "3.2-analyze-failures.md" ;;
+    3.3) echo "3.3-test-review.md" ;;
+    4.1) echo "4.1-documentation.md" ;;
+    4.2) echo "4.2-final-review.md" ;;
+    4.3) echo "4.3-completion.md" ;;
+    *)   echo "" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # build_chain_instruction <next_json> -- Build a human-readable instruction
 #   string for the next phase from a JSON schedule entry.
 #   Example output:
-#     "Phase complete. Execute next: Phase 1.1 (PLAN) -- Brainstorm [inline].
+#     "Phase complete. Execute next: Phase 1.1 (PLAN) -- Brainstorm [subagent].
 #      Read prompt template from prompts/phases/1.1-brainstorm.md.
 #      Input files: .agents/tmp/phases/0-explore.md"
 # ---------------------------------------------------------------------------
@@ -101,8 +126,11 @@ build_chain_instruction() {
   stage="$(echo "$next_json" | jq -r '.stage')"
   type="$(echo "$next_json" | jq -r '.type')"
 
+  local template_file
+  template_file="$(get_phase_template "$phase")"
+
   local input_files
   input_files="$(get_phase_input_files "$phase")"
 
-  echo "Phase complete. Execute next: Phase ${phase} (${stage}) -- ${name} [${type}]. Read prompt template from prompts/phases/${phase}-$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-').md. Input files: ${input_files}"
+  echo "Phase complete. Execute next: Phase ${phase} (${stage}) -- ${name} [${type}]. Read prompt template from prompts/phases/${template_file}. Input files: ${input_files}"
 }

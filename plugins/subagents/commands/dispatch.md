@@ -119,10 +119,10 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
   },
   "stages": {
     "EXPLORE": { "status": "pending", "agentCount": 0 },
-    "PLAN": { "status": "pending", "phases": {}, "restartCount": 0 },
-    "IMPLEMENT": { "status": "pending", "phases": {}, "restartCount": 0 },
-    "TEST": { "status": "pending", "enabled": true, "restartCount": 0 },
-    "FINAL": { "status": "pending", "restartCount": 0 }
+    "PLAN": { "status": "pending", "phases": {}, "restartCount": 0, "blockReason": null },
+    "IMPLEMENT": { "status": "pending", "phases": {}, "restartCount": 0, "blockReason": null },
+    "TEST": { "status": "pending", "enabled": true, "restartCount": 0, "blockReason": null },
+    "FINAL": { "status": "pending", "restartCount": 0, "blockReason": null }
   },
   "files": {},
   "failure": null,

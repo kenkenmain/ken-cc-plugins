@@ -9,8 +9,8 @@ source "$SCRIPT_DIR/lib/state.sh"
 # Consume stdin (hook input)
 cat > /dev/null
 
-# Allow stop if no active workflow
-if ! is_workflow_active; then
+# Allow stop if no state file exists (no workflow)
+if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
 fi
 
@@ -29,7 +29,7 @@ case "$STATUS" in
     exit 2
     ;;
   *)
-    # Unknown status -- allow stop
+    # Unknown or empty status -- allow stop
     exit 0
     ;;
 esac
