@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# on-subagent-stop.sh -- SubagentStop hook for auto-chaining workflow phases.
+# on-subagent-stop.sh -- SubagentStop hook for workflow phase advancement.
 #
 # Fires after every subagent completes. When a workflow is active, it validates
 # the current phase's output, checks any stage gate, marks the phase completed,
-# and either chains to the next phase (blocking with an instruction) or marks
-# the workflow as completed.
+# and advances state to the next phase. This hook is a pure side-effect hook:
+# it validates and advances state, then exits silently. The Stop hook (on-stop.sh)
+# handles re-injecting the orchestrator prompt for the next phase (Ralph-style).
 #
 # Exit codes:
 #   0 - Allow (no active workflow, or workflow advanced / completed)
@@ -94,15 +95,9 @@ NEXT_STAGE="$(echo "$NEXT_PHASE_JSON" | jq -r '.stage')"
 
 state_update ".currentPhase = \"$NEXT_PHASE\" | .currentStage = \"$NEXT_STAGE\""
 
-# Build the chain instruction for the next phase
-CHAIN_INSTRUCTION="$(build_chain_instruction "$NEXT_PHASE_JSON")"
-
 # ---------------------------------------------------------------------------
-# 8. Output decision JSON to stdout (use jq to avoid escaping issues)
-# ---------------------------------------------------------------------------
-jq -n --arg reason "$CHAIN_INSTRUCTION" '{"decision":"block","reason":$reason}'
-
-# ---------------------------------------------------------------------------
-# 9. Exit 0
+# 8. Exit silently — no stdout output.
+#    The Stop hook (on-stop.sh) handles re-injecting the full orchestrator
+#    prompt (Ralph-style). This hook only validates and advances state.
 # ---------------------------------------------------------------------------
 exit 0

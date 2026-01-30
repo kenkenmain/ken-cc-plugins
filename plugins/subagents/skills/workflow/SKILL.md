@@ -1,26 +1,47 @@
 ---
 name: workflow
-description: Thin orchestrator loop — dispatches each phase as a subagent, hooks enforce progression
+description: Ralph-style orchestrator loop — dispatches each phase as a subagent, hooks enforce progression
 ---
 
 # Workflow Orchestration
 
-Dispatch each phase as a subagent. SubagentStop hooks validate output, advance state, and inject next-phase instructions. This skill only handles the dispatch loop.
+Dispatch each phase as a subagent. Hooks enforce output validation, gate checks, state advancement, and loop re-injection. This skill only handles the dispatch loop.
 
-## Execution Flow
+## Execution Flow (Ralph-Style)
 
-1. Read `.agents/tmp/state.json` for current phase
-2. Read phase prompt template from `prompts/phases/{phase}-*.md`
-3. Read input files listed in the template
-4. Build subagent prompt: `[PHASE {id}] ` + template content + input file summaries
-5. Dispatch as Task tool call with appropriate subagent_type
-6. **SubagentStop hook fires automatically:**
-   - Validates output file exists
-   - Checks gate if at stage boundary
-   - Advances state to next phase
-   - Returns `decision: "block"` with next-phase instruction
-7. Claude processes hook instruction → dispatches next phase
-8. Repeat until hook signals workflow complete
+The orchestrator uses the Ralph Loop pattern: the Stop hook re-injects the **full orchestrator prompt** (`prompts/orchestrator-loop.md`) every time Claude tries to stop. Claude reads state from disk and dispatches the current phase — no conversation memory required.
+
+```
+Claude dispatches phase N as a subagent (Task tool)
+  ↓
+Subagent completes
+  ↓
+SubagentStop hook fires:
+  - Validates output file exists
+  - Checks gate if at stage boundary
+  - Marks phase completed
+  - Advances state to phase N+1
+  - Exits silently (no stdout)
+  ↓
+Claude tries to stop (subagent done, nothing left to do)
+  ↓
+Stop hook fires:
+  - Reads prompts/orchestrator-loop.md
+  - Increments loopIteration in state
+  - Returns {"decision":"block","reason":"<full orchestrator prompt>"}
+  ↓
+Claude receives complete orchestrator prompt
+  - Reads .agents/tmp/state.json (now pointing to phase N+1)
+  - Dispatches phase N+1 as a subagent
+  ↓
+Repeat until SubagentStop marks workflow "completed" → Stop hook allows exit
+```
+
+### Key Design: Separation of Concerns
+
+- **SubagentStop hook** = pure side-effects (validate, advance state, exit silently)
+- **Stop hook** = prompt re-injection (reads orchestrator-loop.md, blocks with full prompt)
+- **Orchestrator prompt** = static, self-contained instructions (reads state, dispatches current phase)
 
 ## Phase Dispatch Mapping
 

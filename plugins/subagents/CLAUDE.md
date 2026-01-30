@@ -2,30 +2,42 @@
 
 This plugin implements a hook-driven subagent architecture for Claude Code. Every workflow phase runs as an isolated subagent, with shell hooks enforcing progression, gates, and auto-chaining.
 
-## Architecture Overview (v3 — Hook-Driven)
+## Architecture Overview (v4 — Ralph-Style Loop)
 
 ```
-Main Conversation (Thin Orchestrator)
-├── Dispatches each phase as a subagent (Task tool)
-├── SubagentStop hook validates → advances state → injects next phase
-├── Stop hook prevents premature exit
+Main Conversation (Orchestrator Loop)
+│
+├── Stop hook injects FULL orchestrator prompt (prompts/orchestrator-loop.md)
+│   └── Claude reads state → dispatches current phase as subagent (Task tool)
+│
+├── SubagentStop hook validates → advances state → exits silently
+│   └── No stdout — pure side-effect (validate output, check gates, advance)
+│
+├── Stop hook fires again → re-injects same orchestrator prompt
+│   └── Claude reads updated state → dispatches next phase
+│
 ├── PreToolUse hook validates dispatch matches current phase
+│
 └── Phases communicate only via .agents/tmp/phases/ files
 ```
 
-**Key Design:** The orchestrator is a thin dispatch loop. All enforcement (output validation, gate checks, state advancement, auto-chaining) is handled by deterministic shell scripts in `hooks/`, not by LLM memory.
+**Key Design (Ralph Pattern):** The Stop hook re-injects the **complete orchestrator prompt** every iteration — not a hint. Claude reads `.agents/tmp/state.json` to determine the current phase and dispatches it. No conversation memory required. State on disk determines behavior. The SubagentStop hook is a pure side-effect hook (validate, advance, exit silently).
 
 ## Hooks
 
 Three shell hooks enforce the workflow:
 
-| Hook                  | Event        | Purpose                                            |
-| --------------------- | ------------ | -------------------------------------------------- |
-| `on-subagent-stop.sh` | SubagentStop | Validate output, check gates, advance state, chain |
-| `on-stop.sh`          | Stop         | Block premature stop if workflow is in_progress    |
-| `on-task-dispatch.sh` | PreToolUse   | Validate Task dispatches match expected phase      |
+| Hook                  | Event        | Purpose                                                          |
+| --------------------- | ------------ | ---------------------------------------------------------------- |
+| `on-subagent-stop.sh` | SubagentStop | Validate output, check gates, advance state (silent — no stdout) |
+| `on-stop.sh`          | Stop         | Re-inject full orchestrator prompt (Ralph-style loop driver)     |
+| `on-task-dispatch.sh` | PreToolUse   | Validate Task dispatches match expected phase                    |
 
 Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh).
+
+### Ralph-Style Loop Mechanics
+
+The Stop hook reads `prompts/orchestrator-loop.md` and injects it as the `reason` in `{"decision":"block","reason":"<prompt>"}`. This is the same complete prompt every time. Claude reads `.agents/tmp/state.json` to determine the current phase, dispatches it as a subagent, and the cycle repeats. The SubagentStop hook handles state advancement silently (no stdout output).
 
 ## Workflow Stages
 
