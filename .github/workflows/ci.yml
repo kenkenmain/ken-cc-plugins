@@ -180,6 +180,129 @@ jobs:
             fi
           done
 
+  validate-hooks:
+    name: Validate Hook Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check shell script syntax
+        run: |
+          errors=0
+          for sh_file in $(find plugins -name "*.sh" -type f); do
+            if bash -n "$sh_file" 2>/dev/null; then
+              echo "✓ Syntax OK: $sh_file"
+            else
+              echo "ERROR: Syntax error in $sh_file"
+              bash -n "$sh_file"
+              errors=$((errors + 1))
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors shell script(s) with syntax errors"
+            exit 1
+          fi
+          echo "SUCCESS: All shell scripts pass syntax check"
+
+      - name: Check hook scripts are executable
+        run: |
+          errors=0
+          for plugin_dir in plugins/*/; do
+            hooks_dir="${plugin_dir}hooks"
+            if [ -d "$hooks_dir" ]; then
+              for sh_file in "$hooks_dir"/*.sh; do
+                if [ -f "$sh_file" ] && [ ! -x "$sh_file" ]; then
+                  echo "ERROR: Hook script not executable: $sh_file"
+                  errors=$((errors + 1))
+                else
+                  echo "✓ Executable: $sh_file"
+                fi
+              done
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors hook script(s) not executable"
+            exit 1
+          fi
+          echo "SUCCESS: All hook scripts are executable"
+
+      - name: Validate hooks.json
+        run: |
+          errors=0
+          for plugin_dir in plugins/*/; do
+            plugin_name=$(basename "$plugin_dir")
+            plugin_json="${plugin_dir}.claude-plugin/plugin.json"
+            hooks_ref=$(jq -r '.hooks // empty' "$plugin_json" 2>/dev/null)
+
+            if [ -n "$hooks_ref" ]; then
+              hooks_file="${plugin_dir}${hooks_ref}"
+              if [ ! -f "$hooks_file" ]; then
+                echo "ERROR: $plugin_name plugin.json references $hooks_ref but file not found"
+                errors=$((errors + 1))
+                continue
+              fi
+
+              if ! python3 -c "import json; json.load(open('$hooks_file'))"; then
+                echo "ERROR: Invalid JSON in $hooks_file"
+                errors=$((errors + 1))
+                continue
+              fi
+
+              echo "✓ Valid hooks.json for $plugin_name"
+
+              # Check that referenced command scripts exist
+              for cmd in $(jq -r '.. | .command? // empty' "$hooks_file"); do
+                # Replace ${CLAUDE_PLUGIN_ROOT} with plugin dir for local check
+                local_path=$(echo "$cmd" | sed "s|\\\${CLAUDE_PLUGIN_ROOT}|${plugin_dir%/}|g")
+                if [ ! -f "$local_path" ]; then
+                  echo "ERROR: Hook command not found: $cmd (resolved to $local_path)"
+                  errors=$((errors + 1))
+                else
+                  echo "  ✓ Hook command exists: $cmd"
+                fi
+              done
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors hooks.json error(s)"
+            exit 1
+          fi
+          echo "SUCCESS: All hooks.json files validated"
+
+      - name: Validate phase prompt templates
+        run: |
+          errors=0
+          for plugin_dir in plugins/*/; do
+            phases_dir="${plugin_dir}prompts/phases"
+            if [ -d "$phases_dir" ]; then
+              plugin_name=$(basename "$plugin_dir")
+              for template in "$phases_dir"/*.md; do
+                if [ -f "$template" ]; then
+                  filename=$(basename "$template")
+                  # Extract expected phase ID from filename (e.g., "1.2-plan.md" → "1.2")
+                  phase_id=$(echo "$filename" | sed 's/-.*//')
+
+                  if ! grep -q "\[PHASE $phase_id\]" "$template"; then
+                    echo "ERROR: $template missing [PHASE $phase_id] tag"
+                    errors=$((errors + 1))
+                  else
+                    echo "✓ Phase tag found: $template"
+                  fi
+                fi
+              done
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors phase template(s) missing tags"
+            exit 1
+          fi
+          echo "SUCCESS: All phase templates have correct tags"
+
   lint-markdown:
     name: Lint Markdown
     runs-on: ubuntu-latest
