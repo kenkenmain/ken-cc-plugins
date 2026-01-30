@@ -43,8 +43,8 @@
     {
       "name": "subagents",
       "source": "./plugins/subagents",
-      "description": "2-level agent architecture with parallel subagents and file-based state transfer",
-      "version": "0.2.0",
+      "description": "Hook-driven subagent architecture with auto-chaining, gate enforcement, and full context isolation",
+      "version": "0.4.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -52,7 +52,7 @@
       "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
-      "keywords": ["subagents", "hierarchical", "context-isolation", "complexity-scoring", "parallel"],
+      "keywords": ["subagents", "hooks", "auto-chaining", "context-isolation", "gate-enforcement"],
       "category": "workflow"
     }
   ]
