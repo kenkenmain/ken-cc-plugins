@@ -1,306 +1,100 @@
 ---
 name: workflow
-description: Main workflow orchestration - executes stages sequentially with file-based state
+description: Thin orchestrator loop — dispatches each phase as a subagent, hooks enforce progression
 ---
 
 # Workflow Orchestration
 
-Main workflow skill that coordinates all stages. Replaces the old orchestrator agent.
-
-## Workflow Stages
-
-```
-EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
-```
+Dispatch each phase as a subagent. SubagentStop hooks validate output, advance state, and inject next-phase instructions. This skill only handles the dispatch loop.
 
 ## Execution Flow
 
-### Schedule-Driven Execution
+1. Read `.agents/tmp/state.json` for current phase
+2. Read phase prompt template from `prompts/phases/{phase}-*.md`
+3. Read input files listed in the template
+4. Build subagent prompt: `[PHASE {id}] ` + template content + input file summaries
+5. Dispatch as Task tool call with appropriate subagent_type
+6. **SubagentStop hook fires automatically:**
+   - Validates output file exists
+   - Checks gate if at stage boundary
+   - Advances state to next phase
+   - Returns `decision: "block"` with next-phase instruction
+7. Claude processes hook instruction → dispatches next phase
+8. Repeat until hook signals workflow complete
 
-The workflow iterates over `state.schedule` entries instead of hardcoded stage logic:
+## Phase Dispatch Mapping
 
-1. Read `state.schedule` from state
-2. Find current position (first entry where phase matches `state.currentPhase`, or first `pending` phase)
-3. For each schedule entry from current position:
-   a. Execute the phase based on its `type` (see per-stage sections below)
-   b. Mark phase as `completed` in state
-   c. Call `Advance Phase` (state-manager) to move to next entry
-   d. If `Advance Phase` returns gate failure → halt, report missing phases
-4. After all entries complete → workflow is done
+| Phase | subagent_type                   | model    | Notes                                    |
+| ----- | ------------------------------- | -------- | ---------------------------------------- |
+| 0     | Explore                         | config   | Parallel batch: dispatch 1-10 agents     |
+| 1.1   | general-purpose                 | config   | Single agent                             |
+| 1.2   | Plan                            | config   | Parallel batch: dispatch 1-10 agents     |
+| 1.3   | kenken:codex-reviewer           | inherit  | Dispatches to Codex MCP                  |
+| 2.1   | subagents:task-agent            | per-task | Wave-based: dispatch in dependency waves |
+| 2.2   | code-simplifier:code-simplifier | config   | Single agent                             |
+| 2.3   | kenken:codex-reviewer           | inherit  | Dispatches to Codex MCP                  |
+| 3.1   | Bash                            | —        | Single bash command                      |
+| 3.2   | general-purpose                 | config   | Single agent                             |
+| 3.3   | kenken:codex-reviewer           | inherit  | Dispatches to Codex MCP                  |
+| 4.1   | general-purpose                 | config   | Single agent                             |
+| 4.2   | kenken:codex-reviewer           | inherit  | Uses codex-xhigh for final               |
+| 4.3   | Bash                            | —        | Git operations                           |
 
-**CRITICAL: Never skip a schedule entry.** Every phase in the schedule must either complete or be explicitly handled (stage disabled/skipped). The schedule is the single source of truth for phase ordering.
+## Prompt Construction
 
-### EXPLORE Stage (Phase 0)
+For each phase dispatch, build the prompt as:
 
-1. Use `explore-dispatcher` skill
-2. Dispatch parallel Explore agents
-3. Write findings to `.agents/tmp/phases/0-explore.md`
-4. Update state, compact context
+```
+[PHASE {phase_id}]
 
-**Gate enforcement:** Phase 0 output (`0-explore.md`) is a required gate artifact for the EXPLORE→PLAN transition. The workflow CANNOT proceed to Phase 1.1 without this file.
+{contents of prompts/phases/{phase_id}-*.md}
 
-### PLAN Stage
+## Task Context
 
-**Phase 1.1: Brainstorm (inline)**
+Task: {state.task}
 
-1. Read explore findings
-2. Analyze and determine approach
-3. Write decisions to `.agents/tmp/phases/1.1-brainstorm.md`
+## Input Files
 
-**Phase 1.2: Parallel Plan**
+{contents or summaries of input files for this phase}
+```
 
-1. Use `plan-dispatcher` skill
-2. Dispatch parallel Plan agents
-3. Write merged plan to `.agents/tmp/phases/1.2-plan.md`
+The `[PHASE {id}]` tag is used by the PreToolUse hook to validate dispatches.
 
-**Phase 1.3: Plan Review**
+## Batch Phases (0, 1.2, 2.1)
 
-1. Dispatch codex-reviewer subagent:
-   ```
-   Task(
-     description: "Review: plan",
-     prompt: "Review the implementation plan at .agents/tmp/phases/1.2-plan.md. Use prompts/high-stakes/plan-review.md criteria. Tool: codex-high.",
-     subagent_type: "subagents:codex-reviewer"
-   )
-   ```
-2. If issues found (based on blockOnSeverity, default: low):
-   - Dispatch bugFixer (default: codex-high) to fix issues
-   - Re-run codex-reviewer
-   - Repeat until approved or max retries
-3. Write review to `.agents/tmp/phases/1.3-plan-review.json`
-4. Update state, compact context
+These phases dispatch multiple parallel subagents. The workflow skill:
 
-**Gate enforcement:** The PLAN→IMPLEMENT gate requires both `1.2-plan.md` and `1.3-plan-review.json`. The workflow CANNOT proceed to Phase 2.1 without both files. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to IMPLEMENT.
-
-### IMPLEMENT Stage
-
-**Phase 2.1: Task Execution**
-
-1. Use `task-dispatcher` skill
-2. Dispatch tasks in waves based on dependencies:
-   - Easy/Medium → Task agents (sonnet-4.5/opus-4.5)
-   - Hard → Codex MCP (codex-xhigh) via codex-reviewer subagent
-3. Write results to `.agents/tmp/phases/2.1-tasks.json`
-
-**Phase 2.2: Simplify**
-
-1. Review implemented code for simplification
-2. Write notes to `.agents/tmp/phases/2.2-simplify.md`
-
-**Phase 2.3: Implementation Review**
-
-1. Dispatch codex-reviewer subagent:
-   ```
-   Task(
-     description: "Review: implementation",
-     prompt: "Review the implementation. Files: [modified files]. Use prompts/high-stakes/implementation.md criteria. Tool: codex-high.",
-     subagent_type: "subagents:codex-reviewer"
-   )
-   ```
-2. If issues found (based on blockOnSeverity, default: low):
-   - Dispatch bugFixer (default: codex-high) to fix each issue
-   - Re-run codex-reviewer
-   - Repeat until no blocking issues or max retries
-3. Write review to `.agents/tmp/phases/2.3-impl-review.json`
-4. Update state, compact context
-
-**Gate enforcement:** The IMPLEMENT→TEST gate requires both `2.1-tasks.json` and `2.3-impl-review.json`. The workflow CANNOT proceed to Phase 3.1 without both files. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to TEST.
-
-### TEST Stage
-
-**Phase 3.1: Run Tests**
-
-1. Run configured test commands (lint, test)
-2. Write results to `.agents/tmp/phases/3.1-test-results.json`
-
-**Phase 3.2: Analyze Failures**
-
-1. If tests failed, analyze and suggest fixes
-2. Optionally dispatch fix agents
-
-**Phase 3.3: Test Review**
-
-1. Dispatch codex-reviewer subagent:
-   ```
-   Task(
-     description: "Review: tests",
-     prompt: "Review test coverage and quality. Files: [test files]. Use prompts/high-stakes/test-review.md criteria. Tool: codex-high.",
-     subagent_type: "subagents:codex-reviewer"
-   )
-   ```
-2. If issues found (based on blockOnSeverity, default: low):
-   - Dispatch bugFixer (default: codex-high) to fix each issue
-   - Re-run codex-reviewer
-   - Repeat until no blocking issues or max retries
-3. Write review to `.agents/tmp/phases/3.3-test-review.json`
-4. Update state, compact context
-
-**Gate enforcement:** The TEST→FINAL gate requires both `3.1-test-results.json` and `3.3-test-review.json`. The workflow CANNOT proceed to Phase 4.1 without both files. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to FINAL.
-
-### FINAL Stage
-
-**Phase 4.1: Documentation Updates**
-
-1. Update relevant documentation
-
-**Phase 4.2: Final Review**
-
-1. Dispatch codex-reviewer subagent with high reasoning:
-   ```
-   Task(
-     description: "Review: final",
-     prompt: "Final review of all changes. Use prompts/high-stakes/final-review.md criteria. Tool: codex-xhigh. Files: [all modified files].",
-     subagent_type: "subagents:codex-reviewer"
-   )
-   ```
-2. If issues found (based on blockOnSeverity, default: low):
-   - Dispatch bugFixer (default: codex-high) to fix each issue
-   - Re-run codex-reviewer
-   - Repeat until no blocking issues or max retries
-
-**Gate enforcement:** Phase 4.2 output (`4.2-final-review.json`) is a required gate artifact for the FINAL→COMPLETE transition. The workflow CANNOT proceed to Phase 4.3 without this file. If codex-reviewer fails after max retries, the workflow blocks — it does NOT skip to Completion.
-
-**Phase 4.3: Completion**
-
-1. Create git branch and PR (if configured)
-2. Set state to completed
-
-## Context Compaction
-
-Between stages (when `compaction.betweenStages: true`):
-
-1. Write stage summary to file
-2. Update state with file pointer
-3. Clear conversation of stage details
-4. Next stage reads only needed files
-
-Between phases (when `compaction.betweenPhases: true`):
-
-1. Same process but after each phase
-2. More aggressive context management
-
-## State Updates
-
-After each phase, use the `Advance Phase` operation from state-manager:
-
-1. Mark current phase as completed in `stages[currentStage].phases[phaseId]`
-2. Record output file in `state.files` if applicable
-3. Call `Advance Phase` to determine and set the next phase
-4. If `Advance Phase` triggers a gate check:
-   - Gate passes → currentPhase/currentStage updated automatically
-   - Gate fails → workflow halts with blocked status and missing file details
-
-**Never manually set `currentPhase` or `currentStage`.** Always go through `Advance Phase` to ensure gate checks fire.
-
-## Review Status Handling
-
-Review status values differ by type:
-
-- **Plan/Implementation/Test reviews:** `approved` or `needs_revision`
-- **Final review:** `approved` or `blocked`
-
-Handling logic:
-
-1. If status is `approved` → proceed to next phase
-2. If status is `needs_revision` → check `issues[]` against `blockOnSeverity`, dispatch bugFixer for matching issues, re-review
-3. If status is `blocked` (final review only) → hard stop regardless of blockOnSeverity, ask user via AskUserQuestion
+1. Reads the prompt template for dispatch instructions
+2. Generates per-agent prompts (queries, plan areas, or task payloads)
+3. Dispatches all agents in parallel
+4. Aggregates results into the expected output file
+5. Then the SubagentStop hook fires to validate and advance
 
 ## Error Handling
 
-On failure:
+The workflow skill does NOT handle errors directly. If a subagent fails:
 
-1. Record failure in state using `state-manager` skill
-2. Classify error type:
+- SubagentStop hook exits with code 2 (blocking error)
+- Hook stderr message tells Claude what went wrong
+- Claude retries the phase dispatch
 
-| Error Type       | Location                   | Action                           |
-| ---------------- | -------------------------- | -------------------------------- |
-| Review failure   | Any review phase           | Run bugFixer, retry review       |
-| Task failure     | Phase 2.1 task execution   | Retry task or skip with warning  |
-| Test failure     | Phase 3.1 (in test file)   | Return to Phase 3.2 to fix tests |
-| Code logic error | Phase 3.1 (in source file) | Restart IMPLEMENT stage          |
-| Max retries      | Any phase                  | Ask user: retry/skip/abort       |
+If retries exhaust (hook keeps blocking):
 
-3. Auto-restart on stage failure:
-   - If IMPLEMENT review fails after max retries → restart IMPLEMENT stage
-   - If TEST fails with code logic error → restart IMPLEMENT stage
-   - If FINAL review fails after max retries → restart TEST stage (or IMPLEMENT if TEST disabled)
+- Stop hook prevents premature exit
+- User intervention needed via `/subagents:resume`
 
-4. User options via AskUserQuestion:
-   - **Retry phase** - Try current phase again
-   - **Restart stage** - Go back to start of current stage
-   - **Restart previous stage** - Go back to fix root cause
-   - **Skip** - Continue with warning
-   - **Abort** - Stop workflow, save state
+## Context Compaction
 
-## Stage Restarts
+If configured (`compaction.betweenStages` or `compaction.betweenPhases`):
 
-A stage can be restarted at any point — automatically on classified errors, or manually via resume flags.
+- After each stage/phase completion, compact context
+- Phase outputs are persisted to files, so no data is lost
+- Reduces context window usage for long workflows
 
-### When Restarts Happen
+## What This Skill Does NOT Do
 
-| Trigger                               | Restart Target                       |
-| ------------------------------------- | ------------------------------------ |
-| IMPLEMENT review fails (max retries)  | IMPLEMENT                            |
-| TEST code logic error (source file)   | IMPLEMENT                            |
-| FINAL review fails (max retries)      | TEST (or IMPLEMENT if TEST disabled) |
-| User chooses "Restart stage"          | Current stage                        |
-| User chooses "Restart previous stage" | Previous stage                       |
-
-### Restart Procedure
-
-When restarting a stage:
-
-1. **Reset phase states** - Set all phases in that stage back to `pending`
-2. **Preserve prior stage outputs** - EXPLORE/PLAN outputs remain (don't re-explore)
-3. **Clear stage output files** - Delete `.agents/tmp/phases/{stage phases}` files:
-   - PLAN restart: delete `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json`
-   - IMPLEMENT restart: delete `2.1-tasks.json`, `2.2-simplify.md`, `2.3-impl-review.json`
-   - TEST restart: delete `3.1-test-results.json`, `3.2-*`, `3.3-test-review.json`
-   - FINAL restart: delete `4.1-*`, `4.2-*` output files
-4. **Update state** via `state-manager`:
-   ```json
-   {
-     "currentStage": "IMPLEMENT",
-     "currentPhase": "2.1",
-     "stages": {
-       "IMPLEMENT": {
-         "status": "in_progress",
-         "restartCount": 1,
-         "phases": {
-           "2.1": { "status": "pending" },
-           "2.2": { "status": "pending" },
-           "2.3": { "status": "pending" }
-         }
-       }
-     }
-   }
-   ```
-5. **Resume execution** from first phase of restarted stage
-6. **Increment restartCount** - Track for max restart limits
-
-### Max Restarts
-
-Default: 3 restarts per stage (configurable via `retries.maxPerStage`).
-
-After max restarts, ask user:
-
-- **Force continue** - Proceed despite issues
-- **Abort** - Stop workflow
-
-### Cross-Stage Restarts
-
-When restarting a previous stage (e.g., IMPLEMENT from TEST):
-
-1. Mark current stage as `blocked` with reason
-2. Mark target stage as `restarting`
-3. Reset target stage phases
-4. Clear output files from target stage AND current stage
-5. Resume from target stage
-
-## Skip Stages
-
-If stage disabled in config (e.g., `stages.TEST.enabled: false`):
-
-1. Skip all phases in that stage
-2. Update state to mark as skipped
-3. Continue to next stage
+- **Gate checks** → handled by `on-subagent-stop.sh` hook
+- **State updates** → handled by `on-subagent-stop.sh` hook
+- **Phase progression** → handled by `on-subagent-stop.sh` hook
+- **Stop prevention** → handled by `on-stop.sh` hook
+- **Dispatch validation** → handled by `on-task-dispatch.sh` hook
