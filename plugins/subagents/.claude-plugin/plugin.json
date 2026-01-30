@@ -2,7 +2,6 @@
   "name": "subagents",
   "version": "0.4.0",
   "description": "Hook-driven subagent architecture with auto-chaining, gate enforcement, and full context isolation",
-  "hooks": "hooks/hooks.json",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
