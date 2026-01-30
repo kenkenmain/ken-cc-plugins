@@ -19,7 +19,7 @@ Parse from $ARGUMENTS.
 
 ## Step 1: Load State
 
-Read `.agents/tmp/state.json` using `state-manager` skill.
+Read `.agents/tmp/state.json` directly.
 
 If not found:
 
@@ -163,12 +163,13 @@ Show actual gate file status (✓ file exists, ✗ missing, · pending).
 
 ## Step 6: Continue Workflow
 
-1. Update state via `state-manager`:
+1. Update state directly:
    - Set `status: "in_progress"`
    - Clear `failure` if retrying
    - Set `updatedAt: now()`
 
-2. Use `workflow` skill to continue from current position:
-   - Read phase output files from `state.files`
-   - Continue stage execution
-   - Handle compaction settings
+2. Use `workflow` skill to dispatch the current phase as a subagent:
+   - Read prompt template from `prompts/phases/{phase}-*.md`
+   - Build subagent prompt with `[PHASE {id}]` tag
+   - Dispatch as Task tool call
+   - SubagentStop hook handles validation, advancement, and auto-chaining
