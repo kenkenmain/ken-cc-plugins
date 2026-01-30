@@ -1,24 +1,48 @@
 # Subagents Plugin - Agent Instructions
 
-This plugin implements a 2-level agent architecture for Claude Code with file-based state transfer.
+This plugin implements a hook-driven subagent architecture for Claude Code. Every workflow phase runs as an isolated subagent, with shell hooks enforcing progression, gates, and auto-chaining.
 
-## Architecture Overview (v2)
+## Architecture Overview (v3 — Hook-Driven)
 
 ```
-Main Conversation (Orchestrator)
-├── Dispatches parallel Explore agents (1-10)
-├── Dispatches parallel Plan agents (1-10)
-├── Dispatches parallel Task agents in waves
-└── Coordinates via file-based state
+Main Conversation (Thin Orchestrator)
+├── Dispatches each phase as a subagent (Task tool)
+├── SubagentStop hook validates → advances state → injects next phase
+├── Stop hook prevents premature exit
+├── PreToolUse hook validates dispatch matches current phase
+└── Phases communicate only via .agents/tmp/phases/ files
 ```
 
-**Key Design:** Main conversation handles all coordination inline via skills. Subagents are only spawned for parallel exploration, planning, and task execution.
+**Key Design:** The orchestrator is a thin dispatch loop. All enforcement (output validation, gate checks, state advancement, auto-chaining) is handled by deterministic shell scripts in `hooks/`, not by LLM memory.
+
+## Hooks
+
+Three shell hooks enforce the workflow:
+
+| Hook                  | Event        | Purpose                                            |
+| --------------------- | ------------ | -------------------------------------------------- |
+| `on-subagent-stop.sh` | SubagentStop | Validate output, check gates, advance state, chain |
+| `on-stop.sh`          | Stop         | Block premature stop if workflow is in_progress    |
+| `on-task-dispatch.sh` | PreToolUse   | Validate Task dispatches match expected phase      |
+
+Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh).
 
 ## Workflow Stages
 
 ```
 EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 ```
+
+All 13 phases run as subagents. No inline phases.
+
+### Phase Types
+
+| Type       | Description                         | Examples                |
+| ---------- | ----------------------------------- | ----------------------- |
+| `dispatch` | Parallel batch (multiple subagents) | 0, 1.2, 2.1             |
+| `subagent` | Single subagent                     | 1.1, 2.2, 3.2, 4.1, 4.3 |
+| `review`   | Codex MCP review via codex-reviewer | 1.3, 2.3, 3.3, 4.2      |
+| `command`  | Bash command execution              | 3.1                     |
 
 ### EXPLORE Stage (Phase 0)
 
@@ -27,7 +51,7 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 
 ### PLAN Stage (Phases 1.1-1.3)
 
-- 1.1: Inline brainstorming
+- 1.1: Brainstorm (general-purpose subagent)
 - 1.2: Parallel Plan agents for detailed planning
 - 1.3: Codex MCP review of plan
 - Output: `.agents/tmp/phases/1.2-plan.md`
@@ -35,64 +59,83 @@ EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 ### IMPLEMENT Stage (Phases 2.1-2.3)
 
 - 2.1: Wave-based task execution with dependency ordering
-- 2.2: Code simplification pass
+- 2.2: Code simplification (code-simplifier subagent)
 - 2.3: Codex MCP implementation review
 - Output: `.agents/tmp/phases/2.1-tasks.json`
 
 ### TEST Stage (Phases 3.1-3.3)
 
-- 3.1: Run lint and test commands
-- 3.2: Analyze failures and optionally fix
+- 3.1: Run lint and test commands (Bash)
+- 3.2: Analyze failures (general-purpose subagent)
 - 3.3: Codex MCP test review
 
 ### FINAL Stage (Phases 4.1-4.3)
 
-- 4.1: Documentation updates
+- 4.1: Documentation updates (general-purpose subagent)
 - 4.2: Final Codex MCP review (codex-xhigh)
-- 4.3: Git branch and PR creation
+- 4.3: Git branch and PR creation (Bash subagent)
+
+## Phase Prompt Templates
+
+Each phase has a prompt template in `prompts/phases/`:
+
+```
+prompts/phases/
+├── 0-explore.md
+├── 1.1-brainstorm.md
+├── 1.2-plan.md
+├── 1.3-plan-review.md
+├── 2.1-implement.md
+├── 2.2-simplify.md
+├── 2.3-impl-review.md
+├── 3.1-run-tests.md
+├── 3.2-analyze-failures.md
+├── 3.3-test-review.md
+├── 4.1-documentation.md
+├── 4.2-final-review.md
+└── 4.3-completion.md
+```
+
+Templates include `[PHASE X.Y]` tags for PreToolUse hook validation.
 
 ## State Management
 
 State file: `.agents/tmp/state.json`
 
 Key state fields:
-- `schedule`: Ordered array of all phases to execute, built at workflow initialization
-- `gates`: Map of stage transitions to required output files (review artifacts)
+
+- `schedule`: Ordered array of all phases to execute
+- `gates`: Map of stage transitions to required output files
 - `stages`: Per-stage status, phases, and restart counts
+
+State updates are performed by hook scripts via `hooks/lib/state.sh` (atomic writes with jq).
 
 All phase outputs: `.agents/tmp/phases/`
 
-State and phase files are excluded from git commits via `.gitignore`.
-
 ## Schedule & Stage Gates
 
-All workflow phases are pre-scheduled at initialization. Stage transitions are enforced by gates.
+All workflow phases are pre-scheduled at initialization. Stage transitions are enforced by hooks.
 
 ### Schedule
 
 The `schedule` array in state lists every phase in execution order. Each entry has:
+
 - `phase`: identifier (e.g., `"1.3"`)
 - `stage`: parent stage (`EXPLORE`, `PLAN`, `IMPLEMENT`, `TEST`, `FINAL`)
 - `name`: human-readable label
-- `type`: execution type (`dispatch`, `inline`, `review`, `command`)
-
-Disabled stages are filtered from the schedule at init time.
+- `type`: execution type (`dispatch`, `subagent`, `review`, `command`)
 
 ### Gates
 
-Gates block stage transitions until required output artifacts exist:
+Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 
-| Gate               | Required Files                              | Blocks Transition To |
-| ------------------ | ------------------------------------------- | -------------------- |
-| EXPLORE→PLAN       | `0-explore.md`                              | PLAN                 |
-| PLAN→IMPLEMENT     | `1.2-plan.md`, `1.3-plan-review.json`       | IMPLEMENT            |
-| IMPLEMENT→TEST     | `2.1-tasks.json`, `2.3-impl-review.json`    | TEST                 |
-| TEST→FINAL         | `3.1-test-results.json`, `3.3-test-review.json` | FINAL           |
-| FINAL→COMPLETE     | `4.2-final-review.json`                     | Completion           |
-
-Gate checks are enforced by the `Advance Phase` operation in the state-manager. The workflow CANNOT skip any stage — if a phase fails after max retries, the workflow blocks rather than proceeding.
-
-If TEST is disabled, the `IMPLEMENT->TEST` and `TEST->FINAL` gates are replaced with a single `IMPLEMENT->FINAL` gate.
+| Gate            | Required Files                                  | Blocks Transition To |
+| --------------- | ----------------------------------------------- | -------------------- |
+| EXPLORE->PLAN   | `0-explore.md`                                  | PLAN                 |
+| PLAN->IMPLEMENT | `1.2-plan.md`, `1.3-plan-review.json`           | IMPLEMENT            |
+| IMPLEMENT->TEST | `2.1-tasks.json`, `2.3-impl-review.json`        | TEST                 |
+| TEST->FINAL     | `3.1-test-results.json`, `3.3-test-review.json` | FINAL                |
+| FINAL->COMPLETE | `4.2-final-review.json`                         | Completion           |
 
 ## Model vs MCP Tool Namespaces
 
@@ -105,22 +148,13 @@ If TEST is disabled, the `IMPLEMENT->TEST` and `TEST->FINAL` gates are replaced 
 
 ## Complexity Scoring
 
-Task complexity determines model selection:
+Task complexity determines model selection during Phase 2.1:
 
 | Level  | Model       | Criteria                                 |
 | ------ | ----------- | ---------------------------------------- |
 | Easy   | sonnet-4.5  | Single file, <50 LOC                     |
 | Medium | opus-4.5    | 2-3 files, 50-200 LOC                    |
 | Hard   | codex-xhigh | 4+ files, >200 LOC, security/concurrency |
-
-## Context Compaction
-
-Configurable compaction between stages and/or phases:
-
-- `compaction.betweenStages: true` (default) - Compact after each stage
-- `compaction.betweenPhases: false` (default) - Optional per-phase compaction
-
-Compaction writes summary to file and clears conversation context.
 
 ## Commands
 
@@ -132,11 +166,11 @@ Compaction writes summary to file and clears conversation context.
 
 ## Skills
 
-- `workflow` - Main orchestration (replaces orchestrator agent)
-- `state-manager` - File-based state persistence
-- `explore-dispatcher` - Parallel Explore agent dispatch
-- `plan-dispatcher` - Parallel Plan agent dispatch
-- `plan-writer` - Plan format schema and validation
-- `task-dispatcher` - Wave-based Task agent dispatch
-- `complexity-scorer` - Task complexity classification
+- `workflow` - Thin orchestrator loop (dispatches phases, hooks handle enforcement)
+- `state-manager` - State schema documentation and recovery procedures
 - `configuration` - Config loading and merging
+
+## Agents
+
+- `task-agent.md` - Task execution agent for Phase 2.1
+- `codex-reviewer.md` - Review agent dispatching to Codex MCP
