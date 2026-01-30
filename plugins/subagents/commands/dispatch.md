@@ -42,33 +42,87 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
   "currentStage": "EXPLORE",
   "currentPhase": "0",
   "schedule": [
-    { "phase": "0",   "stage": "EXPLORE",   "name": "Explore",               "type": "dispatch" },
-    { "phase": "1.1", "stage": "PLAN",      "name": "Brainstorm",            "type": "inline" },
-    { "phase": "1.2", "stage": "PLAN",      "name": "Plan",                  "type": "dispatch" },
-    { "phase": "1.3", "stage": "PLAN",      "name": "Plan Review",           "type": "review" },
-    { "phase": "2.1", "stage": "IMPLEMENT", "name": "Task Execution",        "type": "dispatch" },
-    { "phase": "2.2", "stage": "IMPLEMENT", "name": "Simplify",              "type": "inline" },
-    { "phase": "2.3", "stage": "IMPLEMENT", "name": "Implementation Review", "type": "review" },
-    { "phase": "3.1", "stage": "TEST",      "name": "Run Tests",             "type": "command" },
-    { "phase": "3.2", "stage": "TEST",      "name": "Analyze Failures",      "type": "inline" },
-    { "phase": "3.3", "stage": "TEST",      "name": "Test Review",           "type": "review" },
-    { "phase": "4.1", "stage": "FINAL",     "name": "Documentation",         "type": "inline" },
-    { "phase": "4.2", "stage": "FINAL",     "name": "Final Review",          "type": "review" },
-    { "phase": "4.3", "stage": "FINAL",     "name": "Completion",            "type": "inline" }
+    { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
+    {
+      "phase": "1.1",
+      "stage": "PLAN",
+      "name": "Brainstorm",
+      "type": "subagent"
+    },
+    { "phase": "1.2", "stage": "PLAN", "name": "Plan", "type": "dispatch" },
+    {
+      "phase": "1.3",
+      "stage": "PLAN",
+      "name": "Plan Review",
+      "type": "review"
+    },
+    {
+      "phase": "2.1",
+      "stage": "IMPLEMENT",
+      "name": "Task Execution",
+      "type": "dispatch"
+    },
+    {
+      "phase": "2.2",
+      "stage": "IMPLEMENT",
+      "name": "Simplify",
+      "type": "subagent"
+    },
+    {
+      "phase": "2.3",
+      "stage": "IMPLEMENT",
+      "name": "Implementation Review",
+      "type": "review"
+    },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "command" },
+    {
+      "phase": "3.2",
+      "stage": "TEST",
+      "name": "Analyze Failures",
+      "type": "subagent"
+    },
+    {
+      "phase": "3.3",
+      "stage": "TEST",
+      "name": "Test Review",
+      "type": "review"
+    },
+    {
+      "phase": "4.1",
+      "stage": "FINAL",
+      "name": "Documentation",
+      "type": "subagent"
+    },
+    {
+      "phase": "4.2",
+      "stage": "FINAL",
+      "name": "Final Review",
+      "type": "review"
+    },
+    { "phase": "4.3", "stage": "FINAL", "name": "Completion", "type": "subagent" }
   ],
   "gates": {
-    "EXPLORE->PLAN":    { "required": ["0-explore.md"],                          "phase": "0" },
-    "PLAN->IMPLEMENT":  { "required": ["1.2-plan.md", "1.3-plan-review.json"],   "phase": "1.3" },
-    "IMPLEMENT->TEST":  { "required": ["2.1-tasks.json", "2.3-impl-review.json"],"phase": "2.3" },
-    "TEST->FINAL":      { "required": ["3.1-test-results.json", "3.3-test-review.json"], "phase": "3.3" },
-    "FINAL->COMPLETE":  { "required": ["4.2-final-review.json"],                 "phase": "4.2" }
+    "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
+    "PLAN->IMPLEMENT": {
+      "required": ["1.2-plan.md", "1.3-plan-review.json"],
+      "phase": "1.3"
+    },
+    "IMPLEMENT->TEST": {
+      "required": ["2.1-tasks.json", "2.3-impl-review.json"],
+      "phase": "2.3"
+    },
+    "TEST->FINAL": {
+      "required": ["3.1-test-results.json", "3.3-test-review.json"],
+      "phase": "3.3"
+    },
+    "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
   },
   "stages": {
     "EXPLORE": { "status": "pending", "agentCount": 0 },
-    "PLAN": { "status": "pending", "phases": {}, "restartCount": 0 },
-    "IMPLEMENT": { "status": "pending", "phases": {}, "restartCount": 0 },
-    "TEST": { "status": "pending", "enabled": true, "restartCount": 0 },
-    "FINAL": { "status": "pending", "restartCount": 0 }
+    "PLAN": { "status": "pending", "phases": {}, "restartCount": 0, "blockReason": null },
+    "IMPLEMENT": { "status": "pending", "phases": {}, "restartCount": 0, "blockReason": null },
+    "TEST": { "status": "pending", "enabled": true, "restartCount": 0, "blockReason": null },
+    "FINAL": { "status": "pending", "restartCount": 0, "blockReason": null }
   },
   "files": {},
   "failure": null,
@@ -89,18 +143,18 @@ Show the user the planned execution order and gate checkpoints:
 Workflow Schedule ({N} phases)
 ==============================
 Phase 0   │ EXPLORE   │ Explore                 │ dispatch  ← GATE: EXPLORE→PLAN
-Phase 1.1 │ PLAN      │ Brainstorm              │ inline
+Phase 1.1 │ PLAN      │ Brainstorm              │ subagent
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch
 Phase 1.3 │ PLAN      │ Plan Review             │ review    ← GATE: PLAN→IMPLEMENT
 Phase 2.1 │ IMPLEMENT │ Task Execution          │ dispatch
-Phase 2.2 │ IMPLEMENT │ Simplify                │ inline
+Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent
 Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review    ← GATE: IMPLEMENT→TEST
 Phase 3.1 │ TEST      │ Run Tests               │ command
-Phase 3.2 │ TEST      │ Analyze Failures        │ inline
+Phase 3.2 │ TEST      │ Analyze Failures        │ subagent
 Phase 3.3 │ TEST      │ Test Review             │ review    ← GATE: TEST→FINAL
-Phase 4.1 │ FINAL     │ Documentation           │ inline
+Phase 4.1 │ FINAL     │ Documentation           │ subagent
 Phase 4.2 │ FINAL     │ Final Review            │ review    ← GATE: FINAL→COMPLETE
-Phase 4.3 │ FINAL     │ Completion              │ inline
+Phase 4.3 │ FINAL     │ Completion              │ subagent
 
 Stage Gates:
   EXPLORE → PLAN:    requires 0-explore.md
@@ -132,19 +186,20 @@ If `--stage` provided:
 
 ## Step 4: Execute Workflow
 
-Use `workflow` skill to execute stages sequentially:
+Use `workflow` skill to dispatch the first phase as a subagent. Hook-driven auto-chaining handles progression:
 
 ```
-EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
+Phase dispatched → SubagentStop hook validates → advances state → injects next phase → repeat
 ```
 
-Each stage:
+Each phase:
 
-1. Reads required files from previous stages
-2. Dispatches parallel subagents as needed
-3. Writes output to `.agents/tmp/phases/`
-4. Updates state via `state-manager`
-5. Compacts context (if configured)
+1. Reads prompt template from `prompts/phases/{phase}-*.md`
+2. Reads input files from previous phases
+3. Dispatches as subagent with `[PHASE {id}]` tag
+4. SubagentStop hook validates output and advances state
+5. Hook blocks stop and injects next-phase instruction
+6. Orchestrator dispatches next phase
 
 ## Step 5: Display Progress
 

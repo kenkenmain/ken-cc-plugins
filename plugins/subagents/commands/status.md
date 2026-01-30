@@ -66,14 +66,16 @@ Show `[GATE]` marker on review phases that produce gate artifacts.
 Gate status: ✓ file exists (gate satisfied), ✗ missing (gate blocking), · pending (not yet reached).
 
 For each entry in `state.schedule` (a flat array), display one row using:
+
 - **symbol**: derive from `stages[entry.stage].phases[entry.phase].status` — ✓ completed, ▶ in_progress, ✗ failed/blocked, · pending
 - **phase id**: from `entry.phase` (e.g., `0`, `1.1`, `2.3`)
 - **stage**: from `entry.stage` (e.g., `EXPLORE`, `PLAN`)
 - **name**: from `entry.name`
 - **status**: looked up from `stages[entry.stage].phases[entry.phase].status`
-- **[GATE]**: append if `entry.type === "review"`
+- **[GATE]**: append if this phase triggers a gate (check `state.gates` for any gate where `.phase` matches `entry.phase`)
 
 For the Gates section, iterate `state.gates` (a top-level map keyed by transition name like `"PLAN->IMPLEMENT"`):
+
 - Gate label: the key itself (e.g., `PLAN → IMPLEMENT`)
 - ✓ if the gate's `required` file(s) exist in `.agents/tmp/phases/`
 - ✗ if the gate phase has been reached but the file is missing

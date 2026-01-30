@@ -21,26 +21,85 @@ Manage subagents workflow state with file-based persistence.
   "currentStage": "EXPLORE|PLAN|IMPLEMENT|TEST|FINAL",
   "currentPhase": "0|1.1|1.2|1.3|2.1|2.2|2.3|3.1|3.2|3.3|4.1|4.2|4.3",
   "schedule": [
-    { "phase": "0",   "stage": "EXPLORE",   "name": "Explore",              "type": "dispatch" },
-    { "phase": "1.1", "stage": "PLAN",      "name": "Brainstorm",           "type": "inline" },
-    { "phase": "1.2", "stage": "PLAN",      "name": "Plan",                 "type": "dispatch" },
-    { "phase": "1.3", "stage": "PLAN",      "name": "Plan Review",          "type": "review" },
-    { "phase": "2.1", "stage": "IMPLEMENT", "name": "Task Execution",       "type": "dispatch" },
-    { "phase": "2.2", "stage": "IMPLEMENT", "name": "Simplify",             "type": "inline" },
-    { "phase": "2.3", "stage": "IMPLEMENT", "name": "Implementation Review","type": "review" },
-    { "phase": "3.1", "stage": "TEST",      "name": "Run Tests",            "type": "command" },
-    { "phase": "3.2", "stage": "TEST",      "name": "Analyze Failures",     "type": "inline" },
-    { "phase": "3.3", "stage": "TEST",      "name": "Test Review",          "type": "review" },
-    { "phase": "4.1", "stage": "FINAL",     "name": "Documentation",        "type": "inline" },
-    { "phase": "4.2", "stage": "FINAL",     "name": "Final Review",         "type": "review" },
-    { "phase": "4.3", "stage": "FINAL",     "name": "Completion",           "type": "inline" }
+    { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
+    {
+      "phase": "1.1",
+      "stage": "PLAN",
+      "name": "Brainstorm",
+      "type": "subagent"
+    },
+    { "phase": "1.2", "stage": "PLAN", "name": "Plan", "type": "dispatch" },
+    {
+      "phase": "1.3",
+      "stage": "PLAN",
+      "name": "Plan Review",
+      "type": "review"
+    },
+    {
+      "phase": "2.1",
+      "stage": "IMPLEMENT",
+      "name": "Task Execution",
+      "type": "dispatch"
+    },
+    {
+      "phase": "2.2",
+      "stage": "IMPLEMENT",
+      "name": "Simplify",
+      "type": "subagent"
+    },
+    {
+      "phase": "2.3",
+      "stage": "IMPLEMENT",
+      "name": "Implementation Review",
+      "type": "review"
+    },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "command" },
+    {
+      "phase": "3.2",
+      "stage": "TEST",
+      "name": "Analyze Failures",
+      "type": "subagent"
+    },
+    {
+      "phase": "3.3",
+      "stage": "TEST",
+      "name": "Test Review",
+      "type": "review"
+    },
+    {
+      "phase": "4.1",
+      "stage": "FINAL",
+      "name": "Documentation",
+      "type": "subagent"
+    },
+    {
+      "phase": "4.2",
+      "stage": "FINAL",
+      "name": "Final Review",
+      "type": "review"
+    },
+    {
+      "phase": "4.3",
+      "stage": "FINAL",
+      "name": "Completion",
+      "type": "subagent"
+    }
   ],
   "gates": {
-    "EXPLORE->PLAN":    { "required": ["0-explore.md"],                          "phase": "0" },
-    "PLAN->IMPLEMENT":  { "required": ["1.2-plan.md", "1.3-plan-review.json"],   "phase": "1.3" },
-    "IMPLEMENT->TEST":  { "required": ["2.1-tasks.json", "2.3-impl-review.json"],"phase": "2.3" },
-    "TEST->FINAL":      { "required": ["3.1-test-results.json", "3.3-test-review.json"], "phase": "3.3" },
-    "FINAL->COMPLETE":  { "required": ["4.2-final-review.json"],                 "phase": "4.2" }
+    "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
+    "PLAN->IMPLEMENT": {
+      "required": ["1.2-plan.md", "1.3-plan-review.json"],
+      "phase": "1.3"
+    },
+    "IMPLEMENT->TEST": {
+      "required": ["2.1-tasks.json", "2.3-impl-review.json"],
+      "phase": "2.3"
+    },
+    "TEST->FINAL": {
+      "required": ["3.1-test-results.json", "3.3-test-review.json"],
+      "phase": "3.3"
+    },
+    "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
   },
   "stages": {
     "EXPLORE": { "status": "pending", "agentCount": 0 },
@@ -180,3 +239,7 @@ On load, if `.agents/tmp/state.json.tmp` exists:
    - If yes: Delete temp file (interrupted write), load main file
    - If no: Rename temp to main (write completed but rename failed), load it
 2. If neither exists: Return null (no state)
+
+## Hook Script Integration
+
+State operations are also performed by hook shell scripts in `hooks/lib/state.sh`. The hook scripts implement the same atomic write protocol using jq for JSON manipulation. This skill documents the canonical schema and recovery procedures; hooks handle runtime state updates during workflow execution.
