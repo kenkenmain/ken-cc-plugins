@@ -100,7 +100,7 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
       "name": "Implementation Review",
       "type": "review"
     },
-    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "command" },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "subagent" },
     {
       "phase": "3.2",
       "stage": "TEST",
