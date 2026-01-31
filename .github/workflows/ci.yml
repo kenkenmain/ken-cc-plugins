@@ -563,7 +563,7 @@ jobs:
             # Find source/. statements
             while IFS= read -r source_line; do
               # Extract the path after $SCRIPT_DIR from: source "$SCRIPT_DIR/lib/foo.sh"
-              sourced_file=$(echo "$source_line" | grep -oP '\$SCRIPT_DIR\K/[^"]+')
+              sourced_file=$(echo "$source_line" | grep -oP '\$SCRIPT_DIR\K/[^"]+' || true)
               if [ -z "$sourced_file" ]; then continue; fi
 
               # Resolve relative to hooks dir
