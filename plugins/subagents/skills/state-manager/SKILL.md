@@ -53,7 +53,7 @@ Manage subagents workflow state with file-based persistence.
       "name": "Implementation Review",
       "type": "review"
     },
-    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "command" },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "subagent" },
     {
       "phase": "3.2",
       "stage": "TEST",

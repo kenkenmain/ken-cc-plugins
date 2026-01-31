@@ -10,5 +10,5 @@
   "repository": "https://github.com/kenkenmain/ken-cc-plugins",
   "license": "MIT",
   "keywords": ["subagents", "hooks", "auto-chaining", "context-isolation", "gate-enforcement"],
-  "agents": "./agents/"
+  "hooks": "hooks/hooks.json"
 }
