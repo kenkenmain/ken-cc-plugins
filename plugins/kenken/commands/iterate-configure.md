@@ -1,65 +1,76 @@
 ---
-name: iterate-configure
-description: Configure models, tools, and options for kenken workflow
-argument-hint: [--show | --reset]
+description: Configure models, tools, and options for the kenken workflow
+argument-hint: [--show | --reset | --edit]
+allowed-tools: Read, Write, Edit, Bash, AskUserQuestion, Glob, Skill
 ---
 
-# kenken Configure
+# Configure kenken Workflow
 
-> **For Claude:** This skill manages kenken configuration. Parse arguments and execute accordingly.
+Configure models, review tools, test settings, and workflow options for the kenken iterative development workflow.
 
 ## Arguments
 
-| Argument  | Action                           |
-| --------- | -------------------------------- |
-| (none)    | Interactive configuration wizard |
-| `--show`  | Display current merged config    |
-| `--reset` | Reset config to defaults         |
+- `--show`: Show current merged configuration
+- `--reset`: Reset configuration to defaults
+- `--edit`: Open config file in editor
 
-## --show
+Parse from $ARGUMENTS to determine mode.
 
-Display current configuration by:
+## Step 1: Load Configuration
 
-1. Load global config from `~/.claude/kenken-config.json` (if exists)
-2. Load project config from `.claude/kenken-config.json` (if exists)
-3. Merge: project overrides global
-4. Display formatted output:
+Merge configuration from three layers: defaults -> global -> project
+
+1. Hardcoded defaults (see Full Config Schema below)
+2. Global: `~/.claude/kenken-config.json`
+3. Project: `.claude/kenken-config.json`
+
+Project overrides global. Global overrides defaults.
+
+## Step 2: Handle --show
+
+Display merged config and exit:
 
 ```
 kenken Configuration
+=====================
 
-Block on severity: low
+Block on severity: {blockOnSeverity}
 
 PLAN Stage:
-  brainstorm: model=inherit, parallel=true
-  writePlan: model=inherit, parallel=true
-  planReview: tool=mcp__codex-high__codex
+  brainstorm:  model={model}, parallel={parallel}
+  writePlan:   model={model}, parallel={parallel}
+  planReview:  tool={tool}
 
 IMPLEMENT Stage:
-  implementation: model=inherit, implementer=claude, bugFixer=codex-high, enforceLogging=true
-  simplify: model=inherit, bugFixer=codex-high
-  implementReview: tool=mcp__codex-high__codex, bugFixer=codex-high
+  implementation:  model={model}, implementer={implementer}, bugFixer={bugFixer}, enforceLogging={enforceLogging}
+  simplify:        model={model}, bugFixer={bugFixer}
+  implementReview: tool={tool}, bugFixer={bugFixer}
 
-TEST Stage: [disabled]
-  instructions: (not configured)
-  commands: lint=make lint, test=make test, coverage=make coverage
-  coverageThreshold: 80%
-  testPlan: model=inherit
-  testImplementation: model=inherit
-  testReview: tool=mcp__codex-high__codex
+TEST Stage: [{enabled/disabled}]
+  instructions: {instructions or "(not configured)"}
+  commands:     lint={lint}, test={test}, coverage={coverage}
+  coverageThreshold: {threshold}%
+  testPlan:     model={model}
+  testImplementation: model={model}
+  testReview:   tool={tool}
 
 FINAL Stage:
-  codexFinal: tool=mcp__codex-xhigh__codex (fixed)
-  suggestExtensions: enabled=true, maxSuggestions=3
+  codexFinal:        tool=mcp__codex-xhigh__codex (fixed)
+  suggestExtensions: enabled={enabled}, maxSuggestions={maxSuggestions}
+
+Git:
+  branchFormat: {branchFormat}
+  defaultType:  {defaultType}
+  mainBranch:   {mainBranch}
 
 Config files:
-  Global: ~/.claude/kenken-config.json [found/not found]
-  Project: .claude/kenken-config.json [found/not found]
+  Global:  ~/.claude/kenken-config.json [{found/not found}]
+  Project: .claude/kenken-config.json [{found/not found}]
 ```
 
-## --reset
+## Step 3: Handle --reset
 
-Ask user which config to reset:
+Ask which config to reset:
 
 1. Use AskUserQuestion:
    - "Which configuration to reset?"
@@ -69,20 +80,32 @@ Ask user which config to reset:
 
 3. Confirm: "Reset complete. Using defaults."
 
-## Interactive Wizard (no arguments)
+## Step 4: Handle --edit
 
-### Step 1: Show current config
+Ask which config to edit:
+
+1. Use AskUserQuestion:
+   - "Which configuration to edit?"
+   - Options: Global (`~/.claude/kenken-config.json`), Project (`.claude/kenken-config.json`)
+
+2. Create with defaults if the file does not exist
+
+3. Display path for manual editing, and exit
+
+## Step 5: Interactive Configuration (no arguments)
+
+### Step 5.1: Show current config
 
 Display current values (as in --show).
 
-### Step 2: Select stages to configure
+### Step 5.2: Select stages to configure
 
 Use AskUserQuestion with multiSelect:
 
 - "Which stages do you want to configure?"
 - Options: PLAN Stage, IMPLEMENT Stage, TEST Stage, FINAL Stage
 
-### Step 3: Configure selected stages
+### Step 5.3: Configure selected stages
 
 **For PLAN Stage:**
 
@@ -90,7 +113,7 @@ Ask for each phase:
 
 - brainstorm: model (see Model Names section), parallel (true/false)
 - writePlan: model, parallel
-- planReview: tool (mcp**codex**codex/mcp**codex-high**codex/claude-review)
+- planReview: tool (mcp__codex-high__codex / mcp__codex-xhigh__codex / claude-review)
 
 Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-4`, `sonnet-3.5`
 
@@ -115,20 +138,20 @@ Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-
 **For FINAL Stage:**
 
 - suggestExtensions: enabled (true/false), maxSuggestions (1-5)
-- (codexFinal tool is fixed, not configurable)
+- (codexFinal tool is fixed at mcp__codex-xhigh__codex, not configurable)
 
-### Step 4: Save location
+### Step 5.4: Save location
 
 Ask: "Where to save?"
 
-- Global (~/.claude/kenken-config.json)
-- Project (.claude/kenken-config.json)
+- Global (`~/.claude/kenken-config.json`)
+- Project (`.claude/kenken-config.json`)
 
-### Step 5: Save and confirm
+### Step 5.5: Save and confirm
 
 1. Create directory if needed
 2. Backup existing file (.backup)
-3. Merge new values with existing
+3. Merge new values with existing config
 4. Write JSON with 2-space indent
 5. Confirm with summary of changes
 
@@ -200,22 +223,22 @@ Ask: "Where to save?"
 
 ## Defaults Summary
 
-| Setting            | Default                   |
-| ------------------ | ------------------------- |
-| blockOnSeverity    | `low`                     |
-| All models         | `inherit`                 |
-| Implementer        | `claude`                  |
-| Bug fixer          | `codex-high`              |
-| Review tools       | `mcp__codex-high__codex`  |
-| Final tool         | `mcp__codex-xhigh__codex` |
-| Test stage         | disabled                  |
-| Coverage threshold | 80%                       |
-| Max retries        | 3                         |
-| Extensions         | enabled                   |
-| Test instructions  | (must be provided)        |
-| Branch format      | `{type}/{slug}`           |
-| Default type       | `feat`                    |
-| Main branch        | `auto` (detect)           |
+| Setting            | Default                    |
+| ------------------ | -------------------------- |
+| blockOnSeverity    | `low`                      |
+| All models         | `inherit`                  |
+| Implementer        | `claude`                   |
+| Bug fixer          | `codex-high`               |
+| Review tools       | `mcp__codex-high__codex`   |
+| Final tool         | `mcp__codex-xhigh__codex`  |
+| Test stage         | disabled                   |
+| Coverage threshold | 80%                        |
+| Max retries        | 3                          |
+| Extensions         | enabled                    |
+| Test instructions  | (must be provided)         |
+| Branch format      | `{type}/{slug}`            |
+| Default type       | `feat`                     |
+| Main branch        | `auto` (detect)            |
 
 ## Validation Rules
 
@@ -223,22 +246,22 @@ Ask: "Where to save?"
 | --------------- | ------------------------------------------------------------------------------- |
 | blockOnSeverity | `high`, `medium`, `low` (blocks on specified level and above)                   |
 | model           | `inherit`, or any valid model name (see Model Names below)                      |
-| implementer     | `claude`, `codex-high`, `codex-xhigh` (who writes initial code)                 |
-| bugFixer        | `claude`, `codex-high`, `codex-xhigh` (who fixes issues found by reviews)       |
-| tool (review)   | `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`, `claude-review` (see note) |
-| tool (final)    | `mcp__codex-xhigh__codex` only (fixed)                                          |
+| implementer     | `claude`, `codex-high`, `codex-xhigh` (who writes initial code)                |
+| bugFixer        | `claude`, `codex-high`, `codex-xhigh` (who fixes issues found by reviews)      |
+| tool (review)   | `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`, `claude-review` (see note)|
+| tool (final)    | `mcp__codex-xhigh__codex` only (fixed)                                         |
 | threshold       | 0-100                                                                           |
 | maxRetries      | 1-10                                                                            |
 | timeout         | 60-3600 (seconds)                                                               |
 | maxSuggestions  | 1-5                                                                             |
 | instructions    | non-empty string (required when test.enabled=true)                              |
-| commands.\*     | valid shell command string                                                      |
+| commands.*      | valid shell command string                                                      |
 | coverageFormat  | `auto`, `lcov`, `cobertura`, `json`                                             |
-| branchFormat    | string with placeholders: `{type}`, `{slug}`, `{date}`, `{user}`                |
+| branchFormat    | string with placeholders: `{type}`, `{slug}`, `{date}`, `{user}`               |
 | defaultType     | `feat`, `fix`, `chore`, `refactor`, `docs`, `test`                              |
 | mainBranch      | `auto`, `main`, `master`, or custom branch name                                 |
 
-**Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex MCP. It's available as a fallback when Codex MCP is not configured, or for users who prefer Claude-native reviews. No additional dependencies required.
+**Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex MCP. It is available as a fallback when Codex MCP is not configured, or for users who prefer Claude-native reviews. No additional dependencies required.
 
 ## Model Names
 

@@ -20,6 +20,12 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
 fi
 
+# Only act on superpowers-iterate workflows (prevent cross-plugin interference)
+PLUGIN="$(state_get '.plugin // empty')"
+if [[ "$PLUGIN" != "superpowers-iterate" ]]; then
+  exit 0
+fi
+
 # Check workflow status
 STATUS="$(state_get '.status // empty')"
 

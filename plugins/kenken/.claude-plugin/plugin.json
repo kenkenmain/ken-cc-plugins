@@ -1,7 +1,7 @@
 {
   "name": "kenken",
-  "version": "2.5.0",
-  "description": "4-stage iterative development workflow (PLAN → IMPLEMENT → TEST → FINAL)",
+  "version": "3.0.0",
+  "description": "Hook-driven subagent architecture for 4-stage iterative development (PLAN → IMPLEMENT → TEST → FINAL)",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"

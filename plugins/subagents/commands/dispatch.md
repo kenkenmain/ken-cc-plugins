@@ -37,6 +37,7 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
 ```json
 {
   "version": 2,
+  "plugin": "subagents",
   "task": "<task description>",
   "status": "in_progress",
   "currentStage": "EXPLORE",

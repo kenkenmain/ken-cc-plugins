@@ -1,7 +1,7 @@
 {
   "name": "superpowers-iterate",
-  "version": "1.8.0",
-  "description": "Orchestrates iterative 9-phase workflow with configurable models and full/lite modes.",
+  "version": "2.0.0",
+  "description": "Hook-driven subagent architecture for iterative 9-phase workflow with configurable models and full/lite modes.",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"

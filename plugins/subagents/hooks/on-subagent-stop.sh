@@ -32,6 +32,14 @@ if ! is_workflow_active; then
 fi
 
 # ---------------------------------------------------------------------------
+# 2b. Guard: only process subagents state (ignore other plugins' workflows)
+# ---------------------------------------------------------------------------
+STATE_PLUGIN="$(state_get '.plugin // empty')"
+if [[ -n "$STATE_PLUGIN" && "$STATE_PLUGIN" != "subagents" ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # 3. Read currentPhase and currentStage from state
 # ---------------------------------------------------------------------------
 CURRENT_PHASE="$(state_get '.currentPhase // empty')"

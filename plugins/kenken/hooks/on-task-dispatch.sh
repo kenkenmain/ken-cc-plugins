@@ -32,6 +32,14 @@ if ! is_workflow_active; then
 fi
 
 # ---------------------------------------------------------------------------
+# 3b. Guard: only process kenken state (ignore other plugins' workflows)
+# ---------------------------------------------------------------------------
+STATE_PLUGIN="$(state_get '.plugin // empty')"
+if [[ "$STATE_PLUGIN" != "kenken" ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Get the current phase from state
 # ---------------------------------------------------------------------------
 CURRENT_PHASE="$(state_get '.currentPhase // empty')"

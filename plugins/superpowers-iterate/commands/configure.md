@@ -1,12 +1,12 @@
 ---
-description: Configure models and parallel agents for each iteration phase
+description: Configure models, parallel agents, and review tools for each iteration phase
 argument-hint: [--show | --reset]
-allowed-tools: Read, Write, Edit, AskUserQuestion, Bash, Glob
+allowed-tools: Read, Write, Edit, AskUserQuestion, Bash, Glob, Skill
 ---
 
 # Configure Iteration Workflow
 
-Configure which models each phase uses and whether parallel agents are enabled.
+Configure which models and tools each phase uses, parallel agent settings, and other workflow options.
 
 ## Arguments
 
@@ -17,7 +17,11 @@ Parse from $ARGUMENTS to determine mode.
 
 ## Step 1: Load Current Configuration
 
-Load and merge configuration using the `configuration` skill.
+Use the `configuration` skill to load merged config (defaults -> global -> project).
+
+Config file locations:
+- **Global:** `~/.claude/iterate-config.json`
+- **Project:** `.claude/iterate-config.local.json`
 
 ## Step 2: Handle --show Flag
 
@@ -26,19 +30,24 @@ If `--show` in arguments, display current merged config:
 ```
 Current Configuration (merged from defaults + global + project):
 
-Phase 1 (Brainstorm):   model=inherit, parallel=true, parallelModel=inherit
-Phase 2 (Plan):         model=inherit, parallel=true, parallelModel=inherit
-Phase 3 (Plan Review):  tool=mcp__codex-high__codex
-Phase 4 (Implement):    model=inherit
-Phase 5 (Review):       model=inherit
-Phase 6 (Test):         [bash - no model config]
-Phase 7 (Simplify):     model=inherit
-Phase 8 (Final Review): tool=mcp__codex-high__codex
-Phase 9 (Codex Final):  tool=mcp__codex-xhigh__codex [fixed]
+Phase 1  (Brainstorm):    model=inherit, parallel=true, parallelModel=inherit  [dispatch]
+Phase 2  (Plan):          model=inherit, parallel=true, parallelModel=inherit  [dispatch]
+Phase 3  (Plan Review):   tool=mcp__codex-high__codex                          [review]
+Phase 4  (Implement):     model=inherit                                        [dispatch]
+Phase 5  (Review):        tool=mcp__codex-high__codex                          [review]
+Phase 6  (Run Tests):     [bash - no model config]                             [command]
+Phase 7  (Simplify):      model=inherit                                        [subagent]
+Phase 8  (Final Review):  tool=mcp__codex-high__codex                          [review]
+Phase 9  (Codex Final):   tool=mcp__codex-xhigh__codex [fixed]                [review]
+Phase C  (Completion):    [bash - no model config]                             [subagent]
+
+Iteration Settings:
+  Default max iterations: 10
+  Block on severity: low
 
 Config files:
-- Global: ~/.claude/iterate-config.json [exists/not found]
-- Project: .claude/iterate-config.local.json [exists/not found]
+  Global:  ~/.claude/iterate-config.json [exists/not found]
+  Project: .claude/iterate-config.local.json [exists/not found]
 ```
 
 Exit after showing.
@@ -70,27 +79,27 @@ Use AskUserQuestion with multiSelect:
 - multiSelect: true
 - options (show current values in labels):
   - label: "Phase 1: Brainstorm (model=inherit, parallel=true)"
-    description: "Configure model and parallel agents"
+    description: "Configure model and parallel agents [dispatch]"
   - label: "Phase 2: Plan (model=inherit, parallel=true)"
-    description: "Configure model and parallel agents"
+    description: "Configure model and parallel agents [dispatch]"
   - label: "Phase 3: Plan Review (tool=codex)"
-    description: "Configure review tool"
+    description: "Configure review tool [review]"
   - label: "Phase 4: Implement (model=inherit)"
-    description: "Configure model"
-  - label: "Phase 5: Review (model=inherit)"
-    description: "Configure model"
+    description: "Configure model [dispatch]"
+  - label: "Phase 5: Review (tool=codex)"
+    description: "Configure review tool [review]"
   - label: "Phase 7: Simplify (model=inherit)"
-    description: "Configure model"
+    description: "Configure model [subagent]"
   - label: "Phase 8: Final Review (tool=codex)"
-    description: "Configure review tool"
+    description: "Configure review tool [review]"
 
-Note: Phase 6 (Test) is bash-only. Phase 9 (Codex Final) is fixed to `mcp__codex-xhigh__codex`.
+Note: Phase 6 (Run Tests) is bash-only. Phase 9 (Codex Final) is fixed to `mcp__codex-xhigh__codex`. Phase C (Completion) is bash-only.
 
 ## Step 5: Configure Each Selected Phase
 
 For each selected phase, ask appropriate questions:
 
-### For Phases 1, 2 (Parallel phases)
+### For Phases 1, 2 (Parallel dispatch phases)
 
 Ask three questions:
 
@@ -100,7 +109,7 @@ Ask three questions:
 
 Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-4`, `sonnet-3.5`
 
-### For Phases 3, 8 (MCP review phases)
+### For Phases 3, 5, 8 (MCP review phases)
 
 Ask which tool: codex (recommended), codex-high, or claude-review
 
@@ -112,7 +121,7 @@ Ask which tool: codex (recommended), codex-high, or claude-review
 | codex-high    | `mcp__codex-xhigh__codex` |
 | claude-review | `claude-review`           |
 
-### For Phases 4, 5, 7 (Sequential phases)
+### For Phases 4, 7 (Sequential phases)
 
 Ask which model: inherit (recommended), or model name
 

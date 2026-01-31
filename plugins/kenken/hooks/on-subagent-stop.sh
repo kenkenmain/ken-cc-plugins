@@ -32,6 +32,14 @@ if ! is_workflow_active; then
 fi
 
 # ---------------------------------------------------------------------------
+# 2b. Guard: only process kenken state (ignore other plugins' workflows)
+# ---------------------------------------------------------------------------
+STATE_PLUGIN="$(state_get '.plugin // empty')"
+if [[ "$STATE_PLUGIN" != "kenken" ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # 3. Read currentPhase and currentStage from state
 # ---------------------------------------------------------------------------
 CURRENT_PHASE="$(state_get '.currentPhase // empty')"
@@ -82,12 +90,10 @@ state_update ".stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].status = \"
 # 7. Special case: After Phase 4.2 (Extensions) — check if user chose extension
 # ---------------------------------------------------------------------------
 if [[ "$CURRENT_PHASE" == "4.2" ]]; then
-  local decision
-  decision="$(jq -r '.decision // "done"' "$PHASES_DIR/4.2-extensions.json" 2>/dev/null)"
-  if [[ "$decision" == "extension" ]]; then
-    local ext_task
-    ext_task="$(jq -r '.extensionTask // ""' "$PHASES_DIR/4.2-extensions.json")"
-    state_update ".currentPhase = \"1.1\" | .currentStage = \"PLAN\" | .task = \"$ext_task\""
+  EXTENSION_DECISION="$(jq -r '.decision // "done"' "$PHASES_DIR/4.2-extensions.json" 2>/dev/null)"
+  if [[ "$EXTENSION_DECISION" == "extension" ]]; then
+    EXTENSION_TASK="$(jq -r '.extensionTask // ""' "$PHASES_DIR/4.2-extensions.json")"
+    state_update ".currentPhase = \"1.1\" | .currentStage = \"PLAN\" | .task = \"$EXTENSION_TASK\""
     exit 0
   fi
 fi

@@ -80,11 +80,19 @@ phase_file_exists() {
 }
 
 # ---------------------------------------------------------------------------
-# is_workflow_active -- Returns 0 (true) when the workflow status is
-#   "in_progress", 1 (false) otherwise.
+# is_workflow_active -- Returns 0 (true) when the state file exists, belongs
+#   to the superpowers-iterate plugin, and the workflow status is "in_progress".
+#   Returns 1 (false) otherwise. The plugin check prevents interference when
+#   both the subagents and superpowers-iterate plugins are installed.
 # ---------------------------------------------------------------------------
 is_workflow_active() {
-  local status
+  # Fast-path: no state file at all
+  [[ -f "$STATE_FILE" ]] || return 1
+
+  local plugin status
+  plugin="$(state_get '.plugin // empty')"
   status="$(state_get '.status // empty')"
-  [[ "$status" == "in_progress" ]]
+
+  # Only claim ownership if the state belongs to this plugin
+  [[ "$plugin" == "superpowers-iterate" && "$status" == "in_progress" ]]
 }
