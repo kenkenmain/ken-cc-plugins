@@ -9,72 +9,120 @@ description: Show current kenken iteration status
 
 ## Actions
 
-1. Read `.agents/kenken-state.json`
+1. Read `.agents/tmp/kenken/state.json`
 2. If no state found:
    - Display: "No kenken iteration in progress. Use `/kenken:iterate` to start."
    - Exit
 3. If state found, display formatted status:
 
 ```
-kenken Status
-
+Workflow Status: kenken
+========================
 Task: {task description}
-Stage: {current stage} ({stage number}/4)
-Phase: {current phase number} {phase name}
+Status: {status}
+Stage: {currentStage}
+Phase: {currentPhase}
 
-Progress:
-{status icon} PLAN
-  {status icon} 1.1 Brainstorm
-  {status icon} 1.2 Write Plan
-  {status icon} 1.3 Plan Review
-{status icon} IMPLEMENT
-  {status icon} 2.1 Implementation {(task progress if available)}
-  {status icon} 2.2 Code Simplify
-  {status icon} 2.3 Implement Review
-{status icon} TEST [{enabled/disabled}]
-  {status icon} 3.1 Test Plan
-  {status icon} 3.2 Write Tests
-  {status icon} 3.3 Coverage Check
-  {status icon} 3.4 Run Tests
-  {status icon} 3.5 Test Review
-{status icon} FINAL
-  {status icon} 4.1 Codex Final
-  {status icon} 4.2 Suggest Extensions
+Schedule Progress:
+  {icon} Phase 1.1 │ PLAN      │ Brainstorm
+  {icon} Phase 1.2 │ PLAN      │ Plan
+  → Phase 1.3 │ PLAN      │ Plan Review     ← current
+  {icon} Phase 2.1 │ IMPLEMENT │ Implementation
+  {icon} Phase 2.2 │ IMPLEMENT │ Simplify
+  {icon} Phase 2.3 │ IMPLEMENT │ Implementation Review
+  {icon} Phase 3.1 │ TEST      │ Test Plan
+  {icon} Phase 3.2 │ TEST      │ Write Tests
+  {icon} Phase 3.3 │ TEST      │ Coverage Check
+  {icon} Phase 3.4 │ TEST      │ Run Tests
+  {icon} Phase 3.5 │ TEST      │ Test Review
+  {icon} Phase 4.1 │ FINAL     │ Codex Final
+  {icon} Phase 4.2 │ FINAL     │ Suggest Extensions
 
-Retries: {retryCount}/{maxRetries}
+Stage Gates:
+  {icon} PLAN → IMPLEMENT:    1.2-plan.md {icon}, 1.3-plan-review.json {icon}
+  {icon} IMPLEMENT → TEST:    2.1-tasks.json {icon}, 2.3-impl-review.json {icon}
+  {icon} TEST → FINAL:        3.4-test-results.json {icon}, 3.5-test-review.json {icon}
+  {icon} FINAL → COMPLETE:    4.1-final-review.json {icon}
+
+Stage Status:
+  PLAN:      {status} (restarts: {restartCount})
+  IMPLEMENT: {status} (restarts: {restartCount})
+  TEST:      {status} [{enabled/disabled}] (restarts: {restartCount})
+  FINAL:     {status} (restarts: {restartCount})
+
 Started: {startedAt formatted}
+Updated: {updatedAt formatted}
 Elapsed: {elapsed time}
 ```
 
 ## Status Icons
 
-- `✓` - completed
-- `◐` - in_progress
+- `✓` - completed/passed
+- `→` - current position marker
 - `○` - pending
-- `✗` - failed/blocked
+- `✗` - failed/blocked/missing
+
+## Phase Status Determination
+
+For each phase in `state.schedule`:
+1. If `phase == state.currentPhase`: Show `→` marker and `← current` annotation
+2. If phase comes before current: Show `✓` (completed)
+3. If phase comes after current: Show `○` (pending)
+
+## Gate Status Determination
+
+For each gate in `state.gates`:
+1. Check if all `required` files exist in `.agents/tmp/kenken/phases/`
+2. Show `✓` if gate passed (all files exist)
+3. Show `○` if gate pending (phase not reached)
+4. Show `✗` if gate failed (phase reached but files missing)
+
+## Stage Status Display
+
+Read from `state.stages[stageName]`:
+- Display `status` field directly
+- Display `restartCount` field
+- For TEST stage: Show `enabled` field as `[enabled]` or `[disabled]`
+- If `blockReason` is set: Display below stage status
 
 ## Example Output
 
 ```
-kenken Status
-
+Workflow Status: kenken
+========================
 Task: Add user authentication
-Stage: IMPLEMENT (2/4)
-Phase: 2.1 Implementation
+Status: in_progress
+Stage: IMPLEMENT
+Phase: 2.1
 
-Progress:
-✓ PLAN
-  ✓ 1.1 Brainstorm
-  ✓ 1.2 Write Plan
-  ✓ 1.3 Plan Review
-◐ IMPLEMENT
-  ◐ 2.1 Implementation (3/5 tasks)
-  ○ 2.2 Code Simplify
-  ○ 2.3 Implement Review
-○ TEST [disabled]
-○ FINAL
+Schedule Progress:
+  ✓ Phase 1.1 │ PLAN      │ Brainstorm
+  ✓ Phase 1.2 │ PLAN      │ Plan
+  ✓ Phase 1.3 │ PLAN      │ Plan Review
+  → Phase 2.1 │ IMPLEMENT │ Implementation     ← current
+  ○ Phase 2.2 │ IMPLEMENT │ Simplify
+  ○ Phase 2.3 │ IMPLEMENT │ Implementation Review
+  ○ Phase 3.1 │ TEST      │ Test Plan
+  ○ Phase 3.2 │ TEST      │ Write Tests
+  ○ Phase 3.3 │ TEST      │ Coverage Check
+  ○ Phase 3.4 │ TEST      │ Run Tests
+  ○ Phase 3.5 │ TEST      │ Test Review
+  ○ Phase 4.1 │ FINAL     │ Codex Final
+  ○ Phase 4.2 │ FINAL     │ Suggest Extensions
 
-Retries: 0/3
-Started: 2026-01-24 10:30
-Elapsed: 45 minutes
+Stage Gates:
+  ✓ PLAN → IMPLEMENT:    1.2-plan.md ✓, 1.3-plan-review.json ✓
+  ○ IMPLEMENT → TEST:    2.1-tasks.json ○, 2.3-impl-review.json ○
+  ○ TEST → FINAL:        3.4-test-results.json ○, 3.5-test-review.json ○
+  ○ FINAL → COMPLETE:    4.1-final-review.json ○
+
+Stage Status:
+  PLAN:      completed (restarts: 0)
+  IMPLEMENT: in_progress (restarts: 0)
+  TEST:      pending [enabled] (restarts: 0)
+  FINAL:     pending (restarts: 0)
+
+Started: 2026-01-31 10:30
+Updated: 2026-01-31 10:45
+Elapsed: 15 minutes
 ```
