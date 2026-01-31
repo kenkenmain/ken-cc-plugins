@@ -1,568 +1,145 @@
 ---
 name: iteration-workflow
-description: Use when orchestrating a complete 9-phase development iteration. Activated by /superpowers-iterate:iterate command or when user asks to follow the iteration workflow.
+description: Ralph-style orchestrator loop — dispatches each iterate phase as a subagent, hooks enforce progression and iteration looping
 ---
 
-# 9-Phase Iteration Workflow Skill
+# Iteration Workflow Orchestration
 
-## When to Use
+Dispatch each phase as a subagent. Hooks enforce output validation, gate checks, state advancement, iteration looping, and loop re-injection. This skill only handles the dispatch loop.
 
-This skill activates when:
+## Execution Flow (Ralph-Style)
 
-- User invokes `/superpowers-iterate:iterate <task>`
-- User asks to "follow the iteration workflow"
-
-**Announce:** "I'm using the iteration-workflow skill to orchestrate this task through all 9 mandatory phases."
-
-## Overview
-
-**Phases:** Brainstorm -> Plan -> Plan Review -> Implement -> Review -> Test -> Simplify -> Final Review -> Codex Final
-
-**Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or max iterations reached. Phase 9 runs once at the end (full mode only).
-
-**Modes:**
-
-- **Full (default):** Defaults to `mcp__codex-high__codex` for Phases 3, 8 and `mcp__codex-xhigh__codex` for Phase 9 (configurable via `/configure`)
-- **Lite (`--lite`):** Uses Claude reviews, skips Phase 9
-
-See AGENTS.md for model configuration and state schema details.
-
-## State Management
-
-**State file:** `.agents/iteration-state.json`
-
-Initialize at start with version 3 schema. Update state after each phase transition. See AGENTS.md for full schema.
-
-## Configuration Loading
-
-**IMPORTANT:** Configuration MUST be loaded fresh each time the workflow is invoked. Always read both global and project config files at the start.
-
-Load configuration using the `configuration` skill. The skill handles:
-
-- Default values
-- Merging global config (`~/.claude/iterate-config.json`)
-- Merging project config (`.claude/iterate-config.local.json`)
-
-**On each invocation:**
-
-1. Read global config file (if exists)
-2. Read project config file (if exists)
-3. Merge: defaults → global → project
-4. Use merged config for all phases in this run
-
-Run `/superpowers-iterate:configure --show` to see current config.
-
-## Phase 1: Brainstorm
-
-**Purpose:** Explore problem space, generate ideas, clarify requirements
-
-**Required Skill:** `superpowers:brainstorming` + `superpowers:dispatching-parallel-agents`
-
-**Actions:**
-
-1. Mark Phase 1 as `in_progress` in state file
-2. Use TodoWrite to track brainstorming tasks
-3. **Launch parallel subagents as needed** using `superpowers:dispatching-parallel-agents` (if config allows):
-   - Identify independent research areas for the task
-   - Dispatch one subagent per independent domain (no limit)
-   - Example domains:
-     - Research existing code patterns and architecture
-     - Explore problem domain and requirements
-     - Investigate test strategy and coverage requirements
-     - Analyze similar implementations in codebase
-     - Research external libraries/APIs needed
-     - Explore edge cases and error scenarios
-4. Follow `superpowers:brainstorming` process:
-   - Ask questions one at a time to refine the idea
-   - Propose 2-3 different approaches with trade-offs
-   - Present design in 200-300 word sections, validating each
-5. Document test strategy requirements during brainstorming:
-   - What test frameworks/tools are available?
-   - What testing patterns does the codebase use?
-   - What edge cases need coverage?
-6. Save design to `docs/plans/YYYY-MM-DD-<topic>-design.md`
-
-**Exit criteria:**
-
-- Problem is well understood
-- Approach is agreed upon
-- Design decisions documented
-- Test strategy requirements identified
-
-**Transition:** Mark Phase 1 complete, advance to Phase 2
-
-## Phase 2: Plan
-
-**Purpose:** Create detailed implementation plan with bite-sized tasks including tests
-
-**Required Skill:** `superpowers:writing-plans` + `superpowers:dispatching-parallel-agents`
-
-**Actions:**
-
-1. Mark Phase 2 as `in_progress`
-2. **Launch parallel subagents** (if `phases.2.parallel` is true) to create plan components:
-   - Identify independent planning areas based on brainstorm output
-   - Dispatch one subagent per independent component (no limit)
-   - Example planning areas:
-     - Plan core implementation tasks
-     - Plan test coverage (TDD approach)
-     - Plan integration points and edge cases
-     - Plan documentation updates
-     - Plan migration/upgrade paths
-     - Plan performance considerations
-3. Follow `superpowers:writing-plans` format:
-   - Each task is 2-5 minutes of work
-   - Include exact file paths
-   - Include complete code in plan
-   - Follow DRY, YAGNI, TDD principles
-4. **Each task MUST include test steps:**
-   - Step 1: Write failing test
-   - Step 2: Run test to verify it fails
-   - Step 3: Write minimal implementation
-   - Step 4: Run test to verify it passes
-   - Step 5: Commit
-5. Save plan to `docs/plans/YYYY-MM-DD-<feature-name>.md`
-6. Document the plan using TodoWrite
-
-**Plan header must include:**
-
-```markdown
-# [Feature Name] Implementation Plan
-
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
-**Goal:** [One sentence describing what this builds]
-
-**Architecture:** [2-3 sentences about approach]
-
-**Tech Stack:** [Key technologies/libraries]
-
-**Test Strategy:** [Testing approach and frameworks]
-
----
-```
-
-**Exit criteria:**
-
-- Implementation plan created with TDD steps
-- All tasks have clear acceptance criteria
-- Test strategy defined for each task
-- Plan follows superpowers:writing-plans format
-
-**Transition:** Mark Phase 2 complete, advance to Phase 3
-
-## Phase 3: Plan Review
-
-**Purpose:** Validate plan quality before implementation begins
-
-**Required Tool (from config `phases.3.tool`):**
-
-- `mcp__codex-high__codex` (default): Codex with medium reasoning
-- `mcp__codex-xhigh__codex`: Codex with high reasoning
-- `claude-review`: Use `superpowers:requesting-code-review`
-- Lite mode always uses `superpowers:requesting-code-review`
-
-**Actions:**
-
-1. Mark Phase 3 as `in_progress` in state file
-2. Run review based on configured tool:
-
-### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
-
-Invoke `mcp__codex-high__codex` with plan review prompt:
+The orchestrator uses the Ralph Loop pattern: the Stop hook re-injects the **full orchestrator prompt** (`prompts/orchestrator-loop.md`) every time Claude tries to stop. Claude reads state from disk and dispatches the current phase -- no conversation memory required.
 
 ```
-Review the implementation plan at docs/plans/YYYY-MM-DD-<feature-name>.md
-
-Validate:
-- Task granularity (each task should be 2-5 minutes of work)
-- TDD steps included for each task
-- File paths are specific and accurate
-- Plan follows DRY, YAGNI principles
-- Test strategy is comprehensive
-- Dependencies and task order are correct
-- Edge cases are covered
-
-Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
-If you find NO issues, explicitly state: "Plan looks good to proceed."
+Claude dispatches phase N as a subagent (Task tool)
+  |
+Subagent completes
+  |
+SubagentStop hook fires:
+  - Validates output file exists in .agents/tmp/iterate/phases/
+  - Checks gate if at stage boundary
+  - Phase 8 special: evaluates iteration loop decision
+    - If approved or max iterations reached: advance to Phase 9/C
+    - If issues found and iterations remain: archive phase files, loop to Phase 1
+  - Marks phase completed
+  - Advances state to next phase
+  - Exits silently (no stdout)
+  |
+Claude tries to stop (subagent done, nothing left to do)
+  |
+Stop hook fires:
+  - Reads prompts/orchestrator-loop.md
+  - Increments loopIteration in state
+  - Returns {"decision":"block","reason":"<full orchestrator prompt>"}
+  |
+Claude receives complete orchestrator prompt
+  - Reads .agents/tmp/iterate/state.json (now pointing to next phase)
+  - Dispatches next phase as a subagent
+  |
+Repeat until SubagentStop marks workflow "completed" -> Stop hook allows exit
 ```
 
-### Claude Review Mode (claude-review or lite mode)
+### Key Design: Separation of Concerns
 
-Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to review the plan document.
+- **SubagentStop hook** = pure side-effects (validate, advance state, iteration loop logic, exit silently)
+- **Stop hook** = prompt re-injection (reads orchestrator-loop.md, blocks with full prompt)
+- **Orchestrator prompt** = static, self-contained instructions (reads state, dispatches current phase)
 
-3. **Evaluate review results:**
+## Phase Dispatch Mapping
 
-   **If ZERO issues found:**
-   - Announce: "Plan review passed. Proceeding to implementation."
-   - Proceed to Phase 4
+| Phase | Stage     | Name         | Type     | subagent_type                      | model    | Notes                                      |
+| ----- | --------- | ------------ | -------- | ---------------------------------- | -------- | ------------------------------------------ |
+| 1     | PLAN      | Brainstorm   | dispatch | Explore + general-purpose          | config   | Parallel batch: multiple explore agents    |
+| 2     | PLAN      | Plan         | dispatch | Plan                               | config   | Parallel batch: planning agents            |
+| 3     | PLAN      | Plan Review  | review   | superpowers-iterate:codex-reviewer | inherit  | Dispatches to Codex MCP (codex-high)       |
+| 4     | IMPLEMENT | Implement    | dispatch | superpowers-iterate:task-agent     | per-task | Wave-based: dispatch in dependency waves   |
+| 5     | IMPLEMENT | Review       | review   | superpowers-iterate:codex-reviewer | inherit  | Dispatches to Codex MCP (codex-high)       |
+| 6     | TEST      | Run Tests    | command  | Bash                               | --       | Single bash command                        |
+| 7     | IMPLEMENT | Simplify     | subagent | code-simplifier:code-simplifier    | config   | Single agent                               |
+| 8     | REVIEW    | Final Review | review   | superpowers-iterate:codex-reviewer | inherit  | Decision point: loop or advance            |
+| 9     | FINAL     | Codex Final  | review   | superpowers-iterate:codex-reviewer | inherit  | Full mode only; uses codex-xhigh           |
+| C     | FINAL     | Completion   | subagent | Bash                               | --       | Summary and cleanup                        |
 
-   **If HIGH/MEDIUM issues found:**
-   - Fix plan issues
-   - Re-run plan review
-   - Do not proceed until plan is clean
+## Iteration Loop Mechanics
 
-   **If only LOW issues found:**
-   - Note them for awareness
-   - Proceed to Phase 4
+The superpowers-iterate workflow repeats Phases 1-8 until Phase 8 finds zero issues or max iterations reached. This is handled entirely by hooks:
 
-**Exit criteria:**
+1. **Phase 8 SubagentStop**: Reads `8-final-review.json` to check review status
+   - **Approved** (zero issues): Advance to Phase 9 (full mode) or Phase C (lite mode)
+   - **Issues found + iterations remain**: Archive current phase files to `iter-{N}/`, reset `currentPhase` to 1, increment `currentIteration`
+   - **Max iterations reached**: Advance to Phase 9 (full mode) or Phase C (lite mode)
+2. **Phase file archival**: Before looping, all `*.md` and `*.json` files in `phases/` are moved to `phases/iter-{N}/`
+3. **Mode awareness**: The `schedule` array in `state.json` determines which phases exist. In lite mode, Phase 9 is absent and Phase 8 advances directly to Completion (C)
 
-- Plan review completed
-- No HIGH or MEDIUM severity issues in plan
-- Plan ready for implementation
+The orchestrator skill does NOT implement loop logic -- it dispatches whatever `currentPhase` the state file says.
 
-**Transition:** Mark Phase 3 complete, advance to Phase 4
+## Prompt Construction
 
-## Phase 4: Implement
-
-**Purpose:** TDD-style implementation following the plan
-
-**Implementer (from config `phases.4.implementer`):**
-
-- `claude` (default): Use Claude subagents via `superpowers:subagent-driven-development`
-- `codex-high`: Use `mcp__codex-high__codex` for implementation
-- `codex-xhigh`: Use `mcp__codex-xhigh__codex` for implementation
-
-**Required Skill (claude mode):** `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
-
-**Required Plugins:** LSP plugins for code intelligence
-
-**Actions:**
-
-1. Mark Phase 4 as `in_progress`
-2. Check `phases.4.implementer` config to determine implementation mode:
-
-### Claude Mode (default)
-
-Follow `superpowers:subagent-driven-development` process (model from `phases.4.model`):
-
-- Read plan, extract all tasks, create TodoWrite
-- **Launch as many subagents as needed** for implementation:
-  - One implementer subagent per task (sequential to avoid conflicts)
-  - Multiple reviewer subagents can run in parallel
-- For each task:
-  a. Dispatch implementer subagent with full task text AND LSP context:
-
-  ```
-  You have access to LSP (Language Server Protocol) tools:
-  - mcp__lsp__get_diagnostics: Get errors/warnings for a file
-  - mcp__lsp__get_hover: Get type info and documentation at position
-  - mcp__lsp__goto_definition: Jump to symbol definition
-  - mcp__lsp__find_references: Find all references to a symbol
-  - mcp__lsp__get_completions: Get code completions at position
-
-  Use LSP tools to:
-  - Check for errors before committing
-  - Understand existing code via hover/go-to-definition
-  - Find all usages before refactoring
-  ```
-
-  b. Answer any questions from subagent
-  c. Subagent follows `superpowers:test-driven-development`:
-  - Write failing test first
-  - Run to verify it fails
-  - Write minimal code to pass
-  - Run to verify it passes
-  - Use `mcp__lsp__get_diagnostics` to check for errors
-  - Self-review and commit
-    d. Dispatch spec reviewer subagent
-    e. Dispatch code quality reviewer subagent (can use LSP diagnostics)
-    f. Mark task complete in TodoWrite
-
-### Codex Mode (codex-high or codex-xhigh)
-
-Invoke the configured Codex tool with implementation prompt:
+For each phase dispatch, build the Task tool prompt as:
 
 ```
-Implement the following tasks from the plan at docs/plans/YYYY-MM-DD-<feature-name>.md
+[PHASE {phase_id}] [ITERATION {iteration}]
 
-For each task:
-1. Read the task requirements
-2. Write the code following TDD:
-   - Write failing test first
-   - Implement minimal code to pass
-   - Verify tests pass
-3. Follow existing code patterns and conventions
-4. Add appropriate logging and error handling
+{contents of the prompt template file from prompts/phases/}
 
-Run these commands after implementation:
-1. make lint
-2. make test
+## Task Context
 
-If tests fail, fix issues and re-run until passing.
+Task: {value of state.json .task field}
+Iteration: {currentIteration} of {maxIterations}
+Mode: {mode}
+
+## Input Files
+
+{contents or summaries of the input files listed in the dispatch table}
 ```
 
-3. Run `make lint && make test` to verify all tests pass
-4. Commit after tests pass
+The `[PHASE {id}]` and `[ITERATION {n}]` tags are required -- the PreToolUse hook validates them.
 
-**Note (Claude mode):** Implementation subagents run sequentially (to avoid file conflicts), but reviewer subagents can run in parallel.
+## Dispatch Rules
 
-**Exit criteria:**
+- **dispatch** phases (1, 2, 4): Read the prompt template for batch instructions. Dispatch multiple parallel subagents as specified in the template. Aggregate results into the expected output file.
+- **subagent** phases (7, C): Dispatch a single subagent with the constructed prompt.
+- **review** phases (3, 5, 8, 9): Dispatch via `superpowers-iterate:codex-reviewer` which routes to Codex MCP. Phase 9 uses `codex-xhigh`; all others use `codex-high`.
+- **command** phases (6): Dispatch a Bash subagent to execute test/lint commands.
 
-- All tasks from plan implemented
-- Tests written for new functionality (TDD)
-- `make lint && make test` pass
-- Code committed
+## Model Selection
 
-**Transition:** Mark Phase 4 complete, advance to Phase 5
+- Phases marked `config`: Use the model from project configuration (`.claude/iterate-config.local.json` or `~/.claude/iterate-config.json`) or default to `inherit`.
+- Phases marked `inherit`: Use the parent conversation's model.
+- Phases marked `per-task`: Model varies per task based on complexity scoring.
+- Phases marked `--`: Not applicable (Bash commands).
 
-## Phase 5: Review (1 Round)
+## Batch Phases (1, 2, 4)
 
-**Purpose:** Quick code review sanity check before Phase 8's thorough review
+These phases dispatch multiple parallel subagents. The workflow skill:
 
-**Required Skill:** `superpowers:requesting-code-review`
+1. Reads the prompt template for dispatch instructions
+2. Generates per-agent prompts (explore queries, plan areas, or task payloads)
+3. Dispatches all agents in parallel
+4. Aggregates results into the expected output file
+5. Then the SubagentStop hook fires to validate and advance
 
-**Bug Fixer (from config `phases.5.bugFixer`):**
+## Error Handling
 
-- `claude`: Use Claude subagents to fix issues
-- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
-- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+The workflow skill does NOT handle errors directly. If a subagent fails:
 
-**Actions:**
+- SubagentStop hook exits with code 2 (blocking error)
+- Hook stderr message tells Claude what went wrong
+- Claude retries the phase dispatch
 
-1. Mark Phase 5 as `in_progress`
-2. Get git SHAs for the changes:
-   ```bash
-   BASE_SHA=$(git merge-base HEAD main)
-   HEAD_SHA=$(git rev-parse HEAD)
-   ```
-3. Dispatch code-reviewer subagent per `superpowers:requesting-code-review`
-4. Provide:
-   - WHAT_WAS_IMPLEMENTED: Description of changes
-   - PLAN_OR_REQUIREMENTS: Reference to plan file
-   - BASE_SHA and HEAD_SHA
-5. Categorize issues:
-   - **Critical:** Must fix immediately
-   - **Important:** Fix now
-   - **Minor:** Note for Phase 8
-6. **Fix issues using configured bugFixer:**
-   - If `claude`: Dispatch Claude subagent to fix
-   - If `codex-high`/`codex-xhigh`: Invoke Codex with fix prompt including issue details
-7. Re-run tests after fixes
-8. Document findings in state
+If retries exhaust (hook keeps blocking):
 
-**Exit criteria:**
+- Stop hook prevents premature exit
+- User intervention needed via `/superpowers-iterate:iterate-status`
 
-- 1 review round completed
-- No Critical issues remaining
-- Important issues addressed
+## What This Skill Does NOT Do
 
-**Transition:** Mark Phase 5 complete, advance to Phase 6
-
-## Phase 6: Test
-
-**Purpose:** Run lint and test suites
-
-**Actions:**
-
-1. Mark Phase 6 as `in_progress`
-2. Run: `make lint`
-   - If fails: Fix issues, re-run until pass
-3. Run: `make test`
-   - If fails: Fix issues, re-run until pass
-4. Record results in state
-
-**Exit criteria:**
-
-- `make lint` passes
-- `make test` passes
-
-**Transition:** Mark Phase 6 complete, advance to Phase 7
-
-## Phase 7: Code Simplifier
-
-**Purpose:** Reduce code bloat using code-simplifier plugin
-
-**Required Plugin:** `code-simplifier:code-simplifier` (from claude-plugins-official)
-
-**Actions:**
-
-1. Mark Phase 7 as `in_progress`
-2. Launch code-simplifier agent using Task tool:
-   ```
-   Task(
-     description: "Simplify modified code",
-     prompt: "Review and simplify code modified in this iteration. Focus on clarity and maintainability while preserving functionality.",
-     subagent_type: "code-simplifier:code-simplifier"
-   )
-   ```
-3. Review suggestions
-4. Apply appropriate simplifications
-5. Re-run tests to verify no breakage
-
-**Exit criteria:**
-
-- Code simplifier has reviewed changes
-- Appropriate simplifications applied
-- Tests still pass
-
-**Transition:** Mark Phase 7 complete, advance to Phase 8
-
-## Phase 8: Final Review (Decision Point)
-
-**Purpose:** Thorough review that determines whether to loop back to Phase 1 or proceed to completion.
-
-**Required Tool (from config `phases.8.tool`):**
-
-- `mcp__codex-high__codex` (default): Codex with high reasoning
-- `mcp__codex-xhigh__codex`: Codex with extra-high reasoning
-- `claude-review`: Use `superpowers:requesting-code-review`
-- Lite mode always uses `superpowers:requesting-code-review`
-
-**Bug Fixer (from config `phases.8.bugFixer`):**
-
-- `claude`: Use Claude subagents to fix issues
-- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
-- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
-
-**Actions:**
-
-1. Mark Phase 8 as `in_progress`
-2. Check current iteration count against `maxIterations`
-3. Run review based on configured tool:
-
-### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
-
-Invoke `mcp__codex-high__codex` with review prompt:
-
-```
-Iteration {N}/{max} final review for merge readiness. Run these commands first:
-1. make lint
-2. make test
-
-Focus on:
-- Documentation accuracy
-- Edge cases and error handling
-- Test coverage completeness
-- Code quality and maintainability
-- Merge readiness
-
-Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
-If you find NO issues, explicitly state: "No issues found."
-```
-
-### Claude Review Mode (claude-review or lite mode)
-
-Dispatch code-reviewer subagent via `superpowers:requesting-code-review`:
-
-- WHAT_WAS_IMPLEMENTED: Full description of all changes
-- PLAN_OR_REQUIREMENTS: Reference to plan file
-- BASE_SHA and HEAD_SHA from git
-
-4. **Evaluate review results:**
-
-   **If ZERO issues found:**
-   - Announce: "Iteration {N} review found no issues. Proceeding to completion."
-   - Store `phase8Issues: []` in state
-   - **Full mode:** Proceed to Phase 9
-   - **Lite mode:** Skip to Completion
-
-   **If ANY issues found (HIGH, MEDIUM, or LOW):**
-   - Announce: "Iteration {N} found {count} issues. Fixing and starting new iteration."
-   - **Fix ALL issues using configured bugFixer:**
-     - If `claude`: Dispatch Claude subagent with issue details
-     - If `codex-high`/`codex-xhigh`: Invoke Codex with fix prompt
-   - Re-run `make lint && make test`
-   - Store issues in `phase8Issues` array in state
-   - **If currentIteration < maxIterations:**
-     - Increment `currentIteration`
-     - Add new iteration entry to state
-     - **Loop back to Phase 1**
-   - **If currentIteration >= maxIterations:**
-     - Announce: "Reached max iterations ({max}). Proceeding with {count} unresolved issues noted."
-     - **Full mode:** Proceed to Phase 9
-     - **Lite mode:** Skip to Completion
-
-**Exit criteria:**
-
-- Review completed
-- Either: zero issues found, OR all issues fixed and looping, OR max iterations reached
-
-**Transition:**
-
-- Zero issues OR max iterations → Phase 9 (full) or Completion (lite)
-- Issues found AND iterations remaining → Phase 1 (new iteration)
-
-## Phase 9: Codex-High Final Validation (Full Mode Only)
-
-**Purpose:** Final validation with OpenAI Codex high reasoning
-
-**Required Tool:** `mcp__codex-xhigh__codex`
-
-**Note:** This phase is skipped in lite mode.
-
-**Actions:**
-
-1. Mark Phase 9 as `in_progress`
-2. Invoke `mcp__codex-xhigh__codex` with final validation prompt:
-
-   ```
-   Final validation review. Run these commands first:
-   1. make lint
-   2. make test
-
-   This is the FINAL check before merge. Be thorough.
-
-   Report findings with severity (HIGH/MEDIUM/LOW) and file:line references.
-   Focus on:
-   - Correctness and logic errors
-   - Idempotency of operations
-   - Documentation accuracy
-   - Test coverage gaps
-   - Security concerns
-   - Edge cases missed in earlier reviews
-   ```
-
-3. Address any HIGH severity issues
-4. Re-run Codex-high if significant changes made
-
-**Exit criteria:**
-
-- Codex-high review completed
-- No HIGH severity issues remaining
-
-**Transition:** Mark Phase 9 complete, proceed to Completion
-
-## Completion
-
-After Phase 8 (lite mode) or Phase 9 (full mode):
-
-1. Update state file to show workflow complete
-2. Announce: "Iteration workflow complete after {N} iteration(s)!"
-3. Summarize:
-   - Total iterations run
-   - Issues found and fixed per iteration
-   - Final state (clean or with noted issues)
-4. Suggest next steps (commit, create PR, etc.)
-5. Optionally use `superpowers:finishing-a-development-branch` for merge prep
-
-## Resuming Interrupted Iterations
-
-If iteration was interrupted:
-
-1. Read `.agents/iteration-state.json`
-2. Identify:
-   - `currentIteration`: Which iteration we're on
-   - `currentPhase`: Which phase within that iteration
-   - `mode`: Full or lite
-3. Announce: "Resuming iteration {N} at Phase {P}: <phase-name>"
-4. Continue from where stopped
-
-## Red Flags - STOP
-
-**Never:**
-
-- Skip phases (all 8 phases per iteration are mandatory, Phase 9 runs once at end)
-- Advance without meeting exit criteria
-- Ignore issues from Phase 8 review (must fix or note if at max iterations)
-- Skip test runs
-- Skip TDD (write tests after implementation)
-- Dispatch parallel implementation subagents (conflicts)
-- Exceed maxIterations without proceeding to completion
-
-**If blocked:**
-
-- Record blocker in state file notes
-- Ask user for guidance
-- Do not proceed until resolved
+- **Gate checks** --> handled by `on-subagent-stop.sh` hook
+- **State updates** --> handled by `on-subagent-stop.sh` hook
+- **Phase progression** --> handled by `on-subagent-stop.sh` hook
+- **Iteration loop decisions** --> handled by `on-subagent-stop.sh` hook (Phase 8 logic)
+- **Phase file archival** --> handled by `on-subagent-stop.sh` hook (on loop-back)
+- **Stop prevention** --> handled by `on-stop.sh` hook
+- **Dispatch validation** --> handled by `on-task-dispatch.sh` hook
+- **Configuration loading** --> handled by `configuration` skill and hook scripts
