@@ -4,7 +4,6 @@ description: "Completes workflow with git operations - branch creation, commit, 
 model: inherit
 color: green
 tools: [Bash, Read, Write]
-permissionMode: bypassPermissions
 ---
 
 # Completion Handler Agent

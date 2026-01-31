@@ -4,7 +4,6 @@ description: "Updates documentation to reflect implemented changes. Use proactiv
 model: inherit
 color: blue
 tools: [Read, Write, Edit, Glob, Grep]
-permissionMode: acceptEdits
 ---
 
 # Documentation Updater Agent

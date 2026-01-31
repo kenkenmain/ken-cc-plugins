@@ -4,7 +4,6 @@ description: "Use proactively to initialize workflow state, schedule, and direct
 model: inherit
 color: green
 tools: [Read, Write, Bash]
-permissionMode: bypassPermissions
 skills: [state-manager, configuration]
 ---
 

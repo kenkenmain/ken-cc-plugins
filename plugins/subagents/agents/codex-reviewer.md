@@ -4,7 +4,6 @@ description: "Thin MCP wrapper that dispatches code review to Codex MCP during s
 model: sonnet
 color: blue
 tools: [mcp__codex-high__codex, mcp__codex-xhigh__codex]
-permissionMode: dontAsk
 ---
 
 # Codex Reviewer Agent

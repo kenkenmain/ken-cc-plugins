@@ -4,7 +4,6 @@ description: "Thin MCP wrapper that dispatches task complexity scoring to Codex 
 model: sonnet
 color: yellow
 tools: [Write, mcp__codex-high__codex]
-permissionMode: dontAsk
 ---
 
 # Codex Difficulty Estimator Agent
