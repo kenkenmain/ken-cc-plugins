@@ -4,7 +4,6 @@ description: "Scores task complexity using Claude reasoning to determine model a
 model: sonnet
 color: yellow
 tools: [Read, Glob, Grep]
-permissionMode: plan
 ---
 
 # Difficulty Estimator Agent (Claude)

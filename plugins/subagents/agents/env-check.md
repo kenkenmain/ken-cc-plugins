@@ -4,7 +4,6 @@ description: "Use proactively at workflow start to probe environment for Codex M
 model: sonnet
 color: cyan
 tools: [Bash, Write, mcp__codex-high__codex]
-permissionMode: bypassPermissions
 ---
 
 # Environment Check Agent

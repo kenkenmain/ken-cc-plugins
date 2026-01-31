@@ -4,7 +4,6 @@ description: "Runs lint and test commands, captures results as structured JSON. 
 model: inherit
 color: red
 tools: [Bash, Write]
-permissionMode: bypassPermissions
 ---
 
 # Test Runner Agent

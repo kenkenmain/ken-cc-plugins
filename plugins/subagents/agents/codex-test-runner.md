@@ -4,7 +4,6 @@ description: "Thin MCP wrapper that dispatches lint and test execution to Codex 
 model: sonnet
 color: red
 tools: [Write, mcp__codex-high__codex]
-permissionMode: dontAsk
 ---
 
 # Codex Test Runner Agent

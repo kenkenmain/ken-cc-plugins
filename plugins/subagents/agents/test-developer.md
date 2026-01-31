@@ -4,7 +4,6 @@ description: "Writes tests and CI configuration iteratively until coverage thres
 model: inherit
 color: yellow
 tools: [Read, Write, Edit, Bash, Glob, Grep, WebSearch]
-permissionMode: bypassPermissions
 ---
 
 # Test Developer Agent

@@ -4,7 +4,6 @@ description: "Use proactively to explore codebase structure, find patterns, and 
 model: sonnet
 color: cyan
 tools: [Read, Glob, Grep]
-permissionMode: plan
 ---
 
 # Explorer Agent

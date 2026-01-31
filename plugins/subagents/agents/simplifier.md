@@ -4,7 +4,6 @@ description: "Reviews implemented code for simplification opportunities and appl
 model: inherit
 color: yellow
 tools: [Read, Write, Edit, Grep]
-permissionMode: acceptEdits
 ---
 
 # Simplifier Agent

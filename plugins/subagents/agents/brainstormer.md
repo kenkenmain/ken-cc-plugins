@@ -4,7 +4,6 @@ description: "Analyzes explore findings and determines implementation approach w
 model: inherit
 color: magenta
 tools: [Read, Write]
-permissionMode: plan
 skills: [workflow, superpowers:brainstorming]
 ---
 

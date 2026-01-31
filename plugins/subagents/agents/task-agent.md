@@ -4,7 +4,6 @@ description: "Task executor agent - executes a single implementation task with m
 model: inherit
 color: yellow
 tools: [Read, Write, Edit, Bash, Glob, Grep, WebSearch]
-permissionMode: bypassPermissions
 disallowedTools: [Task]
 ---
 

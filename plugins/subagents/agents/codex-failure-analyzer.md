@@ -4,7 +4,6 @@ description: "Thin MCP wrapper that dispatches test/lint failure analysis to Cod
 model: sonnet
 color: red
 tools: [Write, mcp__codex-high__codex]
-permissionMode: dontAsk
 ---
 
 # Codex Failure Analyzer Agent
