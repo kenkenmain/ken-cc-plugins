@@ -19,7 +19,7 @@ Manage subagents workflow state with file-based persistence.
   "task": "<task description>",
   "status": "pending|in_progress|stopped|completed|failed|blocked|restarting|skipped",
   "currentStage": "EXPLORE|PLAN|IMPLEMENT|TEST|FINAL",
-  "currentPhase": "0|1.1|1.2|1.3|2.1|2.2|2.3|3.1|3.2|3.3|4.1|4.2|4.3",
+  "currentPhase": "0|1.1|1.2|1.3|2.1|2.2|2.3|3.1|3.2|3.3|3.4|3.5|4.1|4.2|4.3",
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
     {
@@ -63,6 +63,18 @@ Manage subagents workflow state with file-based persistence.
     {
       "phase": "3.3",
       "stage": "TEST",
+      "name": "Develop Tests",
+      "type": "subagent"
+    },
+    {
+      "phase": "3.4",
+      "stage": "TEST",
+      "name": "Test Dev Review",
+      "type": "review"
+    },
+    {
+      "phase": "3.5",
+      "stage": "TEST",
       "name": "Test Review",
       "type": "review"
     },
@@ -96,8 +108,8 @@ Manage subagents workflow state with file-based persistence.
       "phase": "2.3"
     },
     "TEST->FINAL": {
-      "required": ["3.1-test-results.json", "3.3-test-review.json"],
-      "phase": "3.3"
+      "required": ["3.1-test-results.json", "3.3-test-dev.json", "3.5-test-review.json"],
+      "phase": "3.5"
     },
     "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
   },
@@ -123,6 +135,8 @@ Manage subagents workflow state with file-based persistence.
     },
     "FINAL": { "status": "pending", "restartCount": 0, "blockReason": null }
   },
+  "coverageThreshold": 90,
+  "webSearch": true,
   "files": {},
   "failure": null,
   "compaction": { "lastCompactedAt": null, "history": [] },
@@ -161,7 +175,7 @@ Create new state file with task and default values:
 1. Write output to `.agents/tmp/phases/{phase}-{name}.{ext}` using descriptive names:
    - `0-explore.md`, `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json`
    - `2.1-tasks.json`, `2.2-simplify.md`, `2.3-impl-review.json`
-   - `3.1-test-results.json`, `3.3-test-review.json`
+   - `3.1-test-results.json`, `3.2-analysis.md`, `3.3-test-dev.json`, `3.4-test-dev-review.json`, `3.5-test-review.json`
 2. Update `state.files` with path
 3. Save state
 

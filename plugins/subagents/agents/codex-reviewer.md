@@ -1,9 +1,10 @@
 ---
 name: codex-reviewer
-description: Dispatches Codex MCP for code review during subagents workflow
-model: inherit
+description: "Thin MCP wrapper that dispatches code review to Codex MCP during subagents workflow"
+model: sonnet
 color: blue
-tools: [Bash, Read, Grep, mcp__codex-high__codex, mcp__codex-xhigh__codex]
+tools: [mcp__codex-high__codex, mcp__codex-xhigh__codex]
+permissionMode: dontAsk
 ---
 
 # Codex Reviewer Agent
@@ -65,15 +66,16 @@ This agent returns the raw Codex response. Each review type defines its own outp
 - **Test review:** `prompts/high-stakes/test-review.md` — returns `status`, `issues[]`, `summary`
 - **Final review:** `prompts/high-stakes/final-review.md` — returns `status`, `overallQuality`, `issues[]`, `metrics`, `summary`, `readyForCommit`
 
-All review types include `status` and `issues[]` with `severity`, `location`, `issue`, `suggestion`. Status values differ by type: plan/implementation/test reviews return `approved` | `needs_revision`; final review returns `approved` | `blocked`.
+All review types include `status` and `issues[]` with `severity`, `location`, `issue`, `suggestion`. Status values differ by type: plan/implementation/test-dev reviews return `approved` | `needs_revision`; test review (3.5) returns `approved` | `needs_coverage` | `blocked`; final review returns `approved` | `blocked`.
 
 ## Review Type Mapping
 
-| Review Type    | Default Tool | Prompt File                           |
+| Review Type    | Tool         | Prompt File                           |
 | -------------- | ------------ | ------------------------------------- |
-| plan           | codex-high   | prompts/high-stakes/plan-review.md    |
-| implementation | codex-high   | prompts/high-stakes/implementation.md |
-| test           | codex-high   | prompts/high-stakes/test-review.md    |
+| plan           | codex-xhigh  | prompts/high-stakes/plan-review.md    |
+| implementation | codex-xhigh  | prompts/high-stakes/implementation.md |
+| test-dev       | codex-xhigh  | prompts/high-stakes/test-review.md    |
+| test           | codex-xhigh  | prompts/high-stakes/test-review.md    |
 | final          | codex-xhigh  | prompts/high-stakes/final-review.md   |
 
 ## Error Handling

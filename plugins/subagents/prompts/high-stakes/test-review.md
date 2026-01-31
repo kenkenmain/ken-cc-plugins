@@ -50,5 +50,9 @@ You are reviewing test coverage and quality for code produced by task agents.
 
 ## Decision Criteria
 
-- **APPROVE**: Zero HIGH issues, adequate coverage of critical paths
-- **NEEDS_REVISION**: Missing tests for critical paths, security untested, or multiple MEDIUM gaps
+- **APPROVE**: Zero issues at any severity (LOW, MEDIUM, HIGH)
+- **NEEDS_REVISION**: Any issues found at LOW severity or above
+
+## Note
+
+Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` when Codex is available. For Phase 3.5 (Test Review), the output includes coverage threshold checking with `approved | needs_coverage | blocked` status.

@@ -19,7 +19,9 @@ get_phase_output() {
     2.3) echo "2.3-impl-review.json" ;;
     3.1) echo "3.1-test-results.json" ;;
     3.2) echo "3.2-analysis.md" ;;
-    3.3) echo "3.3-test-review.json" ;;
+    3.3) echo "3.3-test-dev.json" ;;
+    3.4) echo "3.4-test-dev-review.json" ;;
+    3.5) echo "3.5-test-review.json" ;;
     4.1) echo "4.1-docs.md" ;;
     4.2) echo "4.2-final-review.json" ;;
     4.3) echo "4.3-completion.json" ;;
@@ -77,6 +79,8 @@ get_phase_input_files() {
     3.1) echo "config test commands" ;;
     3.2) echo ".agents/tmp/phases/3.1-test-results.json" ;;
     3.3) echo ".agents/tmp/phases/3.1-test-results.json, .agents/tmp/phases/3.2-analysis.md" ;;
+    3.4) echo ".agents/tmp/phases/3.3-test-dev.json, .agents/tmp/phases/3.1-test-results.json" ;;
+    3.5) echo ".agents/tmp/phases/3.1-test-results.json, .agents/tmp/phases/3.2-analysis.md, .agents/tmp/phases/3.3-test-dev.json" ;;
     4.1) echo ".agents/tmp/phases/1.2-plan.md, .agents/tmp/phases/2.1-tasks.json" ;;
     4.2) echo "all .agents/tmp/phases/*.json" ;;
     4.3) echo ".agents/tmp/phases/4.2-final-review.json" ;;
@@ -101,7 +105,9 @@ get_phase_template() {
     2.3) echo "2.3-impl-review.md" ;;
     3.1) echo "3.1-run-tests.md" ;;
     3.2) echo "3.2-analyze-failures.md" ;;
-    3.3) echo "3.3-test-review.md" ;;
+    3.3) echo "3.3-develop-tests.md" ;;
+    3.4) echo "3.4-test-dev-review.md" ;;
+    3.5) echo "3.5-test-review.md" ;;
     4.1) echo "4.1-documentation.md" ;;
     4.2) echo "4.2-final-review.md" ;;
     4.3) echo "4.3-completion.md" ;;

@@ -18,6 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/gates.sh"
 source "$SCRIPT_DIR/lib/schedule.sh"
+source "$SCRIPT_DIR/lib/review.sh"
 
 # ---------------------------------------------------------------------------
 # 1. Consume stdin (hook input -- ignored for now)
@@ -28,6 +29,14 @@ cat > /dev/null
 # 2. If workflow not active, exit silently (allow, no output)
 # ---------------------------------------------------------------------------
 if ! is_workflow_active; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 2b. Guard: only process subagents state (ignore other plugins' workflows)
+# ---------------------------------------------------------------------------
+STATE_PLUGIN="$(state_get '.plugin // empty')"
+if [[ -n "$STATE_PLUGIN" && "$STATE_PLUGIN" != "subagents" ]]; then
   exit 0
 fi
 
@@ -55,6 +64,104 @@ fi
 if ! phase_file_exists "$EXPECTED_OUTPUT"; then
   echo "on-subagent-stop: expected output file '$EXPECTED_OUTPUT' not found for phase $CURRENT_PHASE" >&2
   exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# 4b. Review-fix cycle: if a fix agent just completed, clear the cycle
+#     and let the orchestrator re-dispatch the review phase fresh.
+# ---------------------------------------------------------------------------
+if is_fix_cycle_active; then
+  complete_fix_cycle
+  # Don't advance — currentPhase stays on the review phase.
+  # Stop hook will re-inject orchestrator → orchestrator sees no reviewFix
+  # → dispatches review again.
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 4c. For review phases: validate review output for blocking issues.
+#     If issues found, start a fix cycle instead of blocking.
+# ---------------------------------------------------------------------------
+if is_review_phase "$CURRENT_PHASE"; then
+  REVIEW_RESULT="$(validate_review_output "$CURRENT_PHASE")"
+  REVIEW_PASSED="$(echo "$REVIEW_RESULT" | jq -r '.passed')"
+
+  if [[ "$REVIEW_PASSED" != "true" ]]; then
+    ISSUE_COUNT="$(echo "$REVIEW_RESULT" | jq -r '.issueCount')"
+    MIN_SEV="$(get_min_block_severity)"
+    MAX_ATTEMPTS="$(get_max_fix_attempts)"
+
+    # Check per-phase fix attempt counter (persists across fix cycles)
+    CURRENT_ATTEMPT="$(state_get ".stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].fixAttempts // 0")"
+
+    if [[ "$CURRENT_ATTEMPT" -ge "$MAX_ATTEMPTS" ]]; then
+      # Exhausted retries — block and require user intervention
+      state_update "
+        .status = \"blocked\" |
+        .stages[\"$CURRENT_STAGE\"].blockReason = \"Review phase $CURRENT_PHASE failed after $MAX_ATTEMPTS fix attempts ($ISSUE_COUNT issue(s) remain)\" |
+        .stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].status = \"blocked\" |
+        .stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].reviewResult = $REVIEW_RESULT |
+        del(.reviewFix)
+      "
+      echo "on-subagent-stop: review phase $CURRENT_PHASE blocked after $MAX_ATTEMPTS fix attempts -- $ISSUE_COUNT issue(s) remain at severity >= $MIN_SEV" >&2
+      exit 2
+    fi
+
+    # Start a fix cycle — don't advance, don't block.
+    # Orchestrator will see state.reviewFix and dispatch a fix agent.
+    start_fix_cycle "$CURRENT_PHASE" "$CURRENT_STAGE" "$REVIEW_RESULT"
+    exit 0
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 4d. Coverage loop: if phase 3.5 completed with needs_coverage status,
+#     loop back to phase 3.3 instead of advancing.
+# ---------------------------------------------------------------------------
+if [[ "$CURRENT_PHASE" == "3.5" ]]; then
+  REVIEW_OUTPUT="$PHASES_DIR/$(get_phase_output "3.5")"
+  if [[ -f "$REVIEW_OUTPUT" ]]; then
+    COVERAGE_MET="$(jq -r '.coverage.met // true' "$REVIEW_OUTPUT")"
+    REVIEW_STATUS="$(jq -r '.status // empty' "$REVIEW_OUTPUT")"
+
+    if [[ "$COVERAGE_MET" == "false" && "$REVIEW_STATUS" == "needs_coverage" ]]; then
+      CURRENT_COVERAGE="$(jq -r '.coverage.current // 0' "$REVIEW_OUTPUT")"
+      THRESHOLD="$(state_get '.coverageThreshold // 90')"
+
+      # Read or initialize coverage loop state
+      LOOP_ITERATION="$(state_get '.coverageLoop.iteration // 0')"
+      MAX_LOOP="$(state_get '.coverageLoop.maxIterations // 20')"
+      NEXT_LOOP=$((LOOP_ITERATION + 1))
+
+      if [[ "$NEXT_LOOP" -gt "$MAX_LOOP" ]]; then
+        # Max iterations reached — proceed to FINAL with warning
+        state_update "
+          .coverageLoop.exhausted = true |
+          .coverageLoop.finalCoverage = $CURRENT_COVERAGE |
+          .stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].status = \"completed\"
+        "
+        # Fall through to gate check and normal advancement
+      else
+        # Loop back to 3.3: update state, delete stale outputs
+        state_update "
+          .coverageLoop = {
+            \"currentCoverage\": $CURRENT_COVERAGE,
+            \"threshold\": $THRESHOLD,
+            \"iteration\": $NEXT_LOOP,
+            \"maxIterations\": $MAX_LOOP,
+            \"reason\": \"Coverage ${CURRENT_COVERAGE}% < ${THRESHOLD}% threshold\"
+          } |
+          .currentPhase = \"3.3\" |
+          .stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].status = \"completed\"
+        "
+        # Delete stale output files for 3.3, 3.4, 3.5
+        rm -f "$PHASES_DIR/3.3-test-dev.json"
+        rm -f "$PHASES_DIR/3.4-test-dev-review.json"
+        rm -f "$PHASES_DIR/3.5-test-review.json"
+        exit 0
+      fi
+    fi
+  fi
 fi
 
 # ---------------------------------------------------------------------------

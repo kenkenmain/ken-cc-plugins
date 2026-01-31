@@ -12,6 +12,12 @@
 /superpowers-iterate:configure --show                  # Show current config
 /superpowers-iterate:configure --reset                 # Reset to defaults
 
+# Subagents Workflow
+/subagents:dispatch <task>                             # Start workflow
+/subagents:dispatch <task> --no-worktree               # Without git worktree isolation
+/subagents:dispatch <task> --no-test                   # Skip test stage
+/subagents:dispatch <task> --no-web-search             # Disable library search
+
 # Plugin Development
 claude plugin install ./plugins/superpowers-iterate    # Install locally
 claude plugin list                                     # List installed
@@ -90,14 +96,14 @@ Project overrides global. See `plugins/superpowers-iterate/skills/configuration/
 
 | Type        | Valid Values                         | Usage                     |
 | ----------- | ------------------------------------ | ------------------------- |
-| `ModelId`   | `sonnet`, `opus`, `haiku`, `inherit` | Task tool `model` param   |
+| `ModelId`   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit` | Task tool `model` param   |
 | `McpToolId` | `codex-high`, `codex-xhigh`          | Review phase `tool` field |
 
 **Actual Anthropic API IDs:**
 
-- `sonnet` → `claude-sonnet-4-20250514`
-- `opus` → `claude-opus-4-20250514`
-- `haiku` → `claude-3-5-haiku-20241022`
+- `sonnet-4.5` → `claude-sonnet-4-5-20250929`
+- `opus-4.5` → `claude-opus-4-5-20251101`
+- `haiku-4.5` → `claude-haiku-4-5-20251001`
 
 **bugFixer format:** `{ "type": "mcp"|"model", "tool": "<id>" }` - never bare strings
 

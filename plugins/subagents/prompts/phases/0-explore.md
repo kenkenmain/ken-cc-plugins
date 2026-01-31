@@ -2,44 +2,22 @@
 
 ## Subagent Config
 
-- **Type:** Explore (parallel batch, 1-10 agents)
+- **Primary:** subagents:explorer (parallel batch, 1-10 agents)
+- **Supplementary:** `feature-dev:code-explorer` (1 agent, parallel with primary)
 - **Output:** `.agents/tmp/phases/0-explore.md`
 
-## Instructions
+## Dispatch Instructions
 
-Analyze the task and dispatch 1-10 parallel Explore agents to gather codebase context.
+1. Determine complexity and agent count (simple: 1-2, medium: 3-5, complex: 6-10)
+2. Generate one focused query per agent
+3. Dispatch all explorer agents **and** `feature-dev:code-explorer` in parallel
+4. The feature-dev explorer traces execution paths and maps architecture layers — complements the breadth-first primary explorers
+5. Aggregate results into output file: primary results first, then a `## Architecture Analysis` section from feature-dev
 
-### Agent Count by Complexity
+## Input Files
 
-| Complexity | Signals                          | Count |
-| ---------- | -------------------------------- | ----- |
-| Simple     | typo, rename, single file        | 1-2   |
-| Medium     | add feature, fix bug, refactor   | 3-5   |
-| Complex    | auth, multi-system, architecture | 6-10  |
+- Task description (from state.json `.task`)
 
-### Process
+## Output File
 
-1. Read the task description from state
-2. Determine complexity and agent count
-3. Generate one focused query per agent
-4. Dispatch all Explore agents in parallel
-5. Aggregate results into `.agents/tmp/phases/0-explore.md`
-
-### Output Format
-
-Write to `.agents/tmp/phases/0-explore.md`:
-
-```
-# Explore Findings
-
-## Query 1: {query}
-{findings}
-
-## Summary
-- Key patterns: ...
-- Relevant files: ...
-```
-
-### Error Handling
-
-If any agent fails, record partial results. Do not block on individual failures.
+- `.agents/tmp/phases/0-explore.md`

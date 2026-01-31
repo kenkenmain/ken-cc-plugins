@@ -77,9 +77,9 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 
 ## Decision Criteria
 
-- **APPROVED + readyForCommit**: Zero HIGH issues, acceptable quality bar
-- **BLOCKED**: Any HIGH issues that cannot be waived
+- **APPROVED + readyForCommit**: Zero issues at any severity (LOW, MEDIUM, HIGH)
+- **BLOCKED**: Any issues found at LOW severity or above
 
 ## Note
 
-Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` for maximum reasoning depth.
+Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` for maximum reasoning depth. All review phases use `codex-xhigh` when Codex is available.

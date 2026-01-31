@@ -46,7 +46,9 @@ Schedule ({completed}/{total} phases):
   · Phase 2.3 │ IMPLEMENT │ Implementation Review   │ pending     [GATE]
   · Phase 3.1 │ TEST      │ Run Tests               │ pending
   · Phase 3.2 │ TEST      │ Analyze Failures        │ pending
-  · Phase 3.3 │ TEST      │ Test Review             │ pending     [GATE]
+  · Phase 3.3 │ TEST      │ Develop Tests           │ pending
+  · Phase 3.4 │ TEST      │ Test Dev Review         │ pending
+  · Phase 3.5 │ TEST      │ Test Review             │ pending     [GATE]
   · Phase 4.1 │ FINAL     │ Documentation           │ pending
   · Phase 4.2 │ FINAL     │ Final Review            │ pending     [GATE]
   · Phase 4.3 │ FINAL     │ Completion              │ pending
@@ -55,7 +57,7 @@ Gates:
   EXPLORE → PLAN:    ✓ satisfied (requires 0-explore.md)
   PLAN → IMPLEMENT:  · pending (requires 1.2-plan.md, 1.3-plan-review.json)
   IMPLEMENT → TEST:  · pending (requires 2.1-tasks.json, 2.3-impl-review.json)
-  TEST → FINAL:      · pending (requires 3.1-test-results.json, 3.3-test-review.json)
+  TEST → FINAL:      · pending (requires 3.1-test-results.json, 3.3-test-dev.json, 3.5-test-review.json)
   FINAL → COMPLETE:  · pending (requires 4.2-final-review.json)
 ```
 

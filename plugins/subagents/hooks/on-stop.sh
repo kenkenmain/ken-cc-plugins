@@ -20,6 +20,13 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
 fi
 
+# Only act on subagents workflows (or legacy states without plugin field).
+# Prevents cross-plugin interference when both subagents and superpowers-iterate are installed.
+PLUGIN="$(state_get '.plugin // empty')"
+if [[ -n "$PLUGIN" && "$PLUGIN" != "subagents" ]]; then
+  exit 0
+fi
+
 # Check workflow status
 STATUS="$(state_get '.status // empty')"
 

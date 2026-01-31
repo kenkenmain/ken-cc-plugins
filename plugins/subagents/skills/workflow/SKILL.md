@@ -45,21 +45,23 @@ Repeat until SubagentStop marks workflow "completed" → Stop hook allows exit
 
 ## Phase Dispatch Mapping
 
-| Phase | subagent_type                   | model    | Notes                                    |
-| ----- | ------------------------------- | -------- | ---------------------------------------- |
-| 0     | Explore                         | config   | Parallel batch: dispatch 1-10 agents     |
-| 1.1   | general-purpose                 | config   | Single agent                             |
-| 1.2   | Plan                            | config   | Parallel batch: dispatch 1-10 agents     |
-| 1.3   | kenken:codex-reviewer           | inherit  | Dispatches to Codex MCP                  |
-| 2.1   | subagents:task-agent            | per-task | Wave-based: dispatch in dependency waves |
-| 2.2   | code-simplifier:code-simplifier | config   | Single agent                             |
-| 2.3   | kenken:codex-reviewer           | inherit  | Dispatches to Codex MCP                  |
-| 3.1   | Bash                            | —        | Single bash command                      |
-| 3.2   | general-purpose                 | config   | Single agent                             |
-| 3.3   | kenken:codex-reviewer           | inherit  | Dispatches to Codex MCP                  |
-| 4.1   | general-purpose                 | config   | Single agent                             |
-| 4.2   | kenken:codex-reviewer           | inherit  | Uses codex-xhigh for final               |
-| 4.3   | Bash                            | —        | Git operations                           |
+| Phase | subagent_type              | model    | Notes                                    |
+| ----- | -------------------------- | -------- | ---------------------------------------- |
+| 0     | subagents:explorer         | config   | Parallel batch: dispatch 1-10 agents     |
+| 1.1   | subagents:brainstormer     | config   | Single agent                             |
+| 1.2   | subagents:planner          | config   | Parallel batch: dispatch 1-10 agents     |
+| 1.3   | `state.reviewer`           | inherit  | Dynamic: codex-reviewer or claude-reviewer |
+| 2.1   | subagents:task-agent       | per-task | Wave-based: dispatch in dependency waves |
+| 2.2   | subagents:simplifier       | config   | Single agent                             |
+| 2.3   | `state.reviewer`           | inherit  | Dynamic: codex-reviewer or claude-reviewer |
+| 3.1   | `state.testRunner`         | config   | Dynamic: test-runner or codex-test-runner |
+| 3.2   | `state.failureAnalyzer`    | config   | Dynamic: failure-analyzer or codex-failure-analyzer |
+| 3.3   | subagents:test-developer   | config   | Writes tests until coverage threshold met |
+| 3.4   | `state.reviewer`           | review-tier | Dynamic: codex-reviewer or claude-reviewer |
+| 3.5   | `state.reviewer`           | review-tier | Dynamic: codex-reviewer or claude-reviewer; coverage loop |
+| 4.1   | subagents:doc-updater      | config   | Single agent                             |
+| 4.2   | `state.reviewer`           | inherit  | Dynamic: codex-reviewer or claude-reviewer |
+| 4.3   | subagents:completion-handler | config | Single agent                             |
 
 ## Prompt Construction
 

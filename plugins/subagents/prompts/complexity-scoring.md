@@ -33,7 +33,7 @@ For each task, return:
   "complexity": "easy" | "medium" | "hard",
   "reasoning": "<one line explanation>",
   "execution": "task-agent" | "codex-mcp",
-  "model": "sonnet-4.5" | "opus-4.5" | null
+  "model": "sonnet-4.5" | "opus-4.5" | "haiku-4.5" | null
 }
 ```
 

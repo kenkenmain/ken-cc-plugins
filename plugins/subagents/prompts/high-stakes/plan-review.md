@@ -13,7 +13,7 @@ You are reviewing an implementation plan for a 2-level agent workflow. This is a
 
 ### 2. Technical Correctness
 
-- [ ] Model IDs are valid (`sonnet-4.5`, `opus-4.5`, `sonnet`, `opus`, `haiku`, `inherit` for Task tool)
+- [ ] Model IDs are valid (`sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit` for Task tool)
 - [ ] MCP tool IDs are valid (`codex-high`, `codex-xhigh`)
 - [ ] Context isolation rules are enforceable
 - [ ] Dependencies between tasks are correctly ordered
@@ -59,5 +59,9 @@ You are reviewing an implementation plan for a 2-level agent workflow. This is a
 
 ## Decision Criteria
 
-- **APPROVE**: Zero HIGH issues, MEDIUM issues have mitigations documented
-- **NEEDS_REVISION**: Any HIGH issues OR multiple unmitigated MEDIUM issues
+- **APPROVE**: Zero issues at any severity (LOW, MEDIUM, HIGH)
+- **NEEDS_REVISION**: Any issues found at LOW severity or above
+
+## Note
+
+Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` when Codex is available.

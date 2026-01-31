@@ -98,7 +98,7 @@ Start with defaults, deep merge global config, deep merge project config, return
 
 ## Merge Logic
 
-Deep recursive merge. Example: defaults provide "easy: sonnet-4.5", global overrides to "easy: haiku", project adds "medium: sonnet".
+Deep recursive merge. Example: defaults provide "easy: sonnet-4.5", global overrides to "easy: haiku-4.5", project adds "medium: opus-4.5".
 
 ## Writing Configuration
 
@@ -110,11 +110,9 @@ For Task tool dispatch. Valid values:
 
 | Alias        | Full Model ID                |
 | ------------ | ---------------------------- |
-| `sonnet-4.5` | `claude-sonnet-4-5-20250514` |
-| `sonnet`     | `claude-sonnet-4-20250514`   |
+| `sonnet-4.5` | `claude-sonnet-4-5-20250929` |
 | `opus-4.5`   | `claude-opus-4-5-20251101`   |
-| `opus`       | `claude-opus-4-20250514`     |
-| `haiku`      | `claude-3-5-haiku-20241022`  |
+| `haiku-4.5`  | `claude-haiku-4-5-20251001`  |
 | `inherit`    | Use session's current model  |
 
 ## MCP Tool Namespace (McpToolId)
@@ -148,7 +146,7 @@ When an issue meets the threshold:
 
 Tool used to fix issues found by Codex reviews. Default: `codex-high`.
 
-Can be either an MCP tool (codex-high, codex-xhigh) or a model (opus-4.5, sonnet-4.5).
+Can be either an MCP tool (codex-high, codex-xhigh) or a model (sonnet-4.5, opus-4.5, haiku-4.5).
 
 Configured per review phase:
 
