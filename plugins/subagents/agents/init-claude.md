@@ -1,9 +1,11 @@
 ---
 name: init-claude
-description: Initializes workflow state, schedule, and directories using Claude reasoning (no Codex MCP)
+description: "Use proactively to initialize workflow state, schedule, and directories using Claude reasoning when Codex MCP is unavailable"
 model: inherit
 color: green
 tools: [Read, Write, Bash]
+permissionMode: bypassPermissions
+skills: [state-manager, configuration]
 ---
 
 # Workflow Initializer (Claude)
@@ -60,6 +62,10 @@ You are a workflow initialization agent. Your job is to set up the workflow stat
   "currentPhase": "0",
   "currentStage": "EXPLORE",
   "codexAvailable": false,
+  "reviewer": "subagents:claude-reviewer",
+  "testRunner": "subagents:test-runner",
+  "failureAnalyzer": "subagents:failure-analyzer",
+  "difficultyEstimator": "subagents:difficulty-estimator",
   "taskAnalysis": {
     "complexity": "medium",
     "needsTests": true,

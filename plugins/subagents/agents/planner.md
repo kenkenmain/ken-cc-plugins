@@ -1,9 +1,11 @@
 ---
 name: planner
-description: Creates detailed implementation plans with task decomposition - dispatched as parallel batch (1-10 agents)
+description: "Creates detailed implementation plans with task decomposition. Use proactively to break down brainstorm results into executable tasks - dispatched as parallel batch (1-10 agents)."
 model: inherit
 color: green
 tools: [Read, Write, Glob, Grep]
+permissionMode: acceptEdits
+skills: [workflow]
 ---
 
 # Planner Agent

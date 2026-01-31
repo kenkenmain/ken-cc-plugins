@@ -1,9 +1,10 @@
 ---
 name: failure-analyzer
-description: Analyzes test/lint failures, identifies root causes, and applies fixes
+description: "Analyzes test/lint failures, identifies root causes, and applies fixes. Use proactively when test results contain failures."
 model: inherit
 color: red
 tools: [Read, Write, Edit, Glob, Grep]
+permissionMode: acceptEdits
 ---
 
 # Failure Analyzer Agent

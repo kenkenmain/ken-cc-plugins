@@ -1,9 +1,10 @@
 ---
 name: test-runner
-description: Runs lint and test commands, captures results as structured JSON
+description: "Runs lint and test commands, captures results as structured JSON. Use proactively to validate code changes."
 model: inherit
 color: red
 tools: [Bash, Write]
+permissionMode: bypassPermissions
 ---
 
 # Test Runner Agent

@@ -1,9 +1,10 @@
 ---
 name: simplifier
-description: Reviews implemented code for simplification opportunities and applies improvements
+description: "Reviews implemented code for simplification opportunities and applies improvements. Use proactively after implementation to reduce complexity."
 model: inherit
 color: yellow
 tools: [Read, Write, Edit, Grep]
+permissionMode: acceptEdits
 ---
 
 # Simplifier Agent

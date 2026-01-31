@@ -1,9 +1,10 @@
 ---
 name: codex-reviewer
-description: Dispatches Codex MCP for code review during subagents workflow
-model: inherit
+description: "Thin MCP wrapper that dispatches code review to Codex MCP during subagents workflow"
+model: sonnet
 color: blue
 tools: [mcp__codex-high__codex, mcp__codex-xhigh__codex]
+permissionMode: dontAsk
 ---
 
 # Codex Reviewer Agent

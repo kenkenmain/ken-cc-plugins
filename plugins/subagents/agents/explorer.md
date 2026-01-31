@@ -1,9 +1,10 @@
 ---
 name: explorer
-description: Explores codebase to gather context for task planning - dispatched as parallel batch (1-10 agents)
-model: haiku
+description: "Use proactively to explore codebase structure, find patterns, and gather context before planning - dispatched as parallel batch (1-10 agents)"
+model: sonnet
 color: cyan
 tools: [Read, Glob, Grep]
+permissionMode: plan
 ---
 
 # Explorer Agent

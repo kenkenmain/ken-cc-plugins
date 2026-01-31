@@ -1,9 +1,11 @@
 ---
 name: init-codex
-description: Initializes workflow state, schedule, and directories using Codex MCP for task analysis
+description: "Use proactively to initialize workflow state, schedule, and directories using Codex MCP for task analysis"
 model: inherit
 color: green
 tools: [Read, Write, Bash, mcp__codex-high__codex]
+permissionMode: bypassPermissions
+skills: [state-manager, configuration]
 ---
 
 # Workflow Initializer (Codex)
@@ -60,6 +62,10 @@ You are a workflow initialization agent. Your job is to set up the workflow stat
   "currentPhase": "0",
   "currentStage": "EXPLORE",
   "codexAvailable": true,
+  "reviewer": "subagents:codex-reviewer",
+  "testRunner": "subagents:codex-test-runner",
+  "failureAnalyzer": "subagents:codex-failure-analyzer",
+  "difficultyEstimator": "subagents:codex-difficulty-estimator",
   "taskAnalysis": {
     "complexity": "medium",
     "needsTests": true,

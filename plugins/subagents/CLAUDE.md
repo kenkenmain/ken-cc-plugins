@@ -53,7 +53,7 @@ All 13 phases run as subagents. No inline phases.
 | ---------- | ----------------------------------- | ----------------------------- |
 | `dispatch` | Parallel batch (multiple subagents) | 0, 1.2, 2.1                  |
 | `subagent` | Single subagent                     | 1.1, 2.2, 3.1, 3.2, 4.1, 4.3 |
-| `review`   | Codex MCP review via codex-reviewer | 1.3, 2.3, 3.3, 4.2           |
+| `review`   | Review via state.reviewer agent     | 1.3, 2.3, 3.3, 4.2           |
 
 ### EXPLORE Stage (Phase 0)
 
@@ -64,26 +64,26 @@ All 13 phases run as subagents. No inline phases.
 
 - 1.1: Brainstorm via brainstormer agent
 - 1.2: Parallel planner agents for detailed planning
-- 1.3: Codex MCP review of plan via codex-reviewer agent
+- 1.3: Plan review via state.reviewer agent (codex-reviewer or claude-reviewer)
 - Output: `.agents/tmp/phases/1.2-plan.md`
 
 ### IMPLEMENT Stage (Phases 2.1-2.3)
 
 - 2.1: Wave-based task execution via task-agent
 - 2.2: Code simplification via simplifier agent
-- 2.3: Codex MCP implementation review via codex-reviewer agent
+- 2.3: Implementation review via state.reviewer agent
 - Output: `.agents/tmp/phases/2.1-tasks.json`
 
 ### TEST Stage (Phases 3.1-3.3)
 
-- 3.1: Run lint and test commands via test-runner agent
-- 3.2: Analyze failures via failure-analyzer agent
-- 3.3: Codex MCP test review via codex-reviewer agent
+- 3.1: Run lint and test commands via state.testRunner agent
+- 3.2: Analyze failures via state.failureAnalyzer agent
+- 3.3: Test review via state.reviewer agent
 
 ### FINAL Stage (Phases 4.1-4.3)
 
 - 4.1: Documentation updates via doc-updater agent
-- 4.2: Final Codex MCP review via codex-reviewer agent (codex-xhigh)
+- 4.2: Final review via state.reviewer agent
 - 4.3: Git branch and PR creation via completion-handler agent
 
 ## Phase Prompt Templates
@@ -206,10 +206,15 @@ Dispatched by the orchestrator loop during workflow execution:
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
 | `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
-| `codex-reviewer.md`    | 1.3, 2.3, 3.3, 4.2 | Codex MCP review dispatch               |
+| `codex-reviewer.md`    | 1.3, 2.3, 3.3, 4.2 | Codex MCP review dispatch (when Codex available) |
+| `claude-reviewer.md`   | 1.3, 2.3, 3.3, 4.2 | Claude reasoning review (Codex fallback) |
+| `difficulty-estimator.md` | 2.1              | Task complexity scoring (Claude)        |
+| `codex-difficulty-estimator.md` | 2.1        | Task complexity scoring (Codex MCP)     |
 | `task-agent.md`        | 2.1                 | Task execution (wave-based parallel)    |
 | `simplifier.md`        | 2.2                 | Code simplification                     |
-| `test-runner.md`       | 3.1                 | Lint and test execution                 |
-| `failure-analyzer.md`  | 3.2                 | Test failure analysis and fixes         |
+| `test-runner.md`       | 3.1                 | Lint and test execution (Claude)        |
+| `codex-test-runner.md` | 3.1                 | Lint and test execution (Codex MCP)     |
+| `failure-analyzer.md`  | 3.2                 | Test failure analysis and fixes (Claude) |
+| `codex-failure-analyzer.md` | 3.2            | Test failure analysis via Codex MCP     |
 | `doc-updater.md`       | 4.1                 | Documentation updates                   |
 | `completion-handler.md`| 4.3                 | Git branch, commit, and PR creation     |

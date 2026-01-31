@@ -1,9 +1,11 @@
 ---
 name: task-agent
-description: Task executor agent - executes a single task with minimal context and strict constraints
+description: "Task executor agent - executes a single implementation task with minimal context and strict constraints"
 model: inherit
 color: yellow
 tools: [Read, Write, Edit, Bash, Glob, Grep]
+permissionMode: bypassPermissions
+disallowedTools: [Task]
 ---
 
 # Task Agent

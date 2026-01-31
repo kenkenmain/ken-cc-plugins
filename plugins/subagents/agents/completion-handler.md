@@ -1,9 +1,10 @@
 ---
 name: completion-handler
-description: Completes workflow with git operations - branch creation, commit, and optional PR
+description: "Completes workflow with git operations - branch creation, commit, and optional PR. Use proactively when final review is approved."
 model: inherit
 color: green
 tools: [Bash, Read, Write]
+permissionMode: bypassPermissions
 ---
 
 # Completion Handler Agent
