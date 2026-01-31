@@ -26,7 +26,8 @@ Determine the review type from the `[PHASE X.Y]` tag in your prompt:
 | ----- | -------------- | --------------------------------------- |
 | 1.3   | plan           | `prompts/high-stakes/plan-review.md`    |
 | 2.3   | implementation | `prompts/high-stakes/implementation.md` |
-| 3.3   | test           | `prompts/high-stakes/test-review.md`    |
+| 3.4   | test-dev       | `prompts/high-stakes/test-review.md`    |
+| 3.5   | test           | `prompts/high-stakes/test-review.md`    |
 | 4.2   | final          | `prompts/high-stakes/final-review.md`   |
 
 ## Process
@@ -85,7 +86,7 @@ Determine the review type from the `[PHASE X.Y]` tag in your prompt:
 }
 ```
 
-### Test Review (Phase 3.3)
+### Test Dev Review (Phase 3.4) / Test Review (Phase 3.5)
 
 ```json
 {
@@ -129,8 +130,9 @@ Determine the review type from the `[PHASE X.Y]` tag in your prompt:
 
 ## Decision Criteria
 
-- **Plan/Implementation/Test reviews:** APPROVE if zero HIGH issues and MEDIUM issues have mitigations. NEEDS_REVISION otherwise.
-- **Final review:** APPROVED + readyForCommit if zero HIGH issues and acceptable quality. BLOCKED otherwise.
+- **Plan/Implementation/Test Dev reviews:** APPROVE if zero issues at any severity. NEEDS_REVISION if any issues found (LOW and above).
+- **Test review (3.5):** APPROVED if zero issues and coverage met. NEEDS_COVERAGE if coverage below threshold. BLOCKED if quality issues.
+- **Final review:** APPROVED + readyForCommit if zero issues. BLOCKED if any issues found (LOW and above).
 
 ## What NOT To Do
 

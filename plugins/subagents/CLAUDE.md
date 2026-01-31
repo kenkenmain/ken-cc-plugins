@@ -23,6 +23,19 @@ Main Conversation (Orchestrator Loop)
 
 **Key Design (Ralph Pattern):** The Stop hook re-injects the **complete orchestrator prompt** every iteration — not a hint. Claude reads `.agents/tmp/state.json` to determine the current phase and dispatches it. No conversation memory required. State on disk determines behavior. The SubagentStop hook is a pure side-effect hook (validate, advance, exit silently).
 
+### Git Worktree Isolation
+
+By default, the workflow creates an isolated git worktree for code changes:
+
+- **Worktree path:** `../<repo-name>--subagent` (sibling directory)
+- **Branch:** `subagents/<slugified-task>`
+- **State stays in original dir:** `.agents/tmp/` and hooks always live in the original project directory
+- **Code changes in worktree:** All code reads, writes, edits, tests happen in the worktree
+
+The orchestrator prompt includes a "Working Directory" section when `state.worktree` exists, directing phase agents to use the worktree for code and the original dir for state files. The completion handler tears down the worktree after committing and creating a PR.
+
+Use `--no-worktree` to skip worktree creation and work directly in the project directory.
+
 ## Hooks
 
 Three shell hooks enforce the workflow:
@@ -45,46 +58,57 @@ The Stop hook reads `prompts/orchestrator-loop.md` and injects it as the `reason
 EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 ```
 
-All 13 phases run as subagents. No inline phases.
+All 15 phases run as subagents. No inline phases.
 
 ### Phase Types
 
 | Type       | Description                         | Examples                      |
 | ---------- | ----------------------------------- | ----------------------------- |
 | `dispatch` | Parallel batch (multiple subagents) | 0, 1.2, 2.1                  |
-| `subagent` | Single subagent                     | 1.1, 2.2, 3.1, 3.2, 4.1, 4.3 |
-| `review`   | Review via state.reviewer agent     | 1.3, 2.3, 3.3, 4.2           |
+| `subagent` | Single subagent                     | 1.1, 2.2, 3.1, 3.2, 3.3, 4.1, 4.3 |
+| `review`   | Review via state.reviewer agent     | 1.3, 2.3, 3.4, 3.5, 4.2           |
 
 ### EXPLORE Stage (Phase 0)
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
+- **Supplementary:** `feature-dev:code-explorer` runs in parallel for deep architecture tracing
 - Output: `.agents/tmp/phases/0-explore.md`
 
 ### PLAN Stage (Phases 1.1-1.3)
 
 - 1.1: Brainstorm via brainstormer agent
-- 1.2: Parallel planner agents for detailed planning
-- 1.3: Plan review via state.reviewer agent (codex-reviewer or claude-reviewer)
+- 1.2: Parallel planner agents + **`feature-dev:code-architect`** for architecture blueprint
+- 1.3: Plan review via state.reviewer (all reviews use `codex-xhigh` when Codex available)
 - Output: `.agents/tmp/phases/1.2-plan.md`
 
 ### IMPLEMENT Stage (Phases 2.1-2.3)
 
 - 2.1: Wave-based task execution via task-agent
 - 2.2: Code simplification via simplifier agent
-- 2.3: Implementation review via state.reviewer agent
+- 2.3: Implementation review via state.reviewer + **supplementary parallel checks:**
+  - `pr-review-toolkit:code-reviewer` — code quality and conventions
+  - `pr-review-toolkit:silent-failure-hunter` — error handling gaps
+  - `pr-review-toolkit:type-design-analyzer` — type design quality
 - Output: `.agents/tmp/phases/2.1-tasks.json`
 
-### TEST Stage (Phases 3.1-3.3)
+### TEST Stage (Phases 3.1-3.5)
 
 - 3.1: Run lint and test commands via state.testRunner agent
 - 3.2: Analyze failures via state.failureAnalyzer agent
-- 3.3: Test review via state.reviewer agent
+- 3.3: **Develop Tests & CI** via test-developer agent (coverage loop — writes tests until `coverageThreshold` met, default 90%)
+- 3.4: Test development review via state.reviewer
+- 3.5: Test review via state.reviewer — **checks coverage threshold**; loops back to 3.3 if coverage not met
+
+**Coverage Loop:** Phases 3.3 → 3.4 → 3.5 repeat until `coverage ≥ coverageThreshold` or `maxIterations` (20) reached. The SubagentStop hook manages the loop by resetting `currentPhase` to `"3.3"` when `3.5-test-review.json` reports `coverage.met: false`.
 
 ### FINAL Stage (Phases 4.1-4.3)
 
-- 4.1: Documentation updates via doc-updater agent
-- 4.2: Final review via state.reviewer agent
-- 4.3: Git branch and PR creation via completion-handler agent
+- 4.1: Documentation via doc-updater + **`claude-md-management:revise-claude-md`** in parallel
+- 4.2: Final review via state.reviewer + **supplementary parallel checks:**
+  - `pr-review-toolkit:code-reviewer` — final code quality sweep
+  - `pr-review-toolkit:pr-test-analyzer` — test coverage completeness
+  - `pr-review-toolkit:comment-analyzer` — comment accuracy
+- 4.3: Git commit, PR creation, worktree teardown via completion-handler
 
 ## Phase Prompt Templates
 
@@ -101,7 +125,9 @@ prompts/phases/
 ├── 2.3-impl-review.md
 ├── 3.1-run-tests.md
 ├── 3.2-analyze-failures.md
-├── 3.3-test-review.md
+├── 3.3-develop-tests.md
+├── 3.4-test-dev-review.md
+├── 3.5-test-review.md
 ├── 4.1-documentation.md
 ├── 4.2-final-review.md
 └── 4.3-completion.md
@@ -118,6 +144,10 @@ Key state fields:
 - `schedule`: Ordered array of all phases to execute
 - `gates`: Map of stage transitions to required output files
 - `stages`: Per-stage status, phases, and restart counts
+- `worktree`: (optional) `{ path, branch, createdAt }` — present when worktree isolation is active
+- `coverageThreshold`: target test coverage percentage (default: 90)
+- `coverageLoop`: (optional) tracks 3.3→3.5 iteration when coverage below threshold (max 20 iterations)
+- `webSearch`: whether agents can search for libraries online (default: true, disable with `--no-web-search`)
 
 State updates are performed by hook scripts via `hooks/lib/state.sh` (atomic writes with jq).
 
@@ -145,7 +175,7 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 | EXPLORE->PLAN   | `0-explore.md`                                  | PLAN                 |
 | PLAN->IMPLEMENT | `1.2-plan.md`, `1.3-plan-review.json`           | IMPLEMENT            |
 | IMPLEMENT->TEST | `2.1-tasks.json`, `2.3-impl-review.json`        | TEST                 |
-| TEST->FINAL     | `3.1-test-results.json`, `3.3-test-review.json` | FINAL                |
+| TEST->FINAL     | `3.1-test-results.json`, `3.3-test-dev.json`, `3.5-test-review.json` | FINAL     |
 | FINAL->COMPLETE | `4.2-final-review.json`                         | Completion           |
 
 ## Model vs MCP Tool Namespaces
@@ -157,6 +187,17 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 | ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
 | McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
 
+## Review Model Selection
+
+Review phases (1.3, 2.3, 3.4, 3.5, 4.2) use tiered model selection based on Codex availability:
+
+| Codex Available | Primary Reviewer          | Supplementary Model | Rationale                                       |
+| --------------- | ------------------------- | ------------------- | ----------------------------------------------- |
+| Yes             | `codex-xhigh` (all reviews) | `sonnet`         | Codex handles deep reasoning; plugins need speed |
+| No              | `subagents:claude-reviewer` | `opus`            | Plugins are primary review path; need thoroughness |
+
+All Codex review phases use `codex-xhigh` — no distinction between phases.
+
 ## Complexity Scoring
 
 Task complexity determines model selection during Phase 2.1:
@@ -166,6 +207,23 @@ Task complexity determines model selection during Phase 2.1:
 | Easy   | sonnet-4.5  | Single file, <50 LOC                     |
 | Medium | opus-4.5    | 2-3 files, 50-200 LOC                    |
 | Hard   | codex-xhigh | 4+ files, >200 LOC, security/concurrency |
+
+## Supplementary Plugin Agents
+
+External plugins provide specialized agents that run **in parallel** with primary phase agents:
+
+| Plugin                 | Agents Provided                                                    | Phases    | Required |
+| ---------------------- | ------------------------------------------------------------------ | --------- | -------- |
+| `superpowers`          | `brainstorming` skill                                              | 1.1       | yes      |
+| `feature-dev`          | `code-explorer`, `code-architect`                                  | 0, 1.2    | no       |
+| `pr-review-toolkit`    | `code-reviewer`, `silent-failure-hunter`, `type-design-analyzer`, `pr-test-analyzer`, `comment-analyzer` | 2.3, 4.2 | no |
+| `claude-md-management` | `revise-claude-md`                                                 | 4.1       | no       |
+
+**When Codex is available:** Codex is the primary reviewer; plugin agents are supplementary parallel checks catching specialized issues.
+
+**When Codex is unavailable:** Plugin agents become the primary review path alongside `claude-reviewer`.
+
+Missing optional plugins are detected by env-check and silently skipped at dispatch time.
 
 ## Commands
 
@@ -189,13 +247,15 @@ All agents are custom subagent definitions in `agents/`. Each agent's `.md` file
 
 Dispatched by the dispatch command before the orchestrator loop starts:
 
-| Agent File             | Purpose                                              |
-| ---------------------- | ---------------------------------------------------- |
-| `env-check.md`         | Probes Codex MCP availability (sonnet)               |
-| `init-codex.md`        | Workflow init with Codex task analysis                |
-| `init-claude.md`       | Workflow init with Claude reasoning (Codex fallback)  |
+| Agent File             | Purpose                                                        |
+| ---------------------- | -------------------------------------------------------------- |
+| `env-check.md`         | Probes Codex MCP + verifies plugin dependencies (sonnet)       |
+| `init-codex.md`        | Workflow init with Codex task analysis + worktree creation      |
+| `init-claude.md`       | Workflow init with Claude reasoning (Codex fallback) + worktree |
 
 Flow: `env-check` → if codex available → `init-codex`, else → `init-claude`
+
+Both init agents create a git worktree (unless `--no-worktree`) and record `state.worktree` in state.json.
 
 ### Phase Agents
 
@@ -206,8 +266,8 @@ Dispatched by the orchestrator loop during workflow execution:
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
 | `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
-| `codex-reviewer.md`    | 1.3, 2.3, 3.3, 4.2 | Codex MCP review dispatch (when Codex available) |
-| `claude-reviewer.md`   | 1.3, 2.3, 3.3, 4.2 | Claude reasoning review (Codex fallback) |
+| `codex-reviewer.md`    | 1.3, 2.3, 3.4, 3.5, 4.2 | Codex MCP review dispatch (when Codex available) |
+| `claude-reviewer.md`   | 1.3, 2.3, 3.4, 3.5, 4.2 | Claude reasoning review (Codex fallback) |
 | `difficulty-estimator.md` | 2.1              | Task complexity scoring (Claude)        |
 | `codex-difficulty-estimator.md` | 2.1        | Task complexity scoring (Codex MCP)     |
 | `task-agent.md`        | 2.1                 | Task execution (wave-based parallel)    |
@@ -216,5 +276,6 @@ Dispatched by the orchestrator loop during workflow execution:
 | `codex-test-runner.md` | 3.1                 | Lint and test execution (Codex MCP)     |
 | `failure-analyzer.md`  | 3.2                 | Test failure analysis and fixes (Claude) |
 | `codex-failure-analyzer.md` | 3.2            | Test failure analysis via Codex MCP     |
+| `test-developer.md`   | 3.3                 | Writes tests and CI until coverage threshold met |
 | `doc-updater.md`       | 4.1                 | Documentation updates                   |
-| `completion-handler.md`| 4.3                 | Git branch, commit, and PR creation     |
+| `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |

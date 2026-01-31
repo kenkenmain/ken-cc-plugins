@@ -1,6 +1,6 @@
 ---
 description: Start a subagent workflow for complex task execution
-argument-hint: <task description> [--no-test] [--stage STAGE] [--plan PATH]
+argument-hint: <task description> [--no-test] [--no-worktree] [--no-web-search] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
@@ -12,6 +12,8 @@ Start a workflow for complex task execution with parallel subagents and file-bas
 
 - `<task description>`: Required. The task to execute
 - `--no-test`: Optional. Skip the TEST stage
+- `--no-worktree`: Optional. Skip git worktree creation — all work happens in the current directory
+- `--no-web-search`: Optional. Disable web search for libraries — agents implement everything locally
 - `--stage STAGE`: Optional. Start from specific stage (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
 - `--plan PATH`: Optional. Specify plan file path (for starting at IMPLEMENT with external plan)
 
@@ -21,14 +23,37 @@ Parse from $ARGUMENTS to extract task description and flags.
 
 Use the `configuration` skill to load merged config (defaults → global → project).
 
+## Step 1.5: Environment Check
+
+Dispatch `subagents:env-check` agent to probe Codex MCP availability, git, and required plugins. This writes `.agents/tmp/env-check.json`.
+
+**After env-check completes, read `.agents/tmp/env-check.json` and check `fatal`:**
+
+- If `fatal: true`: **STOP immediately.** Display the error to the user and exit:
+  ```
+  Workflow cannot start: {fatalReason}
+
+  Missing dependencies: {missingDependencies joined with ", "}
+
+  To fix:
+  - git not found → install git
+  - superpowers plugin → claude plugin install <path-to-superpowers>
+  - subagents plugin → claude plugin install <path-to-subagents>
+  ```
+  Do NOT proceed to Step 2. Do NOT create state. Clean up `.agents/tmp/` if it was created.
+
+- If `fatal: false`: continue to Step 2.
+
 ## Step 2: Initialize State
 
 Use `state-manager` skill to create `.agents/tmp/state.json`.
 
+Pass parsed flags to the init agent, including `--no-worktree` if set. The init agent reads the env-check result and creates the worktree (unless `--no-worktree`).
+
 Build the `schedule` array from the full phase list, filtering out disabled stages:
 
-1. Start with the full 13-phase list (see state-manager skill for schema)
-2. If `--no-test` or `config.stages.TEST.enabled: false`: remove phases 3.1, 3.2, 3.3
+1. Start with the full 15-phase list (see state-manager skill for schema)
+2. If `--no-test` or `config.stages.TEST.enabled: false`: remove phases 3.1, 3.2, 3.3, 3.4, 3.5
 3. If any other stage is disabled in config: remove its phases
 4. Build the `gates` map, adjusting for disabled stages:
    - If TEST disabled: replace `IMPLEMENT->TEST` and `TEST->FINAL` with a single `IMPLEMENT->FINAL` gate requiring `2.1-tasks.json` and `2.3-impl-review.json`
@@ -85,6 +110,18 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
     {
       "phase": "3.3",
       "stage": "TEST",
+      "name": "Develop Tests",
+      "type": "subagent"
+    },
+    {
+      "phase": "3.4",
+      "stage": "TEST",
+      "name": "Test Dev Review",
+      "type": "review"
+    },
+    {
+      "phase": "3.5",
+      "stage": "TEST",
       "name": "Test Review",
       "type": "review"
     },
@@ -113,8 +150,8 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
       "phase": "2.3"
     },
     "TEST->FINAL": {
-      "required": ["3.1-test-results.json", "3.3-test-review.json"],
-      "phase": "3.3"
+      "required": ["3.1-test-results.json", "3.3-test-dev.json", "3.5-test-review.json"],
+      "phase": "3.5"
     },
     "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
   },
@@ -152,7 +189,9 @@ Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent
 Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review    ← GATE: IMPLEMENT→TEST
 Phase 3.1 │ TEST      │ Run Tests               │ command
 Phase 3.2 │ TEST      │ Analyze Failures        │ subagent
-Phase 3.3 │ TEST      │ Test Review             │ review    ← GATE: TEST→FINAL
+Phase 3.3 │ TEST      │ Develop Tests & CI      │ subagent
+Phase 3.4 │ TEST      │ Test Dev Review         │ review    ← coverage loop back to 3.3
+Phase 3.5 │ TEST      │ Test Review             │ review    ← GATE: TEST→FINAL
 Phase 4.1 │ FINAL     │ Documentation           │ subagent
 Phase 4.2 │ FINAL     │ Final Review            │ review    ← GATE: FINAL→COMPLETE
 Phase 4.3 │ FINAL     │ Completion              │ subagent
@@ -161,7 +200,7 @@ Stage Gates:
   EXPLORE → PLAN:    requires 0-explore.md
   PLAN → IMPLEMENT:  requires 1.2-plan.md, 1.3-plan-review.json
   IMPLEMENT → TEST:  requires 2.1-tasks.json, 2.3-impl-review.json
-  TEST → FINAL:      requires 3.1-test-results.json, 3.3-test-review.json
+  TEST → FINAL:      requires 3.1-test-results.json, 3.3-test-dev.json, 3.5-test-review.json
   FINAL → COMPLETE:  requires 4.2-final-review.json
 ```
 

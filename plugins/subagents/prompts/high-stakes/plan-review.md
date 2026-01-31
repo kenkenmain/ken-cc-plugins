@@ -59,5 +59,9 @@ You are reviewing an implementation plan for a 2-level agent workflow. This is a
 
 ## Decision Criteria
 
-- **APPROVE**: Zero HIGH issues, MEDIUM issues have mitigations documented
-- **NEEDS_REVISION**: Any HIGH issues OR multiple unmitigated MEDIUM issues
+- **APPROVE**: Zero issues at any severity (LOW, MEDIUM, HIGH)
+- **NEEDS_REVISION**: Any issues found at LOW severity or above
+
+## Note
+
+Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` when Codex is available.

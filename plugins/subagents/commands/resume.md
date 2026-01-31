@@ -110,7 +110,7 @@ Use AskUserQuestion if `--retry-failed` not specified.
 
 If provided:
 
-1. Validate phase exists (0, 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 4.1, 4.2, 4.3)
+1. Validate phase exists (0, 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3)
 2. Check if required prior outputs exist
 3. Warn about skipped phases
 4. Confirm with user via AskUserQuestion
@@ -142,7 +142,9 @@ Schedule Progress:
   · Phase 2.3 │ IMPLEMENT │ Implementation Review   │ pending     [GATE]
   · Phase 3.1 │ TEST      │ Run Tests               │ pending
   · Phase 3.2 │ TEST      │ Analyze Failures        │ pending
-  · Phase 3.3 │ TEST      │ Test Review             │ pending     [GATE]
+  · Phase 3.3 │ TEST      │ Develop Tests           │ pending
+  · Phase 3.4 │ TEST      │ Test Dev Review         │ pending
+  · Phase 3.5 │ TEST      │ Test Review             │ pending     [GATE]
   · Phase 4.1 │ FINAL     │ Documentation           │ pending
   · Phase 4.2 │ FINAL     │ Final Review            │ pending     [GATE]
   · Phase 4.3 │ FINAL     │ Completion              │ pending

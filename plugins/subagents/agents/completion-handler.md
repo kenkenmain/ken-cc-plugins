@@ -20,14 +20,23 @@ You are a workflow completion agent. Your job is to finalize the workflow by cre
 ## Process
 
 1. Read the final review input file
-2. Verify `readyForCommit: true` — if not, report blocked status and exit
-3. Execute git operations:
-   a. Check if already on a feature branch; if on main/master, create one
-   b. Stage all changed files EXCEPT `.agents/**` and `docs/plans/**`
-   c. Create a commit with a descriptive message following project conventions
-   d. Push to remote if configured
-   e. Create PR if git workflow is set to "branch+PR"
-4. Write completion result to the output file
+2. Read `.agents/tmp/state.json` — check for `state.worktree` to determine working context
+3. Verify `readyForCommit: true` — if not, report blocked status and exit
+4. Execute git operations:
+   a. If `state.worktree` exists, operate from the worktree directory (`state.worktree.path`)
+   b. Check if already on a feature branch; if on main/master, create one
+   c. Stage all changed files EXCEPT `.agents/**` and `docs/plans/**`
+   d. Create a commit with a descriptive message following project conventions
+   e. Push to remote if configured
+   f. Create PR if git workflow is set to "branch+PR"
+5. Tear down worktree (if `state.worktree` exists):
+   a. Return to the original project directory first
+   b. Remove the worktree: `git worktree remove <state.worktree.path>`
+   c. If removal fails (dirty worktree), warn but do not block completion
+   d. After successful PR creation, safe-delete the branch: `git branch -d <state.worktree.branch>`
+      - Use `-d` (not `-D`) — only deletes if fully merged/pushed
+      - Skip branch deletion if no PR was created (branch may still be needed)
+6. Write completion result to the output file
 
 ## Git Safety Rules
 
@@ -64,6 +73,11 @@ Write JSON to the output file:
   "pr": {
     "number": 42,
     "url": "https://github.com/..."
+  },
+  "worktree": {
+    "path": "/abs/path/to/repo--subagent",
+    "removedAt": "2025-01-01T00:00:00Z",
+    "branchDeleted": true
   }
 }
 ```
@@ -88,6 +102,25 @@ If no git operations needed (e.g., dry run):
   "note": "No git operations performed"
 }
 ```
+
+If worktree removal fails:
+
+```json
+{
+  "status": "completed",
+  "branch": "subagents/task-slug",
+  "commit": "abc1234",
+  "pr": { "number": 42, "url": "..." },
+  "worktree": {
+    "path": "/abs/path/to/repo--subagent",
+    "removedAt": null,
+    "removalError": "Worktree has uncommitted changes",
+    "branchDeleted": false
+  }
+}
+```
+
+The `worktree` field is only present when `state.worktree` existed. Omit it entirely when no worktree was used.
 
 ## Error Handling
 

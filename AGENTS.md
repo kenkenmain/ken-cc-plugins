@@ -12,6 +12,12 @@
 /superpowers-iterate:configure --show                  # Show current config
 /superpowers-iterate:configure --reset                 # Reset to defaults
 
+# Subagents Workflow
+/subagents:dispatch <task>                             # Start workflow
+/subagents:dispatch <task> --no-worktree               # Without git worktree isolation
+/subagents:dispatch <task> --no-test                   # Skip test stage
+/subagents:dispatch <task> --no-web-search             # Disable library search
+
 # Plugin Development
 claude plugin install ./plugins/superpowers-iterate    # Install locally
 claude plugin list                                     # List installed

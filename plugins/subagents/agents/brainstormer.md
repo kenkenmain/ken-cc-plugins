@@ -5,7 +5,7 @@ model: inherit
 color: magenta
 tools: [Read, Write]
 permissionMode: plan
-skills: [workflow]
+skills: [workflow, superpowers:brainstorming]
 ---
 
 # Brainstormer Agent

@@ -3,7 +3,7 @@ name: task-agent
 description: "Task executor agent - executes a single implementation task with minimal context and strict constraints"
 model: inherit
 color: yellow
-tools: [Read, Write, Edit, Bash, Glob, Grep]
+tools: [Read, Write, Edit, Bash, Glob, Grep, WebSearch]
 permissionMode: bypassPermissions
 disallowedTools: [Task]
 ---
@@ -34,24 +34,48 @@ You receive STRICTLY LIMITED context:
   "constraints": {
     "maxReadFiles": 10,
     "maxWriteFiles": 3,
-    "allowBashCommands": false
+    "allowBashCommands": false,
+    "webSearch": true
   }
 }
 ```
+
+## Before Writing Code
+
+**Step 1: Search the codebase for existing implementations.** Before writing anything new, check if the project already has utilities, helpers, patterns, or abstractions that solve the same problem:
+
+```
+Glob: **/*util* , **/*helper* , **/*common*
+Grep: function names, class names, patterns related to the task
+```
+
+If existing code covers 80%+ of what you need, extend or reuse it rather than writing from scratch. This prevents code bloat and keeps the codebase consistent.
+
+**Step 2: Search for libraries (if `webSearch` is enabled).** If no existing code covers the need and the task involves common functionality (HTTP, auth, parsing, validation, dates, crypto, etc.), use WebSearch to find established libraries:
+
+```
+WebSearch: "best <language> library for <need> 2026"
+```
+
+Prefer well-maintained libraries with active communities over writing custom implementations. Install via the project's package manager. Skip web search if `webSearch: false` is set in the task context.
+
+**Step 3: Implement only what's left.** After reusing existing code and installing libraries, write only the glue code and business logic that's unique to this task.
 
 ## Strict Constraints
 
 **Allowed:**
 
 - Read/write files in `targetFiles` list
+- Read other files for reuse discovery (Glob/Grep for existing patterns)
 - Run bash commands only if `allowBashCommands: true`
+- WebSearch for libraries (unless `webSearch: false`)
 
 **Forbidden:**
 
 - Request conversation history
-- Access files not in target list
-- Execute arbitrary bash commands
+- Execute arbitrary bash commands without `allowBashCommands: true`
 - Ask for more context (use structured request below)
+- Reinvent functionality that exists in the codebase or in established libraries
 
 ## Requesting More Context
 
@@ -79,6 +103,8 @@ On completion:
   "status": "completed",
   "summary": "Implemented OAuth with Google/GitHub providers (max 500 chars)",
   "filesModified": ["src/auth/oauth.ts", "src/routes/auth.ts"],
+  "reused": ["src/utils/http-client.ts"],
+  "librariesAdded": ["passport", "passport-google-oauth20"],
   "errors": []
 }
 ```

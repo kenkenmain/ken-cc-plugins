@@ -56,7 +56,9 @@ Repeat until SubagentStop marks workflow "completed" → Stop hook allows exit
 | 2.3   | `state.reviewer`           | inherit  | Dynamic: codex-reviewer or claude-reviewer |
 | 3.1   | `state.testRunner`         | config   | Dynamic: test-runner or codex-test-runner |
 | 3.2   | `state.failureAnalyzer`    | config   | Dynamic: failure-analyzer or codex-failure-analyzer |
-| 3.3   | `state.reviewer`           | inherit  | Dynamic: codex-reviewer or claude-reviewer |
+| 3.3   | subagents:test-developer   | config   | Writes tests until coverage threshold met |
+| 3.4   | `state.reviewer`           | review-tier | Dynamic: codex-reviewer or claude-reviewer |
+| 3.5   | `state.reviewer`           | review-tier | Dynamic: codex-reviewer or claude-reviewer; coverage loop |
 | 4.1   | subagents:doc-updater      | config   | Single agent                             |
 | 4.2   | `state.reviewer`           | inherit  | Dynamic: codex-reviewer or claude-reviewer |
 | 4.3   | subagents:completion-handler | config | Single agent                             |

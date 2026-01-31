@@ -61,5 +61,9 @@ You are reviewing code implementation produced by task agents. Focus on correctn
 
 ## Decision Criteria
 
-- **APPROVE**: Zero HIGH issues, MEDIUM issues are acceptable tech debt
-- **NEEDS_REVISION**: Any HIGH issues OR multiple concerning MEDIUM issues
+- **APPROVE**: Zero issues at any severity (LOW, MEDIUM, HIGH)
+- **NEEDS_REVISION**: Any issues found at LOW severity or above
+
+## Note
+
+Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` when Codex is available.
