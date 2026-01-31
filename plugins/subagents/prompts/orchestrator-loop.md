@@ -17,21 +17,21 @@ After dispatching, the SubagentStop hook will automatically validate output, che
 
 ## Phase Dispatch Table
 
-| Phase | Stage     | Name             | Type     | subagent_type                   | model    | Prompt Template                          | Input Files                                                                      | Output File                                |
-| ----- | --------- | ---------------- | -------- | ------------------------------- | -------- | ---------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
-| 0     | EXPLORE   | Explore          | dispatch | Explore                         | config   | `prompts/phases/0-explore.md`            | task description (from state.json `.task`)                                       | `.agents/tmp/phases/0-explore.md`          |
-| 1.1   | PLAN      | Brainstorm       | subagent | general-purpose                 | config   | `prompts/phases/1.1-brainstorm.md`       | `.agents/tmp/phases/0-explore.md`                                                | `.agents/tmp/phases/1.1-brainstorm.md`     |
-| 1.2   | PLAN      | Plan             | dispatch | Plan                            | config   | `prompts/phases/1.2-plan.md`             | `.agents/tmp/phases/1.1-brainstorm.md`                                           | `.agents/tmp/phases/1.2-plan.md`           |
-| 1.3   | PLAN      | Plan Review      | review   | subagents:codex-reviewer        | inherit  | `prompts/phases/1.3-plan-review.md`      | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/1.3-plan-review.json`  |
-| 2.1   | IMPLEMENT | Implement        | dispatch | subagents:task-agent            | per-task | `prompts/phases/2.1-implement.md`        | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/2.1-tasks.json`        |
-| 2.2   | IMPLEMENT | Simplify         | subagent | code-simplifier:code-simplifier | config   | `prompts/phases/2.2-simplify.md`         | `.agents/tmp/phases/2.1-tasks.json`                                              | `.agents/tmp/phases/2.2-simplify.md`       |
-| 2.3   | IMPLEMENT | Impl Review      | review   | subagents:codex-reviewer        | inherit  | `prompts/phases/2.3-impl-review.md`      | `.agents/tmp/phases/1.2-plan.md`, git diff                                       | `.agents/tmp/phases/2.3-impl-review.json`  |
-| 3.1   | TEST      | Run Tests        | command  | Bash                            | —        | `prompts/phases/3.1-run-tests.md`        | config test commands                                                             | `.agents/tmp/phases/3.1-test-results.json` |
-| 3.2   | TEST      | Analyze Failures | subagent | general-purpose                 | config   | `prompts/phases/3.2-analyze-failures.md` | `.agents/tmp/phases/3.1-test-results.json`                                       | `.agents/tmp/phases/3.2-analysis.md`       |
-| 3.3   | TEST      | Test Review      | review   | subagents:codex-reviewer        | inherit  | `prompts/phases/3.3-test-review.md`      | `.agents/tmp/phases/3.1-test-results.json`, `.agents/tmp/phases/3.2-analysis.md` | `.agents/tmp/phases/3.3-test-review.json`  |
-| 4.1   | FINAL     | Documentation    | subagent | general-purpose                 | config   | `prompts/phases/4.1-documentation.md`    | `.agents/tmp/phases/1.2-plan.md`, `.agents/tmp/phases/2.1-tasks.json`            | `.agents/tmp/phases/4.1-docs.md`           |
-| 4.2   | FINAL     | Final Review     | review   | subagents:codex-reviewer        | inherit  | `prompts/phases/4.2-final-review.md`     | all `.agents/tmp/phases/*.json`                                                  | `.agents/tmp/phases/4.2-final-review.json` |
-| 4.3   | FINAL     | Completion       | subagent | Bash                            | —        | `prompts/phases/4.3-completion.md`       | `.agents/tmp/phases/4.2-final-review.json`                                       | `.agents/tmp/phases/4.3-completion.json`   |
+| Phase | Stage     | Name             | Type     | subagent_type              | model    | Prompt Template                          | Input Files                                                                      | Output File                                |
+| ----- | --------- | ---------------- | -------- | -------------------------- | -------- | ---------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
+| 0     | EXPLORE   | Explore          | dispatch | subagents:explorer         | config   | `prompts/phases/0-explore.md`            | task description (from state.json `.task`)                                       | `.agents/tmp/phases/0-explore.md`          |
+| 1.1   | PLAN      | Brainstorm       | subagent | subagents:brainstormer     | config   | `prompts/phases/1.1-brainstorm.md`       | `.agents/tmp/phases/0-explore.md`                                                | `.agents/tmp/phases/1.1-brainstorm.md`     |
+| 1.2   | PLAN      | Plan             | dispatch | subagents:planner          | config   | `prompts/phases/1.2-plan.md`             | `.agents/tmp/phases/1.1-brainstorm.md`                                           | `.agents/tmp/phases/1.2-plan.md`           |
+| 1.3   | PLAN      | Plan Review      | review   | subagents:codex-reviewer   | inherit  | `prompts/phases/1.3-plan-review.md`      | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/1.3-plan-review.json`  |
+| 2.1   | IMPLEMENT | Implement        | dispatch | subagents:task-agent       | per-task | `prompts/phases/2.1-implement.md`        | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/2.1-tasks.json`        |
+| 2.2   | IMPLEMENT | Simplify         | subagent | subagents:simplifier       | config   | `prompts/phases/2.2-simplify.md`         | `.agents/tmp/phases/2.1-tasks.json`                                              | `.agents/tmp/phases/2.2-simplify.md`       |
+| 2.3   | IMPLEMENT | Impl Review      | review   | subagents:codex-reviewer   | inherit  | `prompts/phases/2.3-impl-review.md`      | `.agents/tmp/phases/1.2-plan.md`, git diff                                       | `.agents/tmp/phases/2.3-impl-review.json`  |
+| 3.1   | TEST      | Run Tests        | subagent | subagents:test-runner      | config   | `prompts/phases/3.1-run-tests.md`        | config test commands                                                             | `.agents/tmp/phases/3.1-test-results.json` |
+| 3.2   | TEST      | Analyze Failures | subagent | subagents:failure-analyzer | config   | `prompts/phases/3.2-analyze-failures.md` | `.agents/tmp/phases/3.1-test-results.json`                                       | `.agents/tmp/phases/3.2-analysis.md`       |
+| 3.3   | TEST      | Test Review      | review   | subagents:codex-reviewer   | inherit  | `prompts/phases/3.3-test-review.md`      | `.agents/tmp/phases/3.1-test-results.json`, `.agents/tmp/phases/3.2-analysis.md` | `.agents/tmp/phases/3.3-test-review.json`  |
+| 4.1   | FINAL     | Documentation    | subagent | subagents:doc-updater      | config   | `prompts/phases/4.1-documentation.md`    | `.agents/tmp/phases/1.2-plan.md`, `.agents/tmp/phases/2.1-tasks.json`            | `.agents/tmp/phases/4.1-docs.md`           |
+| 4.2   | FINAL     | Final Review     | review   | subagents:codex-reviewer   | inherit  | `prompts/phases/4.2-final-review.md`     | all `.agents/tmp/phases/*.json`                                                  | `.agents/tmp/phases/4.2-final-review.json` |
+| 4.3   | FINAL     | Completion       | subagent | subagents:completion-handler | config | `prompts/phases/4.3-completion.md`       | `.agents/tmp/phases/4.2-final-review.json`                                       | `.agents/tmp/phases/4.3-completion.json`   |
 
 ## Prompt Construction
 
@@ -53,19 +53,21 @@ Task: {value of state.json .task field}
 
 The `[PHASE {id}]` tag is required — the PreToolUse hook validates it.
 
+The agent's system prompt (defined in its `.md` file under `agents/`) provides behavioral instructions — role, process, output format, and constraints. The orchestrator prompt provides dynamic context: phase tag, task description, and input file contents.
+
 ## Dispatch Rules
 
+All phases dispatch to `subagents:*` custom agents via the Task tool.
+
 - **dispatch** phases (0, 1.2, 2.1): Read the prompt template for batch instructions. Dispatch multiple parallel subagents as specified in the template. Aggregate results into the expected output file.
-- **subagent** phases (1.1, 2.2, 3.2, 4.1, 4.3): Dispatch a single subagent with the constructed prompt.
+- **subagent** phases (1.1, 2.2, 3.1, 3.2, 4.1, 4.3): Dispatch a single subagent with the constructed prompt.
 - **review** phases (1.3, 2.3, 3.3, 4.2): Dispatch via `subagents:codex-reviewer` which routes to Codex MCP. Phase 4.2 uses `codex-xhigh`; all others use `codex-high`.
-- **command** phases (3.1): Dispatch a Bash subagent to execute test/lint commands.
 
 ## Model Selection
 
 - Phases marked `config`: Use the model from project configuration (`.claude/subagents-config.json`) or default to `inherit`.
 - Phases marked `inherit`: Use the parent conversation's model.
 - Phases marked `per-task`: Model varies per task based on complexity scoring.
-- Phases marked `—`: Not applicable (Bash commands).
 
 ## What NOT To Do
 

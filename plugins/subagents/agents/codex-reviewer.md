@@ -3,7 +3,7 @@ name: codex-reviewer
 description: Dispatches Codex MCP for code review during subagents workflow
 model: inherit
 color: blue
-tools: [Bash, Read, Grep, mcp__codex-high__codex, mcp__codex-xhigh__codex]
+tools: [mcp__codex-high__codex, mcp__codex-xhigh__codex]
 ---
 
 # Codex Reviewer Agent

@@ -206,7 +206,7 @@ Workflow state tracked in `.agents/tmp/state.json`:
 
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
-| ModelId   | `sonnet-4.5`, `opus-4.5`, `sonnet`, `opus`, `haiku` | Task tool `model` parameter |
+| ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
 | McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
 
 ## License

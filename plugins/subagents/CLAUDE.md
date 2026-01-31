@@ -49,43 +49,42 @@ All 13 phases run as subagents. No inline phases.
 
 ### Phase Types
 
-| Type       | Description                         | Examples                |
-| ---------- | ----------------------------------- | ----------------------- |
-| `dispatch` | Parallel batch (multiple subagents) | 0, 1.2, 2.1             |
-| `subagent` | Single subagent                     | 1.1, 2.2, 3.2, 4.1, 4.3 |
-| `review`   | Codex MCP review via codex-reviewer | 1.3, 2.3, 3.3, 4.2      |
-| `command`  | Bash command execution              | 3.1                     |
+| Type       | Description                         | Examples                      |
+| ---------- | ----------------------------------- | ----------------------------- |
+| `dispatch` | Parallel batch (multiple subagents) | 0, 1.2, 2.1                  |
+| `subagent` | Single subagent                     | 1.1, 2.2, 3.1, 3.2, 4.1, 4.3 |
+| `review`   | Codex MCP review via codex-reviewer | 1.3, 2.3, 3.3, 4.2           |
 
 ### EXPLORE Stage (Phase 0)
 
-- Dispatches 1-10 parallel Explore agents based on task complexity
+- Dispatches 1-10 parallel explorer agents based on task complexity
 - Output: `.agents/tmp/phases/0-explore.md`
 
 ### PLAN Stage (Phases 1.1-1.3)
 
-- 1.1: Brainstorm (general-purpose subagent)
-- 1.2: Parallel Plan agents for detailed planning
-- 1.3: Codex MCP review of plan
+- 1.1: Brainstorm via brainstormer agent
+- 1.2: Parallel planner agents for detailed planning
+- 1.3: Codex MCP review of plan via codex-reviewer agent
 - Output: `.agents/tmp/phases/1.2-plan.md`
 
 ### IMPLEMENT Stage (Phases 2.1-2.3)
 
-- 2.1: Wave-based task execution with dependency ordering
-- 2.2: Code simplification (code-simplifier subagent)
-- 2.3: Codex MCP implementation review
+- 2.1: Wave-based task execution via task-agent
+- 2.2: Code simplification via simplifier agent
+- 2.3: Codex MCP implementation review via codex-reviewer agent
 - Output: `.agents/tmp/phases/2.1-tasks.json`
 
 ### TEST Stage (Phases 3.1-3.3)
 
-- 3.1: Run lint and test commands (Bash)
-- 3.2: Analyze failures (general-purpose subagent)
-- 3.3: Codex MCP test review
+- 3.1: Run lint and test commands via test-runner agent
+- 3.2: Analyze failures via failure-analyzer agent
+- 3.3: Codex MCP test review via codex-reviewer agent
 
 ### FINAL Stage (Phases 4.1-4.3)
 
-- 4.1: Documentation updates (general-purpose subagent)
-- 4.2: Final Codex MCP review (codex-xhigh)
-- 4.3: Git branch and PR creation (Bash subagent)
+- 4.1: Documentation updates via doc-updater agent
+- 4.2: Final Codex MCP review via codex-reviewer agent (codex-xhigh)
+- 4.3: Git branch and PR creation via completion-handler agent
 
 ## Phase Prompt Templates
 
@@ -135,7 +134,7 @@ The `schedule` array in state lists every phase in execution order. Each entry h
 - `phase`: identifier (e.g., `"1.3"`)
 - `stage`: parent stage (`EXPLORE`, `PLAN`, `IMPLEMENT`, `TEST`, `FINAL`)
 - `name`: human-readable label
-- `type`: execution type (`dispatch`, `subagent`, `review`, `command`)
+- `type`: execution type (`dispatch`, `subagent`, `review`)
 
 ### Gates
 
@@ -155,7 +154,7 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
-| ModelId   | `sonnet-4.5`, `opus-4.5`, `sonnet`, `opus`, `haiku` | Task tool `model` parameter |
+| ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
 | McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
 
 ## Complexity Scoring
@@ -184,5 +183,33 @@ Task complexity determines model selection during Phase 2.1:
 
 ## Agents
 
-- `task-agent.md` - Task execution agent for Phase 2.1
-- `codex-reviewer.md` - Review agent dispatching to Codex MCP
+All agents are custom subagent definitions in `agents/`. Each agent's `.md` file contains YAML frontmatter (name, description, tools) and a system prompt with role, process, output format, and constraints.
+
+### Pre-Workflow Agents
+
+Dispatched by the dispatch command before the orchestrator loop starts:
+
+| Agent File             | Purpose                                              |
+| ---------------------- | ---------------------------------------------------- |
+| `env-check.md`         | Probes Codex MCP availability (sonnet)               |
+| `init-codex.md`        | Workflow init with Codex task analysis                |
+| `init-claude.md`       | Workflow init with Claude reasoning (Codex fallback)  |
+
+Flow: `env-check` → if codex available → `init-codex`, else → `init-claude`
+
+### Phase Agents
+
+Dispatched by the orchestrator loop during workflow execution:
+
+| Agent File             | Phase(s)            | Purpose                                 |
+| ---------------------- | ------------------- | --------------------------------------- |
+| `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
+| `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
+| `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
+| `codex-reviewer.md`    | 1.3, 2.3, 3.3, 4.2 | Codex MCP review dispatch               |
+| `task-agent.md`        | 2.1                 | Task execution (wave-based parallel)    |
+| `simplifier.md`        | 2.2                 | Code simplification                     |
+| `test-runner.md`       | 3.1                 | Lint and test execution                 |
+| `failure-analyzer.md`  | 3.2                 | Test failure analysis and fixes         |
+| `doc-updater.md`       | 4.1                 | Documentation updates                   |
+| `completion-handler.md`| 4.3                 | Git branch, commit, and PR creation     |
