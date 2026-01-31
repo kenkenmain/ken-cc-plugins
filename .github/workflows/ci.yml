@@ -42,6 +42,33 @@ jobs:
             fi
           done
 
+      - name: Check agents directory reference
+        run: |
+          for plugin_dir in plugins/*/; do
+            if [ -d "$plugin_dir" ]; then
+              plugin_name=$(basename "$plugin_dir")
+              plugin_json="${plugin_dir}.claude-plugin/plugin.json"
+              [ -f "$plugin_json" ] || continue
+
+              agents_ref=$(python3 -c "import json; print(json.load(open('$plugin_json')).get('agents', ''))")
+              if [ -n "$agents_ref" ]; then
+                agents_path="${plugin_dir}${agents_ref#./}"
+                if [ ! -d "$agents_path" ]; then
+                  echo "ERROR: $plugin_name agents path '$agents_ref' resolves to $agents_path which does not exist"
+                  exit 1
+                fi
+
+                # Count agent files
+                agent_count=$(find "$agents_path" -name "*.md" -type f | wc -l)
+                if [ "$agent_count" -eq 0 ]; then
+                  echo "ERROR: $plugin_name agents directory $agents_path contains no .md files"
+                  exit 1
+                fi
+                echo "✓ $plugin_name: agents directory valid ($agent_count agent files)"
+              fi
+            fi
+          done
+
       - name: Check version format (semver)
         run: |
           for plugin_json in plugins/*/.claude-plugin/plugin.json; do
@@ -302,6 +329,301 @@ jobs:
             exit 1
           fi
           echo "SUCCESS: All phase templates have correct tags"
+
+  validate-subagents:
+    name: Validate Subagents Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Phase ID consistency (schedule.sh vs template files)
+        run: |
+          echo "Checking phase IDs in schedule.sh match template files..."
+          errors=0
+          plugin_dir="plugins/subagents"
+          schedule_sh="$plugin_dir/hooks/lib/schedule.sh"
+          phases_dir="$plugin_dir/prompts/phases"
+
+          if [ ! -f "$schedule_sh" ] || [ ! -d "$phases_dir" ]; then
+            echo "SKIP: subagents plugin not found or missing schedule.sh/phases dir"
+            exit 0
+          fi
+
+          # Extract phase IDs from get_phase_output() case statement
+          output_phases=$(grep -oP '^\s+[\d.]+\)' "$schedule_sh" | head -20 | tr -d ' )' | sort -u)
+
+          # Extract phase IDs from template filenames (e.g., "1.2-plan.md" → "1.2")
+          template_phases=""
+          for f in "$phases_dir"/*.md; do
+            [ -f "$f" ] || continue
+            fname=$(basename "$f")
+            phase_id=$(echo "$fname" | sed -E 's/^([0-9]+(\.[0-9]+)?).*/\1/')
+            template_phases="$template_phases $phase_id"
+          done
+          template_phases=$(echo "$template_phases" | tr ' ' '\n' | sort -u | grep -v '^$')
+
+          # Check every template phase has a schedule.sh entry
+          for phase in $template_phases; do
+            if ! echo "$output_phases" | grep -qx "$phase"; then
+              echo "ERROR: Phase template $phase exists but no entry in schedule.sh get_phase_output()"
+              errors=$((errors + 1))
+            fi
+          done
+
+          # Check every schedule.sh phase has a template
+          for phase in $output_phases; do
+            found=false
+            for f in "$phases_dir"/${phase}-*.md "$phases_dir"/${phase}.md; do
+              [ -f "$f" ] && found=true && break
+            done
+            if [ "$found" = "false" ]; then
+              echo "ERROR: schedule.sh references phase $phase but no template file found in prompts/phases/"
+              errors=$((errors + 1))
+            fi
+          done
+
+          # Verify all 3 case statements in schedule.sh have the same phase set
+          output_count=$(grep -c '^\s\+[0-9]' "$schedule_sh" | head -1 || true)
+          funcs=("get_phase_output" "get_phase_template" "get_phase_input_files")
+          for func in "${funcs[@]}"; do
+            func_phases=$(awk "/^${func}\(\)/,/^}/" "$schedule_sh" | grep -oP '^\s+[\d.]+\)' | tr -d ' )' | sort -u)
+            for phase in $output_phases; do
+              if ! echo "$func_phases" | grep -qx "$phase"; then
+                echo "ERROR: Phase $phase missing from $func() in schedule.sh"
+                errors=$((errors + 1))
+              fi
+            done
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors phase ID consistency error(s)"
+            exit 1
+          fi
+          echo "SUCCESS: All phase IDs consistent between schedule.sh and template files"
+
+      - name: Phase tag matches filename
+        run: |
+          echo "Checking [PHASE X.Y] tags match filenames..."
+          errors=0
+          phases_dir="plugins/subagents/prompts/phases"
+
+          if [ ! -d "$phases_dir" ]; then
+            echo "SKIP: No phases directory"
+            exit 0
+          fi
+
+          for template in "$phases_dir"/*.md; do
+            [ -f "$template" ] || continue
+            fname=$(basename "$template")
+            expected_phase=$(echo "$fname" | sed -E 's/^([0-9]+(\.[0-9]+)?).*/\1/')
+
+            # Extract actual phase tag from file content
+            actual_tag=$(grep -oP '\[PHASE [0-9.]+\]' "$template" | head -1 | grep -oP '[0-9.]+')
+
+            if [ -z "$actual_tag" ]; then
+              echo "ERROR: $fname has no [PHASE X.Y] tag"
+              errors=$((errors + 1))
+            elif [ "$actual_tag" != "$expected_phase" ]; then
+              echo "ERROR: $fname has [PHASE $actual_tag] but filename implies phase $expected_phase"
+              errors=$((errors + 1))
+            else
+              echo "✓ $fname: [PHASE $actual_tag] matches"
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors phase tag mismatch(es)"
+            exit 1
+          fi
+          echo "SUCCESS: All phase tags match filenames"
+
+      - name: Agent frontmatter validation
+        run: |
+          echo "Validating agent .md frontmatter..."
+          errors=0
+          agents_dir="plugins/subagents/agents"
+
+          if [ ! -d "$agents_dir" ]; then
+            echo "SKIP: No agents directory"
+            exit 0
+          fi
+
+          for agent_file in "$agents_dir"/*.md; do
+            [ -f "$agent_file" ] || continue
+            fname=$(basename "$agent_file")
+
+            # Check frontmatter exists (starts with ---)
+            if ! head -1 "$agent_file" | grep -q '^---$'; then
+              echo "ERROR: $fname missing YAML frontmatter"
+              errors=$((errors + 1))
+              continue
+            fi
+
+            # Extract frontmatter (between first two --- lines)
+            frontmatter=$(awk '/^---$/{n++; next} n==1{print} n==2{exit}' "$agent_file")
+
+            # Check required fields
+            for field in name description tools; do
+              if ! echo "$frontmatter" | grep -q "^${field}:"; then
+                echo "ERROR: $fname missing required frontmatter field: $field"
+                errors=$((errors + 1))
+              fi
+            done
+
+            # Validate model field if present (must be valid ModelId)
+            model_val=$(echo "$frontmatter" | grep '^model:' | sed 's/model:\s*//')
+            if [ -n "$model_val" ]; then
+              case "$model_val" in
+                inherit|sonnet|opus|haiku|sonnet-4.5|opus-4.5|haiku-4.5) ;;
+                *)
+                  echo "ERROR: $fname has invalid model '$model_val' (valid: inherit, sonnet, opus, haiku, sonnet-4.5, opus-4.5, haiku-4.5)"
+                  errors=$((errors + 1))
+                  ;;
+              esac
+            fi
+
+            echo "✓ $fname: frontmatter valid"
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors agent frontmatter error(s)"
+            exit 1
+          fi
+          echo "SUCCESS: All agent frontmatter validated"
+
+      - name: Gate output file cross-reference
+        run: |
+          echo "Checking gate required files match phase outputs..."
+          errors=0
+          schedule_sh="plugins/subagents/hooks/lib/schedule.sh"
+
+          if [ ! -f "$schedule_sh" ]; then
+            echo "SKIP: schedule.sh not found"
+            exit 0
+          fi
+
+          # Build map of phase → output file from get_phase_output()
+          declare -A phase_outputs
+          while IFS= read -r line; do
+            phase=$(echo "$line" | grep -oP '^\s+[\d.]+' | tr -d ' ')
+            output=$(echo "$line" | grep -oP '"[^"]*"' | tr -d '"')
+            if [ -n "$phase" ] && [ -n "$output" ]; then
+              phase_outputs[$phase]="$output"
+            fi
+          done < <(awk '/^get_phase_output\(\)/,/^}/' "$schedule_sh" | grep ')')
+
+          # Extract gate required files from state-manager SKILL.md and dispatch.md
+          # Check dispatch.md (has the canonical gate definitions used at runtime)
+          for gate_file in plugins/subagents/commands/dispatch.md plugins/subagents/skills/state-manager/SKILL.md; do
+            if [ ! -f "$gate_file" ]; then continue; fi
+
+            # Extract files from "required": ["file1", "file2"] patterns
+            gate_files=$(grep -oP '"required":\s*\[[^\]]+\]' "$gate_file" | grep -oP '"[^"]*\.(json|md)"' | tr -d '"' | sort -u)
+
+            for gf in $gate_files; do
+              found=false
+              for phase in "${!phase_outputs[@]}"; do
+                if [ "${phase_outputs[$phase]}" = "$gf" ]; then
+                  found=true
+                  break
+                fi
+              done
+              if [ "$found" = "false" ]; then
+                echo "ERROR: Gate requires '$gf' but no phase in schedule.sh produces it (in $gate_file)"
+                errors=$((errors + 1))
+              else
+                echo "✓ Gate file '$gf' produced by phase"
+              fi
+            done
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors gate cross-reference error(s)"
+            exit 1
+          fi
+          echo "SUCCESS: All gate required files have matching phase outputs"
+
+      - name: Hook library sourcing validation
+        run: |
+          echo "Checking hook scripts source required libraries..."
+          errors=0
+          hooks_dir="plugins/subagents/hooks"
+
+          if [ ! -d "$hooks_dir" ]; then
+            echo "SKIP: No hooks directory"
+            exit 0
+          fi
+
+          # Check each hook script's source statements
+          for hook_script in "$hooks_dir"/*.sh; do
+            [ -f "$hook_script" ] || continue
+            fname=$(basename "$hook_script")
+
+            # Find source/. statements
+            while IFS= read -r source_line; do
+              # Extract the file path from source "$SCRIPT_DIR/lib/foo.sh" patterns
+              sourced_file=$(echo "$source_line" | grep -oP '(source|\.)\s+"?\$SCRIPT_DIR/[^"]+' | sed 's/^(source|\.) "//' | sed 's/\$SCRIPT_DIR//')
+              if [ -z "$sourced_file" ]; then continue; fi
+
+              # Resolve relative to hooks dir
+              resolved="$hooks_dir$sourced_file"
+              if [ ! -f "$resolved" ]; then
+                echo "ERROR: $fname sources '$sourced_file' but $resolved does not exist"
+                errors=$((errors + 1))
+              else
+                echo "✓ $fname: $sourced_file exists"
+              fi
+            done < <(grep -E '^\s*(source|\.)' "$hook_script" || true)
+          done
+
+          # Check that every lib/*.sh is sourced by at least one hook
+          for lib_file in "$hooks_dir"/lib/*.sh; do
+            [ -f "$lib_file" ] || continue
+            lib_name=$(basename "$lib_file")
+            if ! grep -rl "lib/$lib_name" "$hooks_dir"/*.sh > /dev/null 2>&1; then
+              echo "WARNING: $lib_name exists in lib/ but is not sourced by any hook script"
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors hook sourcing error(s)"
+            exit 1
+          fi
+          echo "SUCCESS: All hook library sources validated"
+
+      - name: Skill frontmatter validation
+        run: |
+          echo "Validating skill SKILL.md frontmatter..."
+          errors=0
+
+          for skill_file in plugins/subagents/skills/*/SKILL.md; do
+            [ -f "$skill_file" ] || continue
+            skill_name=$(basename "$(dirname "$skill_file")")
+
+            if ! head -1 "$skill_file" | grep -q '^---$'; then
+              echo "ERROR: $skill_name/SKILL.md missing YAML frontmatter"
+              errors=$((errors + 1))
+              continue
+            fi
+
+            frontmatter=$(awk '/^---$/{n++; next} n==1{print} n==2{exit}' "$skill_file")
+
+            for field in name description; do
+              if ! echo "$frontmatter" | grep -q "^${field}:"; then
+                echo "ERROR: $skill_name/SKILL.md missing required field: $field"
+                errors=$((errors + 1))
+              fi
+            done
+
+            echo "✓ $skill_name/SKILL.md: frontmatter valid"
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "FAILED: $errors skill frontmatter error(s)"
+            exit 1
+          fi
+          echo "SUCCESS: All skill frontmatter validated"
 
   lint-markdown:
     name: Lint Markdown
