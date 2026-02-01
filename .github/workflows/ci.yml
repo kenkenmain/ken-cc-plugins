@@ -170,8 +170,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for version bumps on changed plugins
+      - name: Enforce version bump on changed plugins
         run: |
+          errors=0
+
           # Get list of changed files
           changed_files=$(git diff --name-only origin/main...HEAD)
 
@@ -198,14 +200,24 @@ jobs:
               base_version=$(git show origin/main:$plugin_json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('version', ''))" 2>/dev/null || echo "0.0.0")
 
               if [ "$current_version" = "$base_version" ]; then
-                echo "WARNING: Plugin '$plugin_name' was modified but version was not bumped"
+                echo "ERROR: Plugin '$plugin_name' was modified but version was not bumped"
                 echo "  Current version: $current_version"
-                echo "  Consider bumping the version in $plugin_json"
+                echo "  Bump the version in $plugin_json and .claude-plugin/marketplace.json"
+                errors=$((errors + 1))
               else
                 echo "✓ Plugin '$plugin_name' version bumped: $base_version -> $current_version"
               fi
             fi
           done
+
+          if [ $errors -gt 0 ]; then
+            echo ""
+            echo "FAILED: $errors plugin(s) modified without version bump"
+            echo "Every PR that changes plugin files must bump the version in both:"
+            echo "  1. plugins/<name>/.claude-plugin/plugin.json"
+            echo "  2. .claude-plugin/marketplace.json"
+            exit 1
+          fi
 
   validate-hooks:
     name: Validate Hook Scripts
