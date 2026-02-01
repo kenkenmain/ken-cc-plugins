@@ -45,13 +45,14 @@ Use `--no-worktree` to skip worktree creation and work directly in the project d
 
 ## Hooks
 
-Three shell hooks enforce the workflow:
+Four shell hooks enforce the workflow:
 
 | Hook                  | Event        | Purpose                                                          |
 | --------------------- | ------------ | ---------------------------------------------------------------- |
 | `on-subagent-stop.sh` | SubagentStop | Validate output, check gates, advance state, Codex fallback      |
 | `on-stop.sh`          | Stop         | Generate phase-specific prompt (Ralph-style loop driver)          |
-| `on-task-dispatch.sh` | PreToolUse   | Validate Task dispatches match expected phase                    |
+| `on-task-dispatch.sh` | PreToolUse   | Validate Task dispatches match expected phase + enforce background dispatch for Codex agents |
+| `on-codex-guard.sh`   | PreToolUse   | Block direct Codex MCP calls, force background dispatch pattern  |
 
 Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh).
 
@@ -134,18 +135,38 @@ State always initializes with `codexAvailable: true` and Codex reviewer agents c
 
 ## Codex Timeout & Fallback
 
-Three-layer defense against Codex MCP hangs:
+Four-layer defense against Codex MCP hangs:
+
+### Layer 0: Hook-Enforced Background Dispatch (Mechanical Guard)
+
+PreToolUse hooks (`on-codex-guard.sh` + `on-task-dispatch.sh`) mechanically block:
+- Direct `mcp__codex-xhigh__codex` / `mcp__codex-high__codex` calls during active workflow
+- Codex agent Task dispatches without `run_in_background: true`
+
+This is the **only layer that doesn't depend on Claude following prompt instructions**. It forces all Codex MCP usage through background-dispatched Task agents, making Layer 2 timeout mechanically enforceable.
 
 ### Layer 1: Prompt-Level Time Limit
 
 All Codex agent prompts include "TIME LIMIT: Complete within 10 minutes." This is a soft hint — the model may not respect it.
 
-### Layer 2: Background Dispatch + TaskOutput Timeout
+### Layer 2: Background Dispatch + Phase-Aware TaskOutput Timeout
 
 For phases using Codex agents, the generated orchestrator prompt instructs:
-1. Dispatch via Task with `run_in_background: true`
-2. Poll with `TaskOutput(task_id, block=true, timeout=600000)` (10 min)
+1. Dispatch via Task with `run_in_background: true` (enforced by Layer 0 hooks)
+2. Poll with `TaskOutput(task_id, block=true, timeout=<phase_timeout>)`
 3. On timeout: `TaskStop(task_id)` + write `{"codexTimeout": true}` error JSON
+
+**Phase-aware timeouts** (via `get_phase_timeout()` in `schedule.sh`):
+
+| Phase Type     | Timeout      | Rationale                                |
+| -------------- | ------------ | ---------------------------------------- |
+| Review         | 5 min        | Reviews should be fast; fall back quickly |
+| Final Review   | 10-15 min    | Scales by code size: <500 LOC → 10 min, ≥500 LOC → 15 min |
+| Implementation | 30 min       | Codex coding needs time; don't kill active work |
+| Test           | 10 min       | Medium complexity                        |
+| Default        | 5 min        | Safe fallback                            |
+
+Final review timeout is determined by `_git_loc_changed()` which checks `git diff` against the merge base. Override with `state.codexTimeout.finalReviewPhases` (ms) to set a fixed value.
 
 ### Layer 3: Retry Tracking + Auto Claude Fallback
 
@@ -157,8 +178,9 @@ For phases using Codex agents, the generated orchestrator prompt instructs:
 
 ```
 Codex phase dispatch:
+  Layer 0: Hook blocks direct MCP calls + non-background dispatches
   Layer 1: Prompt says "complete within 10 min"
-  Layer 2: Background dispatch with 10-min timeout
+  Layer 2: Background dispatch with phase-aware timeout (5-30 min)
            → Success: proceed normally
            → Timeout: cancel + write {"codexTimeout": true}
   Layer 3: SubagentStop detects timeout marker
@@ -201,7 +223,7 @@ Key state fields:
 - `gates`: Map of stage transitions to required output files
 - `stages`: Per-stage status, phases, and restart counts
 - `worktree`: (optional) `{ path, branch, createdAt }` — present when worktree isolation is active
-- `codexTimeout`: `{ reviewPhases, testPhases, explorePhases, maxRetries }` — timeout config (ms)
+- `codexTimeout`: `{ reviewPhases, finalReviewPhases, implementPhases, testPhases, explorePhases, maxRetries }` — timeout config (ms)
 - `codexFallback`: (optional) `{ switchedAt, reason }` — present after auto-fallback to Claude
 - `coverageThreshold`: target test coverage percentage (default: 90)
 - `coverageLoop`: (optional) tracks 3.3→3.5 iteration when coverage below threshold (max 20 iterations)

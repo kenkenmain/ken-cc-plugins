@@ -2,6 +2,9 @@
 # on-task-dispatch.sh -- PreToolUse hook that validates Task tool calls match
 # the expected current workflow phase. Adds contextual guidance when the phase
 # tag is missing but does NOT block execution (lenient enforcement).
+#
+# Also enforces run_in_background: true for Codex agent dispatches to prevent
+# synchronous MCP calls that can hang indefinitely without timeout protection.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -55,26 +58,40 @@ if [[ -z "$CURRENT_PHASE" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Extract the subagent prompt from the tool input
+# 5. Enforce run_in_background for Codex agent dispatches
+# ---------------------------------------------------------------------------
+SUBAGENT_TYPE="$(echo "$INPUT" | jq -r '.tool_input.subagent_type // ""')"
+RUN_IN_BG="$(echo "$INPUT" | jq -r '.tool_input.run_in_background // false')"
+
+if [[ "$SUBAGENT_TYPE" == *"codex"* && "$RUN_IN_BG" != "true" ]]; then
+  jq -n --arg agent "$SUBAGENT_TYPE" '{
+    "decision": "block",
+    "reason": ("Codex agent \"" + $agent + "\" must use run_in_background: true for timeout protection. Re-dispatch with:\n  Task(subagent_type=\"" + $agent + "\", run_in_background=true, prompt=\"...\")\nThen poll:\n  TaskOutput(task_id, block=true, timeout=300000)\nThis prevents indefinite hangs when the Codex MCP server is unresponsive.")
+  }'
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Extract the subagent prompt from the tool input
 # ---------------------------------------------------------------------------
 PROMPT="$(echo "$INPUT" | jq -r '.tool_input.prompt // ""')"
 
 # ---------------------------------------------------------------------------
-# 6. Check if the prompt contains the correct phase tag
+# 7. Check if the prompt contains the correct phase tag
 # ---------------------------------------------------------------------------
 if echo "$PROMPT" | grep -qF "[PHASE $CURRENT_PHASE]"; then
   exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Batch phases dispatch multiple parallel subagents -- always allow
+# 8. Batch phases dispatch multiple parallel subagents -- always allow
 # ---------------------------------------------------------------------------
 case "$CURRENT_PHASE" in
   0|1.2|2.1) exit 0 ;;
 esac
 
 # ---------------------------------------------------------------------------
-# 8. Missing phase tag on a non-batch phase -- provide context (do not block)
+# 9. Missing phase tag on a non-batch phase -- provide context (do not block)
 # ---------------------------------------------------------------------------
 EXPECTED_OUTPUT="$(get_phase_output "$CURRENT_PHASE")"
 
@@ -89,6 +106,6 @@ jq -n \
   }'
 
 # ---------------------------------------------------------------------------
-# 9. Allow execution (exit 0 = do not block)
+# 10. Allow execution (exit 0 = do not block)
 # ---------------------------------------------------------------------------
 exit 0
