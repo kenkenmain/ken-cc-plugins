@@ -98,7 +98,7 @@ Certain phases dispatch additional agents **in parallel** alongside the primary 
 
 | Phase | Primary Agent              | Supplementary Agents (parallel)                             | Aggregation                                                      |
 | ----- | -------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| 0     | `subagents:explorer`       | `subagents:deep-explorer`                                   | Append deep explorer output to primary explore output            |
+| 0     | `subagents:explorer`       | `subagents:codex-deep-explorer` (Codex) / `subagents:deep-explorer` (fallback) | Append deep explorer output to primary explore output |
 | 1.2   | `subagents:planner`        | `subagents:architecture-analyst`                            | Merge architecture blueprint into plan                           |
 | 2.3   | `state.reviewer`           | `subagents:code-quality-reviewer`, `subagents:error-handling-reviewer`, `subagents:type-reviewer` | Merge issues into single review JSON |
 | 4.1   | `subagents:doc-updater`    | `subagents:claude-md-updater`                               | Run independently — doc-updater handles code docs, claude-md-updater handles CLAUDE.md |

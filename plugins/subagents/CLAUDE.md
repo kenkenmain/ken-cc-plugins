@@ -71,7 +71,7 @@ All 15 phases run as subagents. No inline phases.
 ### EXPLORE Stage (Phase 0)
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
-- **Supplementary:** `subagents:deep-explorer` runs in parallel for deep architecture tracing
+- **Supplementary:** `subagents:codex-deep-explorer` (Codex available) or `subagents:deep-explorer` (fallback) for deep architecture tracing
 - Output: `.agents/tmp/phases/0-explore.md`
 
 ### PLAN Stage (Phases 1.1-1.3)
@@ -228,7 +228,8 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 
 | Agent                              | Replaces                                | Phases    |
 | ---------------------------------- | --------------------------------------- | --------- |
-| `subagents:deep-explorer`          | `feature-dev:code-explorer`             | 0         |
+| `subagents:codex-deep-explorer`    | `feature-dev:code-explorer` (Codex)     | 0         |
+| `subagents:deep-explorer`          | `feature-dev:code-explorer` (fallback)  | 0         |
 | `subagents:architecture-analyst`   | `feature-dev:code-architect`            | 1.2       |
 | `subagents:code-quality-reviewer`  | `pr-review-toolkit:code-reviewer`       | 2.3, 4.2  |
 | `subagents:error-handling-reviewer` | `pr-review-toolkit:silent-failure-hunter` | 2.3     |
@@ -281,7 +282,8 @@ Dispatched by the orchestrator loop during workflow execution:
 | Agent File             | Phase(s)            | Purpose                                 |
 | ---------------------- | ------------------- | --------------------------------------- |
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
-| `deep-explorer.md`     | 0                   | Deep architecture tracing (supplementary) |
+| `deep-explorer.md`     | 0                   | Deep architecture tracing (Codex fallback) |
+| `codex-deep-explorer.md` | 0                 | Deep architecture tracing via Codex MCP   |
 | `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
 | `architecture-analyst.md` | 1.2              | Architecture blueprint (supplementary)  |
