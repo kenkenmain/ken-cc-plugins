@@ -30,9 +30,9 @@ Display merged config and exit:
 
 ```
 Complexity Scoring:
-  Easy: codex-high (via task-agent wrapper)
-  Medium: codex-high (via task-agent wrapper)
-  Hard: codex-high (via task-agent wrapper)
+  Easy: sonnet-task-agent (direct execution, model=sonnet)
+  Medium: opus-task-agent (direct execution, model=opus)
+  Hard: codex-task-agent (codex-high MCP wrapper)
 
 Stages:
   EXPLORE:   enabled=true, maxParallelAgents=10
@@ -68,11 +68,11 @@ Use AskUserQuestion to configure:
 - header: "Complexity"
 - options:
   - label: "Easy tasks"
-    description: "Currently: codex-high (via task-agent wrapper)"
+    description: "Currently: sonnet-task-agent (direct, model=sonnet)"
   - label: "Medium tasks"
-    description: "Currently: codex-high (via task-agent wrapper)"
+    description: "Currently: opus-task-agent (direct, model=opus)"
   - label: "Hard tasks"
-    description: "Currently: codex-high (via task-agent wrapper)"
+    description: "Currently: codex-task-agent (codex-high MCP)"
 
 ### Test Stage
 

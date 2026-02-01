@@ -1,12 +1,12 @@
 ---
-description: Start a subagent workflow with Codex MCP defaults (use dispatch-claude for Claude-only)
+description: Start a subagent workflow using Claude agents only (no Codex MCP)
 argument-hint: <task description> [--no-test] [--no-worktree] [--no-web-search] [--profile minimal|standard|thorough] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
-# Dispatch Subagent Workflow
+# Dispatch Subagent Workflow (Claude-Only)
 
-Start a workflow for complex task execution with parallel subagents and file-based state.
+Start a workflow for complex task execution with parallel subagents and file-based state. Uses Claude agents only — no Codex MCP dependency.
 
 ## Arguments
 
@@ -36,16 +36,16 @@ Pass this value as `ownerPpid` to the init agent. This enables session scoping �
 
 Use `state-manager` skill to create `.agents/tmp/state.json`.
 
-Dispatch `subagents:init-claude` with task description, ownerPpid, `codexMode: true`, and parsed flags (including `--no-worktree` if set). The init agent creates the worktree (unless `--no-worktree`), analyzes the task, and writes initial state with **optimistic Codex defaults** (Codex agents configured by default — runtime fallback handles unavailability):
+Dispatch `subagents:init-claude` with task description, ownerPpid, `codexMode: false`, and parsed flags (including `--no-worktree` if set). The init agent creates the worktree (unless `--no-worktree`), analyzes the task, and writes initial state with **Claude-only defaults**:
 
-- `codexAvailable: true`
-- `reviewer: "subagents:codex-reviewer"`
-- `failureAnalyzer: "subagents:codex-failure-analyzer"`
-- `difficultyEstimator: "subagents:codex-difficulty-estimator"`
-- `testDeveloper: "subagents:codex-test-developer"`
-- `docUpdater: "subagents:codex-doc-updater"`
-- `codexTimeout` block with phase-aware timeouts
-- Hard tasks route to `codex-task-agent`
+- `codexAvailable: false`
+- `reviewer: "subagents:claude-reviewer"`
+- `failureAnalyzer: "subagents:failure-analyzer"`
+- `difficultyEstimator: "subagents:difficulty-estimator"`
+- `testDeveloper: "subagents:test-developer"`
+- `docUpdater: "subagents:doc-updater"`
+- No `codexTimeout` block in state
+- Hard tasks route to `opus-task-agent` instead of `codex-task-agent`
 
 Build the `schedule` array from the full phase list, filtering out disabled stages:
 
@@ -65,12 +65,12 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
   "currentStage": "EXPLORE",
   "currentPhase": "0",
   "ownerPpid": "<captured from Step 1.5>",
-  "codexAvailable": true,
-  "reviewer": "subagents:codex-reviewer",
-  "failureAnalyzer": "subagents:codex-failure-analyzer",
-  "difficultyEstimator": "subagents:codex-difficulty-estimator",
-  "testDeveloper": "subagents:codex-test-developer",
-  "docUpdater": "subagents:codex-doc-updater",
+  "codexAvailable": false,
+  "reviewer": "subagents:claude-reviewer",
+  "failureAnalyzer": "subagents:failure-analyzer",
+  "difficultyEstimator": "subagents:difficulty-estimator",
+  "testDeveloper": "subagents:test-developer",
+  "docUpdater": "subagents:doc-updater",
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
     { "phase": "1.1", "stage": "PLAN", "name": "Brainstorm", "type": "subagent" },
@@ -125,8 +125,8 @@ Set `stages.TEST.enabled: false` if `--no-test`.
 Show the user the planned execution order and gate checkpoints:
 
 ```
-Workflow Schedule ({N} phases)
-==============================
+Workflow Schedule ({N} phases) [Claude-only mode]
+==================================================
 Phase 0   │ EXPLORE   │ Explore                 │ dispatch  ← GATE: EXPLORE→PLAN
 Phase 1.1 │ PLAN      │ Brainstorm              │ subagent
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch

@@ -1,7 +1,7 @@
 ---
 name: test-developer
 description: "Writes tests and CI configuration iteratively until coverage threshold is met. Use proactively after initial test run reveals coverage gaps."
-model: inherit
+model: sonnet
 color: yellow
 tools: [Read, Write, Edit, Bash, Glob, Grep, WebSearch]
 ---

@@ -216,7 +216,9 @@ teardown() {
 }
 
 @test "is_supplementary_agent: rejects primary agents" {
-  ! is_supplementary_agent "subagents:task-agent"
+  ! is_supplementary_agent "subagents:sonnet-task-agent"
+  ! is_supplementary_agent "subagents:opus-task-agent"
+  ! is_supplementary_agent "subagents:codex-task-agent"
   ! is_supplementary_agent "subagents:completion-handler"
   ! is_supplementary_agent "subagents:planner"
   ! is_supplementary_agent ""

@@ -21,6 +21,7 @@ You are a thin dispatch layer. Your job is to pass the complexity scoring task t
 1. Build the scoring prompt including:
    - Path to the implementation plan
    - Classification criteria (easy/medium/hard)
+   - Agent mapping per complexity level
    - Required output format
 
 2. Dispatch to Codex MCP:
@@ -32,8 +33,9 @@ mcp__codex-high__codex(
     Score implementation task complexity from the plan at .agents/tmp/phases/1.2-plan.md.
     Use prompts/complexity-scoring.md criteria.
     For each task evaluate: file count, LOC estimate, dependencies, risk factors.
-    Classify as easy, medium, or hard. All levels use codex-high via task-agent wrapper.
-    Return JSON: { tasks: [{ taskId, complexity, reasoning, execution, model, fileCount, locEstimate, riskFactors }], summary: { easy, medium, hard, total } }",
+    Classify as easy, medium, or hard.
+    Agent routing: easy → sonnet-task-agent (direct, model=sonnet), medium → opus-task-agent (direct, model=opus), hard → codex-task-agent (codex-mcp, model=null).
+    Return JSON: { tasks: [{ taskId, complexity, reasoning, execution, model, agent, fileCount, locEstimate, riskFactors }], summary: { easy, medium, hard, total } }",
   cwd: "{working directory}"
 )
 ```
@@ -51,8 +53,9 @@ Write JSON to the output file:
       "taskId": "<id>",
       "complexity": "easy | medium | hard",
       "reasoning": "<one line explanation>",
-      "execution": "task-agent | codex-mcp",
-      "model": null,
+      "execution": "direct | codex-mcp",
+      "model": "sonnet | opus | null",
+      "agent": "sonnet-task-agent | opus-task-agent | codex-task-agent",
       "fileCount": 1,
       "locEstimate": 30,
       "riskFactors": []

@@ -93,8 +93,7 @@ When Codex finds issues (status: "needs_revision" or "blocked"):
    Task(
      description: "Fix: {issue summary}",
      prompt: "{issue details}",
-     subagent_type: "subagents:task-agent",
-     model: "opus-4.5"
+     subagent_type: "subagents:opus-task-agent"
    )
    ```
 3. After fixes applied, workflow re-dispatches this reviewer

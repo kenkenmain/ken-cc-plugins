@@ -2,7 +2,7 @@
 # on-orchestrator-guard.sh -- PreToolUse hook that blocks the orchestrator from
 # directly editing code files during an active workflow.
 #
-# Problem: The orchestrator should dispatch subagents (task-agent, fix-dispatcher)
+# Problem: The orchestrator should dispatch subagents (task agents, fix-dispatcher)
 # for all code changes. Nothing previously prevented Claude from using Edit/Write
 # directly, bypassing the subagent architecture entirely.
 #
@@ -82,7 +82,7 @@ jq -n \
   --arg file "$FILE_PATH" \
   '{
     "decision": "block",
-    "reason": ("Direct " + $tool + " to code files is blocked during active workflow (phase " + $phase + "). The orchestrator must dispatch subagents for all code changes.\n\nBlocked file: " + $file + "\n\nCorrect pattern:\n1. For implementation phases: dispatch subagents:task-agent via Task tool\n2. For review-fix cycles: dispatch subagents:fix-dispatcher via Task tool\n3. Only .agents/tmp/ files (state, phase outputs) can be written directly\n\nThe orchestrator is a thin dispatcher — read state, dispatch subagents, let hooks advance.")
+    "reason": ("Direct " + $tool + " to code files is blocked during active workflow (phase " + $phase + "). The orchestrator must dispatch subagents for all code changes.\n\nBlocked file: " + $file + "\n\nCorrect pattern:\n1. For implementation phases: dispatch task agents (sonnet-task-agent, opus-task-agent, or codex-task-agent) via Task tool\n2. For review-fix cycles: dispatch subagents:fix-dispatcher via Task tool\n3. Only .agents/tmp/ files (state, phase outputs) can be written directly\n\nThe orchestrator is a thin dispatcher — read state, dispatch subagents, let hooks advance.")
   }'
 
 exit 0

@@ -297,8 +297,9 @@ get_phase_type() {
 
 # ---------------------------------------------------------------------------
 # get_phase_subagent <phase> -- Return the subagent_type for a phase.
-#   For review phases, reads state.reviewer. For test phases, reads
-#   state.testRunner/failureAnalyzer. For others, uses hardcoded mapping.
+#   For review phases, reads state.reviewer. For test phases (3.1, 3.3),
+#   reads state.testDeveloper. For 3.2, reads state.failureAnalyzer.
+#   For doc phase (4.1), reads state.docUpdater. Others use hardcoded mapping.
 # ---------------------------------------------------------------------------
 get_phase_subagent() {
   local phase="${1:?get_phase_subagent requires a phase ID}"
@@ -315,12 +316,12 @@ get_phase_subagent() {
     0)   echo "subagents:explorer" ;;
     1.1) echo "subagents:brainstormer" ;;
     1.2) echo "subagents:planner" ;;
-    2.1) echo "subagents:task-agent" ;;
+    2.1) echo "subagents:sonnet-task-agent" ;;  # default/easy; orchestrator routes per-task
     2.2) echo "subagents:simplifier" ;;
-    3.1) state_get '.testRunner // "subagents:test-runner"' ;;
+    3.1) state_get '.testDeveloper // "subagents:test-developer"' ;;
     3.2) state_get '.failureAnalyzer // "subagents:failure-analyzer"' ;;
-    3.3) echo "subagents:test-developer" ;;
-    4.1) echo "subagents:doc-updater" ;;
+    3.3) state_get '.testDeveloper // "subagents:test-developer"' ;;
+    4.1) state_get '.docUpdater // "subagents:doc-updater"' ;;
     4.3) echo "subagents:completion-handler" ;;
     *)   echo "" ;;
   esac
@@ -740,12 +741,37 @@ TIMEOUT
 
   # Model selection note
   if [[ "$model" == "per-task" ]]; then
-    cat <<'PERTASK'
+    local codex_available
+    codex_available="$(state_get '.codexAvailable // false')"
+    if [[ "$codex_available" == "true" ]]; then
+      cat <<'PERTASK'
 
-## Model Selection
+## Model Selection (Complexity-Routed)
 
-All tasks dispatched via task-agent (thin wrapper) to codex-high MCP. Complexity scoring used for tracking.
+Pick `subagent_type` based on each task's complexity score:
+
+| Level  | subagent_type                | Execution                       |
+| ------ | ---------------------------- | ------------------------------- |
+| Easy   | `subagents:sonnet-task-agent` | Direct execution (model=sonnet) |
+| Medium | `subagents:opus-task-agent`   | Direct execution (model=opus)   |
+| Hard   | `subagents:codex-task-agent`  | Codex-high MCP wrapper          |
+
+For hard tasks using `codex-task-agent`, dispatch with `run_in_background: true` and use TaskOutput with timeout.
 PERTASK
+    else
+      cat <<'PERTASK_CLAUDE'
+
+## Model Selection (Complexity-Routed)
+
+Pick `subagent_type` based on each task's complexity score:
+
+| Level  | subagent_type                | Execution                       |
+| ------ | ---------------------------- | ------------------------------- |
+| Easy   | `subagents:sonnet-task-agent` | Direct execution (model=sonnet) |
+| Medium | `subagents:opus-task-agent`   | Direct execution (model=opus)   |
+| Hard   | `subagents:opus-task-agent`   | Direct execution (model=opus)   |
+PERTASK_CLAUDE
+    fi
   elif [[ "$phase_type" == "review" ]]; then
     cat <<'REVIEWMODEL'
 

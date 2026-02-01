@@ -4,11 +4,11 @@ You are classifying tasks for appropriate model assignment. Analyze each task an
 
 ## Classification Criteria
 
-| Level  | Execution                    | Criteria                                          |
-| ------ | ---------------------------- | ------------------------------------------------- |
-| Easy   | task-agent → codex-high      | Single file, <50 LOC changes, well-defined scope  |
-| Medium | task-agent → codex-high      | 2-3 files, 50-200 LOC, moderate dependencies      |
-| Hard   | task-agent → codex-high      | 4+ files, >200 LOC, security/concurrency concerns |
+| Level  | Agent               | Execution                       | Criteria                                          |
+| ------ | ------------------- | ------------------------------- | ------------------------------------------------- |
+| Easy   | sonnet-task-agent   | direct (model=sonnet)           | Single file, <50 LOC changes, well-defined scope  |
+| Medium | opus-task-agent     | direct (model=opus)             | 2-3 files, 50-200 LOC, moderate dependencies      |
+| Hard   | codex-task-agent    | codex-high MCP                  | 4+ files, >200 LOC, security/concurrency concerns |
 
 ## Task Analysis Checklist
 
@@ -32,12 +32,23 @@ For each task, return:
   "taskId": "<id>",
   "complexity": "easy" | "medium" | "hard",
   "reasoning": "<one line explanation>",
-  "execution": "codex-mcp",
-  "model": null
+  "execution": "direct" | "codex-mcp",
+  "model": "sonnet" | "opus" | null,
+  "agent": "sonnet-task-agent" | "opus-task-agent" | "codex-task-agent"
 }
 ```
 
-Note: All tasks are dispatched via task-agent (thin wrapper) to `codex-high` MCP, so `model` is always null. Complexity scoring is used for tracking and logging.
+Mapping (Codex mode — `codexAvailable: true`):
+- Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`
+- Medium → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
+- Hard → `"execution": "codex-mcp", "model": null, "agent": "codex-task-agent"`
+
+Mapping (Claude mode — `codexAvailable: false`):
+- Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`
+- Medium → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
+- Hard → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
+
+Check `codexAvailable` in `state.json` to determine hard task routing.
 
 ## Guidelines
 

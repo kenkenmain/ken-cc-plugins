@@ -20,6 +20,25 @@ Manage subagents workflow state with file-based persistence.
   "status": "pending|in_progress|stopped|completed|failed|blocked|restarting|skipped",
   "currentStage": "EXPLORE|PLAN|IMPLEMENT|TEST|FINAL",
   "currentPhase": "0|1.1|1.2|1.3|2.1|2.2|2.3|3.1|3.2|3.3|3.4|3.5|4.1|4.2|4.3",
+  "pipelineProfile": "minimal|standard|thorough",
+  "codexAvailable": true,
+  "ownerPpid": "<session PID for scoping>",
+  "worktree": {
+    "path": "/absolute/path/to/repo--subagent",
+    "branch": "subagents/task-slug",
+    "createdAt": "<ISO timestamp>"
+  },
+  "reviewer": "subagents:codex-reviewer|subagents:claude-reviewer",
+  "failureAnalyzer": "subagents:codex-failure-analyzer|subagents:failure-analyzer",
+  "difficultyEstimator": "subagents:codex-difficulty-estimator|subagents:difficulty-estimator",
+  "testDeveloper": "subagents:codex-test-developer|subagents:test-developer",
+  "docUpdater": "subagents:codex-doc-updater|subagents:doc-updater",
+  "taskAnalysis": {
+    "complexity": "simple|medium|complex",
+    "needsTests": true,
+    "needsDocs": true,
+    "reasoning": "..."
+  },
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
     {
@@ -53,7 +72,7 @@ Manage subagents workflow state with file-based persistence.
       "name": "Implementation Review",
       "type": "review"
     },
-    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "subagent" },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests & Analyze", "type": "subagent" },
     {
       "phase": "3.2",
       "stage": "TEST",
@@ -135,8 +154,23 @@ Manage subagents workflow state with file-based persistence.
     },
     "FINAL": { "status": "pending", "restartCount": 0, "blockReason": null }
   },
+  "codexTimeout": {
+    "reviewPhases": 300000,
+    "finalReviewPhases": null,
+    "implementPhases": 1800000,
+    "testPhases": 600000,
+    "explorePhases": 600000,
+    "maxRetries": 2
+  },
+  "supplementaryPolicy": "on-issues",
   "coverageThreshold": 90,
   "webSearch": true,
+  "reviewPolicy": {
+    "minBlockSeverity": "LOW",
+    "maxFixAttempts": 10,
+    "maxStageRestarts": 3
+  },
+  "restartHistory": [],
   "files": {},
   "failure": null,
   "compaction": { "lastCompactedAt": null, "history": [] },

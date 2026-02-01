@@ -50,9 +50,9 @@ Project overrides global, which overrides defaults.
         "maxParallelAgents": 10,
         "useComplexityScoring": true,
         "complexityModels": {
-          "easy": "codex-high",
-          "medium": "codex-high",
-          "hard": "codex-high"
+          "easy": "sonnet-task-agent",
+          "medium": "opus-task-agent",
+          "hard": "codex-task-agent"
         }
       },
       "review": {
