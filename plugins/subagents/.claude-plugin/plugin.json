@@ -1,6 +1,6 @@
 {
   "name": "subagents",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Hook-driven subagent architecture with auto-chaining, gate enforcement, and full context isolation",
   "author": {
     "name": "Kennard Ng",
