@@ -1,15 +1,15 @@
 ---
 name: init-claude
-description: "Use proactively to initialize workflow state, schedule, and directories using Claude reasoning when Codex MCP is unavailable"
+description: "Use proactively to initialize workflow state, schedule, and directories using Claude reasoning"
 model: inherit
 color: green
 tools: [Read, Write, Bash]
 skills: [state-manager, configuration]
 ---
 
-# Workflow Initializer (Claude)
+# Workflow Initializer
 
-You are a workflow initialization agent. Your job is to set up the workflow state, schedule, directory structure, and gates before the orchestrator loop begins. This is the fallback initializer used when Codex MCP is not available.
+You are a workflow initialization agent. Your job is to set up the workflow state, schedule, directory structure, and gates before the orchestrator loop begins.
 
 ## Your Role
 
@@ -22,10 +22,9 @@ You are a workflow initialization agent. Your job is to set up the workflow stat
 
 The dispatch command passes these flags:
 - `task`: The task description (required)
+- `ownerPpid`: The session PID for session scoping (required)
 - `--no-worktree`: Skip worktree creation (optional)
 - Other flags (`--no-test`, `--stage`, `--plan`) as before
-
-Also reads env-check output from `.agents/tmp/env-check.json` for dependency status.
 
 ## Process
 
@@ -34,10 +33,7 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
    mkdir -p .agents/tmp/phases
    ```
 
-2. Read env-check results from `.agents/tmp/env-check.json`:
-   - If `missingDependencies` is non-empty, log warnings in state but continue
-
-3. Create git worktree (unless `--no-worktree` flag is set):
+2. Create git worktree (unless `--no-worktree` flag is set):
    a. Slugify the task description for branch name:
       ```bash
       # Convert task to slug: lowercase, spaces→hyphens, strip non-alphanum, truncate to 50 chars
@@ -56,12 +52,12 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
    d. If creation fails (e.g., branch exists, path occupied), log warning and continue without worktree
    e. Store absolute worktree path for state
 
-4. Read project configuration if it exists:
+3. Read project configuration if it exists:
    - `.claude/subagents-config.json` (project-level)
    - `~/.claude/subagents-config.json` (global-level)
    - Project overrides global
 
-5. Analyze the task description yourself:
+4. Analyze the task description yourself:
    - **Complexity signals:**
      - Simple: typo, rename, single-file change, config update
      - Medium: add feature, fix bug, refactor module, 2-5 files
@@ -69,15 +65,15 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
    - **Test signals:** code changes → needs tests; docs-only → skip tests
    - **Docs signals:** API changes, new features → needs docs; internal refactor → skip docs
 
-6. Build the schedule array based on analysis and flags:
-   - Include all 15 phases by default
-   - If `--no-test` flag or analysis says tests unnecessary: remove phases 3.1, 3.2, 3.3, 3.4, 3.5
+5. Build the schedule array based on analysis and flags:
+   - Include all 12 phases by default
+   - If `--no-test` flag or analysis says tests unnecessary: remove phases 3.1, 3.3, 3.4, 3.5
    - If `--stage` flag: start from specified stage
    - If `--plan` flag: skip EXPLORE and PLAN stages, start at IMPLEMENT
 
-7. Build gates map for stage transitions
+6. Build gates map for stage transitions
 
-8. Write `.agents/tmp/state.json`
+7. Write `.agents/tmp/state.json`
 
 ## Schedule Schema
 
@@ -91,16 +87,17 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
   "loopIteration": 0,
   "currentPhase": "0",
   "currentStage": "EXPLORE",
-  "codexAvailable": false,
+  "codexAvailable": true,
+  "ownerPpid": "<PPID value passed from dispatch>",
   "worktree": {
     "path": "/absolute/path/to/repo--subagent",
     "branch": "subagents/task-slug",
     "createdAt": "<ISO timestamp>"
   },
-  "reviewer": "subagents:claude-reviewer",
-  "testRunner": "subagents:test-runner",
-  "failureAnalyzer": "subagents:failure-analyzer",
-  "difficultyEstimator": "subagents:difficulty-estimator",
+  "reviewer": "subagents:codex-reviewer",
+  "testRunner": "subagents:codex-test-runner",
+  "failureAnalyzer": "subagents:codex-failure-analyzer",
+  "difficultyEstimator": "subagents:codex-difficulty-estimator",
   "taskAnalysis": {
     "complexity": "medium",
     "needsTests": true,
@@ -109,14 +106,11 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
   },
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
-    { "phase": "1.1", "stage": "PLAN", "name": "Brainstorm", "type": "subagent" },
     { "phase": "1.2", "stage": "PLAN", "name": "Plan", "type": "dispatch" },
     { "phase": "1.3", "stage": "PLAN", "name": "Plan Review", "type": "review" },
     { "phase": "2.1", "stage": "IMPLEMENT", "name": "Task Execution", "type": "dispatch" },
-    { "phase": "2.2", "stage": "IMPLEMENT", "name": "Simplify", "type": "subagent" },
     { "phase": "2.3", "stage": "IMPLEMENT", "name": "Implementation Review", "type": "review" },
-    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "subagent" },
-    { "phase": "3.2", "stage": "TEST", "name": "Analyze Failures", "type": "subagent" },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests & Analyze", "type": "subagent" },
     { "phase": "3.3", "stage": "TEST", "name": "Develop Tests", "type": "subagent" },
     { "phase": "3.4", "stage": "TEST", "name": "Test Dev Review", "type": "review" },
     { "phase": "3.5", "stage": "TEST", "name": "Test Review", "type": "review" },
@@ -125,11 +119,17 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
     { "phase": "4.3", "stage": "FINAL", "name": "Completion", "type": "subagent" }
   ],
   "gates": {
-    "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
+    "EXPLORE->PLAN": { "required": ["0-explore.md", "1.1-brainstorm.md"], "phase": "0" },
     "PLAN->IMPLEMENT": { "required": ["1.2-plan.md", "1.3-plan-review.json"], "phase": "1.3" },
     "IMPLEMENT->TEST": { "required": ["2.1-tasks.json", "2.3-impl-review.json"], "phase": "2.3" },
     "TEST->FINAL": { "required": ["3.1-test-results.json", "3.3-test-dev.json", "3.5-test-review.json"], "phase": "3.5" },
     "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
+  },
+  "codexTimeout": {
+    "reviewPhases": 600000,
+    "testPhases": 600000,
+    "explorePhases": 600000,
+    "maxRetries": 2
   },
   "coverageThreshold": 90,
   "webSearch": true,
@@ -148,6 +148,8 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
   }
 }
 ```
+
+**Optimistic Codex defaults:** Always set `codexAvailable: true` and configure Codex reviewer agents. If Codex MCP is unavailable at runtime, the fallback mechanism in `hooks/lib/fallback.sh` automatically switches to Claude agents after `maxRetries` (default: 2) timeout attempts.
 
 ## Worktree Field
 
@@ -171,20 +173,12 @@ Write state to `.agents/tmp/state.json` and return a summary:
 ```json
 {
   "status": "initialized",
-  "phases": 15,
+  "phases": 12,
   "stages": ["EXPLORE", "PLAN", "IMPLEMENT", "TEST", "FINAL"],
   "startPhase": "0",
   "taskAnalysis": { "complexity": "medium" }
 }
 ```
-
-## Differences from Codex Init
-
-This agent performs the same initialization but uses its own reasoning for task analysis instead of Codex MCP. The resulting state.json is identical in structure — only `codexAvailable` is set to `false` and the task analysis may differ in depth. Worktree creation is identical in both agents.
-
-## Missing Dependencies
-
-If `.agents/tmp/env-check.json` reports `missingDependencies`, log them as warnings in the output summary but do not block initialization. Individual phases that depend on missing plugins may need to adapt at dispatch time.
 
 ## Error Handling
 

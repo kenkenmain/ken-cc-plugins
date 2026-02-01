@@ -1,7 +1,7 @@
 ---
 name: deep-explorer
 description: "Deep architecture tracing — execution paths, layer mapping, dependency analysis. Complements breadth-first explorer agents."
-model: inherit
+model: sonnet-4.5
 color: cyan
 tools: [Read, Glob, Grep]
 ---

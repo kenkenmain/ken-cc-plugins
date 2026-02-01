@@ -28,7 +28,9 @@ You are a thin dispatch layer. Your job is to pass the failure analysis task to 
 
 ```
 mcp__codex-high__codex(
-  prompt: "Analyze test/lint failures from .agents/tmp/phases/3.1-test-results.json.
+  prompt: "TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
+
+    Analyze test/lint failures from .agents/tmp/phases/3.1-test-results.json.
     For each failure:
     1. Read the failing test file and source file
     2. Identify root cause

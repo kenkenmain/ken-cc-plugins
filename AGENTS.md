@@ -31,9 +31,9 @@ ken-cc-plugins/
 │   ├── subagents/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest
 │   │   ├── commands/                      # Slash commands (dispatch, resume, status, stop)
-│   │   ├── agents/                        # Agent definitions (init-claude, init-codex, etc.)
+│   │   ├── agents/                        # Agent definitions (init-claude, codex-reviewer, etc.)
 │   │   ├── hooks/                         # Shell hooks (on-subagent-stop, on-stop, on-task-dispatch)
-│   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh)
+│   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh)
 │   │   ├── prompts/                       # Orchestrator + phase prompt templates
 │   │   ├── skills/                        # workflow, state-manager, configuration
 │   │   └── CLAUDE.md                      # Subagents-specific architecture docs
@@ -98,7 +98,7 @@ Project overrides global. See `plugins/superpowers-iterate/skills/configuration/
 - **Naming:** kebab-case for commands, skills, agents (e.g., `iterate-status.md`)
 - **Shell hooks:** `set -euo pipefail`, use `local var; var="$(cmd)"` (not `local var="$(cmd)"`), source libs from `$SCRIPT_DIR/lib/`
 - **Shell validation:** Run `bash -n <script>` after modifying hook shell scripts
-- **Init agent sync:** `init-claude.md` and `init-codex.md` have identical state schemas — always update both
+- **Init agent:** `init-claude.md` is the sole init agent — defaults to optimistic Codex config with runtime fallback
 - **Git Commits:** Prefix with `feat|fix|docs|chore|ci`, include co-author line
 - **Git Excludes:** Never commit `.agents/**`, `docs/plans/**`, `*.tmp`, `*.log`
 

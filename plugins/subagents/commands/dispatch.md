@@ -23,37 +23,55 @@ Parse from $ARGUMENTS to extract task description and flags.
 
 Use the `configuration` skill to load merged config (defaults → global → project).
 
-## Step 1.5: Environment Check
+## Step 1.5: Pre-flight Checks
 
-Dispatch `subagents:env-check` agent to probe Codex MCP availability, git, and required plugins. This writes `.agents/tmp/env-check.json`.
+Run quick inline checks via Bash — no separate agent dispatch needed.
 
-**After env-check completes, read `.agents/tmp/env-check.json` and check `fatal`:**
+**Git check (fatal):**
 
-- If `fatal: true`: **STOP immediately.** Display the error to the user and exit:
-  ```
-  Workflow cannot start: {fatalReason}
+```bash
+git --version 2>/dev/null || echo "FATAL:git"
+```
 
-  Missing dependencies: {missingDependencies joined with ", "}
+If git is not available, stop immediately:
+```
+Workflow cannot start: git is not installed or not functional.
 
-  To fix:
-  - git not found → install git
-  - superpowers plugin → claude plugin install <path-to-superpowers>
-  - subagents plugin → claude plugin install <path-to-subagents>
-  ```
-  Do NOT proceed to Step 2. Do NOT create state. Clean up `.agents/tmp/` if it was created.
+To fix: install git
+```
 
-- If `fatal: false`: continue to Step 2.
+**Plugin check (fatal):**
+
+```bash
+# Check superpowers plugin has brainstorming skill
+ls ~/.claude/plugins/*/skills/brainstorming/SKILL.md 2>/dev/null | head -1
+```
+
+If superpowers brainstorming skill not found, stop immediately:
+```
+Workflow cannot start: superpowers plugin not installed (required for brainstorming skill).
+
+To fix: claude plugin install <path-to-superpowers>
+```
+
+**Capture session PID:**
+
+```bash
+echo $PPID
+```
+
+Pass this value as `ownerPpid` to the init agent. This enables session scoping — hooks only fire for the session that started the workflow.
 
 ## Step 2: Initialize State
 
 Use `state-manager` skill to create `.agents/tmp/state.json`.
 
-Pass parsed flags to the init agent, including `--no-worktree` if set. The init agent reads the env-check result and creates the worktree (unless `--no-worktree`).
+Dispatch `subagents:init-claude` with task description, ownerPpid, and parsed flags (including `--no-worktree` if set). The init agent creates the worktree (unless `--no-worktree`), analyzes the task, and writes initial state with **optimistic Codex defaults** (Codex reviewers configured by default — runtime fallback handles unavailability).
 
 Build the `schedule` array from the full phase list, filtering out disabled stages:
 
-1. Start with the full 15-phase list (see state-manager skill for schema)
-2. If `--no-test` or `config.stages.TEST.enabled: false`: remove phases 3.1, 3.2, 3.3, 3.4, 3.5
+1. Start with the full 12-phase list (see state-manager skill for schema)
+2. If `--no-test` or `config.stages.TEST.enabled: false`: remove phases 3.1, 3.3, 3.4, 3.5
 3. If any other stage is disabled in config: remove its phases
 4. Build the `gates` map, adjusting for disabled stages:
    - If TEST disabled: replace `IMPLEMENT->TEST` and `TEST->FINAL` with a single `IMPLEMENT->FINAL` gate requiring `2.1-tasks.json` and `2.3-impl-review.json`
@@ -67,80 +85,23 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
   "status": "in_progress",
   "currentStage": "EXPLORE",
   "currentPhase": "0",
+  "ownerPpid": "<captured from Step 1.5>",
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
-    {
-      "phase": "1.1",
-      "stage": "PLAN",
-      "name": "Brainstorm",
-      "type": "subagent"
-    },
     { "phase": "1.2", "stage": "PLAN", "name": "Plan", "type": "dispatch" },
-    {
-      "phase": "1.3",
-      "stage": "PLAN",
-      "name": "Plan Review",
-      "type": "review"
-    },
-    {
-      "phase": "2.1",
-      "stage": "IMPLEMENT",
-      "name": "Task Execution",
-      "type": "dispatch"
-    },
-    {
-      "phase": "2.2",
-      "stage": "IMPLEMENT",
-      "name": "Simplify",
-      "type": "subagent"
-    },
-    {
-      "phase": "2.3",
-      "stage": "IMPLEMENT",
-      "name": "Implementation Review",
-      "type": "review"
-    },
-    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "subagent" },
-    {
-      "phase": "3.2",
-      "stage": "TEST",
-      "name": "Analyze Failures",
-      "type": "subagent"
-    },
-    {
-      "phase": "3.3",
-      "stage": "TEST",
-      "name": "Develop Tests",
-      "type": "subagent"
-    },
-    {
-      "phase": "3.4",
-      "stage": "TEST",
-      "name": "Test Dev Review",
-      "type": "review"
-    },
-    {
-      "phase": "3.5",
-      "stage": "TEST",
-      "name": "Test Review",
-      "type": "review"
-    },
-    {
-      "phase": "4.1",
-      "stage": "FINAL",
-      "name": "Documentation",
-      "type": "subagent"
-    },
-    {
-      "phase": "4.2",
-      "stage": "FINAL",
-      "name": "Final Review",
-      "type": "review"
-    },
+    { "phase": "1.3", "stage": "PLAN", "name": "Plan Review", "type": "review" },
+    { "phase": "2.1", "stage": "IMPLEMENT", "name": "Task Execution", "type": "dispatch" },
+    { "phase": "2.3", "stage": "IMPLEMENT", "name": "Implementation Review", "type": "review" },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests & Analyze", "type": "subagent" },
+    { "phase": "3.3", "stage": "TEST", "name": "Develop Tests", "type": "subagent" },
+    { "phase": "3.4", "stage": "TEST", "name": "Test Dev Review", "type": "review" },
+    { "phase": "3.5", "stage": "TEST", "name": "Test Review", "type": "review" },
+    { "phase": "4.1", "stage": "FINAL", "name": "Documentation", "type": "subagent" },
+    { "phase": "4.2", "stage": "FINAL", "name": "Final Review", "type": "review" },
     { "phase": "4.3", "stage": "FINAL", "name": "Completion", "type": "subagent" }
   ],
   "gates": {
-    "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
+    "EXPLORE->PLAN": { "required": ["0-explore.md", "1.1-brainstorm.md"], "phase": "0" },
     "PLAN->IMPLEMENT": {
       "required": ["1.2-plan.md", "1.3-plan-review.json"],
       "phase": "1.3"
@@ -180,15 +141,12 @@ Show the user the planned execution order and gate checkpoints:
 ```
 Workflow Schedule ({N} phases)
 ==============================
-Phase 0   │ EXPLORE   │ Explore                 │ dispatch  ← GATE: EXPLORE→PLAN
-Phase 1.1 │ PLAN      │ Brainstorm              │ subagent
+Phase 0   │ EXPLORE   │ Explore (+ Brainstorm)  │ dispatch  ← GATE: EXPLORE→PLAN
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch
 Phase 1.3 │ PLAN      │ Plan Review             │ review    ← GATE: PLAN→IMPLEMENT
 Phase 2.1 │ IMPLEMENT │ Task Execution          │ dispatch
-Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent
 Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review    ← GATE: IMPLEMENT→TEST
-Phase 3.1 │ TEST      │ Run Tests               │ command
-Phase 3.2 │ TEST      │ Analyze Failures        │ subagent
+Phase 3.1 │ TEST      │ Run Tests & Analyze     │ subagent
 Phase 3.3 │ TEST      │ Develop Tests & CI      │ subagent
 Phase 3.4 │ TEST      │ Test Dev Review         │ review    ← coverage loop back to 3.3
 Phase 3.5 │ TEST      │ Test Review             │ review    ← GATE: TEST→FINAL
@@ -197,7 +155,7 @@ Phase 4.2 │ FINAL     │ Final Review            │ review    ← GATE: FINA
 Phase 4.3 │ FINAL     │ Completion              │ subagent
 
 Stage Gates:
-  EXPLORE → PLAN:    requires 0-explore.md
+  EXPLORE → PLAN:    requires 0-explore.md, 1.1-brainstorm.md
   PLAN → IMPLEMENT:  requires 1.2-plan.md, 1.3-plan-review.json
   IMPLEMENT → TEST:  requires 2.1-tasks.json, 2.3-impl-review.json
   TEST → FINAL:      requires 3.1-test-results.json, 3.3-test-dev.json, 3.5-test-review.json

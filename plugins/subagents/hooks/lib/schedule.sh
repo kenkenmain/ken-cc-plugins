@@ -15,10 +15,8 @@ get_phase_output() {
     1.2) echo "1.2-plan.md" ;;
     1.3) echo "1.3-plan-review.json" ;;
     2.1) echo "2.1-tasks.json" ;;
-    2.2) echo "2.2-simplify.md" ;;
     2.3) echo "2.3-impl-review.json" ;;
     3.1) echo "3.1-test-results.json" ;;
-    3.2) echo "3.2-analysis.md" ;;
     3.3) echo "3.3-test-dev.json" ;;
     3.4) echo "3.4-test-dev-review.json" ;;
     3.5) echo "3.5-test-review.json" ;;
@@ -69,22 +67,55 @@ get_phase_input_files() {
   local phase="${1:?get_phase_input_files requires a phase ID}"
 
   case "$phase" in
-    0)   echo "task description (from state.json)" ;;
-    1.1) echo ".agents/tmp/phases/0-explore.md" ;;
-    1.2) echo ".agents/tmp/phases/1.1-brainstorm.md" ;;
-    1.3) echo ".agents/tmp/phases/1.2-plan.md" ;;
-    2.1) echo ".agents/tmp/phases/1.2-plan.md" ;;
-    2.2) echo ".agents/tmp/phases/2.1-tasks.json" ;;
-    2.3) echo ".agents/tmp/phases/1.2-plan.md, git diff" ;;
-    3.1) echo "config test commands" ;;
-    3.2) echo ".agents/tmp/phases/3.1-test-results.json" ;;
-    3.3) echo ".agents/tmp/phases/3.1-test-results.json, .agents/tmp/phases/3.2-analysis.md" ;;
-    3.4) echo ".agents/tmp/phases/3.3-test-dev.json, .agents/tmp/phases/3.1-test-results.json" ;;
-    3.5) echo ".agents/tmp/phases/3.1-test-results.json, .agents/tmp/phases/3.2-analysis.md, .agents/tmp/phases/3.3-test-dev.json" ;;
-    4.1) echo ".agents/tmp/phases/1.2-plan.md, .agents/tmp/phases/2.1-tasks.json" ;;
-    4.2) echo "all .agents/tmp/phases/*.json" ;;
-    4.3) echo ".agents/tmp/phases/4.2-final-review.json" ;;
-    *)   echo "" ;;
+    0)
+      echo "- None (use task description from state.json \`.task\` field)"
+      ;;
+    1.1)
+      echo "- \`.agents/tmp/phases/0-explore.md\`"
+      ;;
+    1.2)
+      echo "- \`.agents/tmp/phases/0-explore.md\`"
+      echo "- \`.agents/tmp/phases/1.1-brainstorm.md\`"
+      ;;
+    1.3)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      ;;
+    2.1)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      ;;
+    2.3)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      echo "- Run \`git diff\` for current changes"
+      ;;
+    3.1)
+      echo "- Test commands from project config (Makefile, package.json, etc.)"
+      ;;
+    3.3)
+      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+      echo "- \`.agents/tmp/phases/3.2-analysis.md\` (secondary output from phase 3.1 — may not exist if tests passed)"
+      ;;
+    3.4)
+      echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"
+      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+      ;;
+    3.5)
+      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+      echo "- \`.agents/tmp/phases/3.2-analysis.md\`"
+      echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"
+      ;;
+    4.1)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      echo "- \`.agents/tmp/phases/2.1-tasks.json\`"
+      ;;
+    4.2)
+      echo "- All \`.agents/tmp/phases/*.json\` files"
+      ;;
+    4.3)
+      echo "- \`.agents/tmp/phases/4.2-final-review.json\`"
+      ;;
+    *)
+      echo "- None"
+      ;;
   esac
 }
 
@@ -101,10 +132,8 @@ get_phase_template() {
     1.2) echo "1.2-plan.md" ;;
     1.3) echo "1.3-plan-review.md" ;;
     2.1) echo "2.1-implement.md" ;;
-    2.2) echo "2.2-simplify.md" ;;
     2.3) echo "2.3-impl-review.md" ;;
     3.1) echo "3.1-run-tests.md" ;;
-    3.2) echo "3.2-analyze-failures.md" ;;
     3.3) echo "3.3-develop-tests.md" ;;
     3.4) echo "3.4-test-dev-review.md" ;;
     3.5) echo "3.5-test-review.md" ;;
@@ -139,4 +168,315 @@ build_chain_instruction() {
   input_files="$(get_phase_input_files "$phase")"
 
   echo "Phase complete. Execute next: Phase ${phase} (${stage}) -- ${name} [${type}]. Read prompt template from prompts/phases/${template_file}. Input files: ${input_files}"
+}
+
+# ---------------------------------------------------------------------------
+# get_phase_type <phase> -- Return the phase type from the schedule.
+# ---------------------------------------------------------------------------
+get_phase_type() {
+  local phase="${1:?get_phase_type requires a phase ID}"
+
+  read_state | jq -r --arg p "$phase" \
+    '.schedule[] | select(.phase == $p) | .type // empty'
+}
+
+# ---------------------------------------------------------------------------
+# get_phase_subagent <phase> -- Return the subagent_type for a phase.
+#   For review phases, reads state.reviewer. For test phases, reads
+#   state.testRunner/failureAnalyzer. For others, uses hardcoded mapping.
+# ---------------------------------------------------------------------------
+get_phase_subagent() {
+  local phase="${1:?get_phase_subagent requires a phase ID}"
+
+  local phase_type
+  phase_type="$(get_phase_type "$phase")"
+
+  if [[ "$phase_type" == "review" ]]; then
+    state_get '.reviewer // "subagents:claude-reviewer"'
+    return
+  fi
+
+  case "$phase" in
+    0)   echo "subagents:explorer" ;;
+    1.2) echo "subagents:planner" ;;
+    2.1) echo "subagents:task-agent" ;;
+    3.1) state_get '.testRunner // "subagents:test-runner"' ;;
+    3.3) echo "subagents:test-developer" ;;
+    4.1) echo "subagents:doc-updater" ;;
+    4.3) echo "subagents:completion-handler" ;;
+    *)   echo "" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# get_phase_model <phase> -- Return the model for a phase.
+# ---------------------------------------------------------------------------
+get_phase_model() {
+  local phase="${1:?get_phase_model requires a phase ID}"
+
+  local phase_type
+  phase_type="$(get_phase_type "$phase")"
+
+  if [[ "$phase_type" == "review" ]]; then
+    local codex_available
+    codex_available="$(state_get '.codexAvailable // false')"
+    if [[ "$codex_available" == "true" ]]; then
+      echo "sonnet"
+    else
+      echo "opus"
+    fi
+    return
+  fi
+
+  case "$phase" in
+    0|1.2) echo "inherit" ;;   # EXPLORE + PLAN: inherit from parent
+    2.1)   echo "per-task" ;;  # IMPLEMENT: complexity-based
+    *)     echo "sonnet" ;;    # TEST + FINAL: sonnet
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# get_supplementary_agents <phase> -- Return supplementary agents for a phase.
+#   Output: newline-separated list of subagent_type strings, or empty.
+# ---------------------------------------------------------------------------
+get_supplementary_agents() {
+  local phase="${1:?get_supplementary_agents requires a phase ID}"
+
+  case "$phase" in
+    0)
+      echo "subagents:deep-explorer"
+      echo "subagents:brainstormer"
+      ;;
+    1.2)
+      echo "subagents:architecture-analyst"
+      ;;
+    2.3)
+      echo "subagents:code-quality-reviewer"
+      echo "subagents:error-handling-reviewer"
+      echo "subagents:type-reviewer"
+      ;;
+    4.1)
+      echo "subagents:claude-md-updater"
+      ;;
+    4.2)
+      echo "subagents:code-quality-reviewer"
+      echo "subagents:test-coverage-reviewer"
+      echo "subagents:comment-reviewer"
+      ;;
+    *)
+      # No supplementary agents
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# get_dispatch_rules <phase_type> -- Return type-specific dispatch rules.
+# ---------------------------------------------------------------------------
+get_dispatch_rules() {
+  local phase_type="${1:?get_dispatch_rules requires a phase type}"
+
+  case "$phase_type" in
+    dispatch)
+      cat <<'RULES'
+Read the prompt template for batch instructions. Dispatch multiple parallel subagents as specified. Aggregate results into the output file. If supplementary agents are listed, dispatch them in the same Task tool message.
+RULES
+      ;;
+    subagent)
+      cat <<'RULES'
+Dispatch a single subagent with the constructed prompt. If supplementary agents are listed, dispatch them in parallel in the same message.
+RULES
+      ;;
+    review)
+      cat <<'RULES'
+Read `state.reviewer` to determine the subagent_type. Dispatch supplementary review agents in parallel. Merge all issues into a single `issues[]` array with `"source"` field per agent. If any supplementary agent fails, proceed with the primary agent's results only.
+RULES
+      ;;
+    *)
+      echo "Dispatch the phase agent with the constructed prompt."
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# generate_phase_prompt <phase> -- Build a minimal phase-specific orchestrator
+#   prompt (~40 lines) instead of the full orchestrator-loop.md (~130 lines).
+#   Reads phase metadata from state.json schedule and constructs the prompt.
+# ---------------------------------------------------------------------------
+generate_phase_prompt() {
+  local phase="${1:?generate_phase_prompt requires a phase ID}"
+
+  # Read phase metadata from schedule
+  local phase_json
+  phase_json="$(read_state | jq -c --arg p "$phase" '.schedule[] | select(.phase == $p)')"
+
+  if [[ -z "$phase_json" || "$phase_json" == "null" ]]; then
+    echo "generate_phase_prompt: phase $phase not found in schedule" >&2
+    return 1
+  fi
+
+  local name stage phase_type
+  name="$(echo "$phase_json" | jq -r '.name')"
+  stage="$(echo "$phase_json" | jq -r '.stage')"
+  phase_type="$(echo "$phase_json" | jq -r '.type')"
+
+  local template subagent model output_file input_files
+  template="$(get_phase_template "$phase")"
+  subagent="$(get_phase_subagent "$phase")"
+  model="$(get_phase_model "$phase")"
+  output_file="$(get_phase_output "$phase")"
+  input_files="$(get_phase_input_files "$phase")"
+
+  local supplements
+  supplements="$(get_supplementary_agents "$phase")"
+
+  local dispatch_rules
+  dispatch_rules="$(get_dispatch_rules "$phase_type")"
+
+  # Build the prompt
+  cat <<PROMPT
+# Dispatch Phase ${phase} (${stage}) — ${name}
+
+You are a workflow orchestrator. Dispatch this phase as a subagent.
+
+## Instructions
+
+1. Read \`.agents/tmp/state.json\` — extract \`.task\`, \`.worktree\`, \`.webSearch\`
+2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, dispatch \`subagents:fix-dispatcher\` instead (it reads issues and applies fixes directly).
+3. Read the phase prompt template: \`prompts/phases/${template}\`
+4. Build prompt with \`[PHASE ${phase}]\` tag using construction format below
+5. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
+6. Write output to \`.agents/tmp/phases/${output_file}\`
+
+**Do NOT read input files yourself.** The subagent reads them directly — just pass the paths.
+
+## Prompt Construction
+
+\`\`\`
+[PHASE ${phase}]
+
+{contents of the prompt template file}
+
+## Task Context
+
+Task: {value of state.json .task field}
+
+{if state.worktree exists:
+## Working Directory
+Code directory: {state.worktree.path}
+State directory: {absolute path to original .agents/tmp/}
+All code operations must use the code directory.
+All phase output files must use absolute paths to the state directory.
+}
+
+Web Search: {state.webSearch — true or false}
+
+## Input Files
+
+Read these files at the start of your work:
+${input_files}
+\`\`\`
+
+The \`[PHASE ${phase}]\` tag is required — the PreToolUse hook validates it.
+
+## Dispatch Type: ${phase_type}
+
+${dispatch_rules}
+PROMPT
+
+  # Supplementary agents section
+  if [[ -n "$supplements" ]]; then
+    cat <<SUPP
+
+## Supplementary Agents
+
+Dispatch these agents **in parallel** (same Task tool message) alongside the primary agent:
+
+SUPP
+    local agent
+    while IFS= read -r agent; do
+      [[ -z "$agent" ]] && continue
+      echo "- \`${agent}\`"
+    done <<< "$supplements"
+
+    if [[ "$phase_type" == "review" ]]; then
+      cat <<'MERGE'
+
+Merge issues from all agents into a single `issues[]` array. Each issue has a `"source"` field. If a supplementary agent fails, proceed with primary results only.
+MERGE
+    fi
+  else
+    cat <<'NONE'
+
+## Supplementary Agents
+
+None for this phase.
+NONE
+  fi
+
+  # Review-fix cycle rules (for review phases)
+  if [[ "$phase_type" == "review" ]]; then
+    cat <<'REVIEW'
+
+## Review-Fix Cycle
+
+When `state.reviewFix` exists, dispatch `subagents:fix-dispatcher` instead. The SubagentStop hook manages clearing `reviewFix`, deleting stale output, and re-triggering the review.
+REVIEW
+  fi
+
+  # Coverage loop rules (for phase 3.5)
+  if [[ "$phase" == "3.5" ]]; then
+    cat <<'COVERAGE'
+
+## Coverage Loop
+
+After this phase, the SubagentStop hook checks coverage against `state.coverageThreshold`. If below threshold, it resets `currentPhase` to `"3.3"` and deletes stale 3.3–3.5 output. Dispatch Phase 3.3 normally when you see `state.coverageLoop`.
+COVERAGE
+  fi
+
+  # Codex timeout handling (for phases using Codex agents)
+  if [[ "$subagent" == *"codex"* ]]; then
+    local timeout_ms
+    timeout_ms="$(state_get '.codexTimeout.reviewPhases // 600000')"
+    cat <<TIMEOUT
+
+## Codex Timeout Handling
+
+This phase uses a Codex agent. Dispatch with timeout protection:
+
+1. Dispatch via Task tool with \`run_in_background: true\`
+2. Call \`TaskOutput(task_id, block=true, timeout=${timeout_ms})\`
+3. If result received: write to output file normally
+4. If timeout: call \`TaskStop(task_id)\`, then write timeout error JSON to the output file:
+   \`\`\`json
+   {"status":"timeout","issues":[],"summary":"Codex MCP timed out after ${timeout_ms}ms. Automatic fallback to Claude reviewer.","codexTimeout":true}
+   \`\`\`
+TIMEOUT
+  fi
+
+  # Model selection note
+  if [[ "$model" == "per-task" ]]; then
+    cat <<'PERTASK'
+
+## Model Selection
+
+Model varies per task based on complexity scoring: easy→sonnet, medium→opus, hard→codex-xhigh.
+PERTASK
+  elif [[ "$phase_type" == "review" ]]; then
+    cat <<'REVIEWMODEL'
+
+## Model Selection
+
+Review tier: Codex available → `sonnet` (for supplementary agents); Codex unavailable → `opus`.
+REVIEWMODEL
+  fi
+
+  # Standard rules footer
+  cat <<'RULES'
+
+## Rules
+
+- Do NOT execute phase work directly — dispatch via Task tool
+- Do NOT advance state — hooks handle this
+- Do NOT stop or exit — hooks manage lifecycle
+RULES
 }

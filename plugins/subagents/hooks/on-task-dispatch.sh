@@ -40,6 +40,13 @@ if [[ -n "$STATE_PLUGIN" && "$STATE_PLUGIN" != "subagents" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 3c. Session scoping: if a different session, don't interfere
+# ---------------------------------------------------------------------------
+if ! check_session_owner; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Get the current phase from state
 # ---------------------------------------------------------------------------
 CURRENT_PHASE="$(state_get '.currentPhase // empty')"

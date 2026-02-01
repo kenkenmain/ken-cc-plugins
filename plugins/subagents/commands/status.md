@@ -54,7 +54,7 @@ Schedule ({completed}/{total} phases):
   · Phase 4.3 │ FINAL     │ Completion              │ pending
 
 Gates:
-  EXPLORE → PLAN:    ✓ satisfied (requires 0-explore.md)
+  EXPLORE → PLAN:    ✓ satisfied (requires 0-explore.md, 1.1-brainstorm.md)
   PLAN → IMPLEMENT:  · pending (requires 1.2-plan.md, 1.3-plan-review.json)
   IMPLEMENT → TEST:  · pending (requires 2.1-tasks.json, 2.3-impl-review.json)
   TEST → FINAL:      · pending (requires 3.1-test-results.json, 3.3-test-dev.json, 3.5-test-review.json)

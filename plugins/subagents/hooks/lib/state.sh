@@ -101,3 +101,15 @@ is_workflow_active() {
 
   [[ "$status" == "in_progress" ]]
 }
+
+# ---------------------------------------------------------------------------
+# check_session_owner -- Returns 0 if the current session matches the workflow
+#   owner. Returns 1 if a different session (hooks should exit 0 to not
+#   interfere). Returns 0 if ownerPpid not set (backward compat).
+# ---------------------------------------------------------------------------
+check_session_owner() {
+  local owner_ppid
+  owner_ppid="$(state_get '.ownerPpid // empty')"
+  [[ -z "$owner_ppid" ]] && return 0  # No owner recorded, allow
+  [[ "$PPID" == "$owner_ppid" ]]      # Match = 0 (owner), mismatch = 1
+}
