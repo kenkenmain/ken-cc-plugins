@@ -54,14 +54,6 @@ claude plugin list 2>/dev/null
 | `superpowers` | `brainstorming`    | Phase 1.1 brainstorm | yes   |
 | `subagents`   | (self — always ok) | All phases           | yes   |
 
-**Optional dependencies (supplementary agents — degraded if missing):**
-
-| Plugin              | Agents Used                                                        | Phases       | Fatal |
-| ------------------- | ------------------------------------------------------------------ | ------------ | ----- |
-| `feature-dev`       | `code-explorer`, `code-architect`                                  | 0, 1.2       | no    |
-| `pr-review-toolkit` | `code-reviewer`, `silent-failure-hunter`, `type-design-analyzer`, `pr-test-analyzer`, `comment-analyzer` | 2.3, 4.2 | no |
-| `claude-md-management` | `revise-claude-md`                                              | 4.1          | no    |
-
 If `claude plugin list` fails or is unavailable, check for skill files directly:
 
 ```bash
@@ -69,7 +61,7 @@ If `claude plugin list` fails or is unavailable, check for skill files directly:
 ls ~/.claude/plugins/*/skills/brainstorming/SKILL.md 2>/dev/null
 ```
 
-If any **required** plugin is missing, set `"fatal": true`. Missing optional plugins are reported in `missingDependencies` but do not set `fatal`.
+If any **required** plugin is missing, set `"fatal": true`.
 
 ### Step 4: Write Result
 
@@ -101,10 +93,7 @@ Write JSON to `.agents/tmp/env-check.json`:
   "method": "mcp-probe",
   "plugins": {
     "superpowers": { "installed": true, "required": true, "skills": ["brainstorming"] },
-    "subagents": { "installed": true, "required": true },
-    "feature-dev": { "installed": true, "required": false, "agents": ["code-explorer", "code-architect"] },
-    "pr-review-toolkit": { "installed": true, "required": false, "agents": ["code-reviewer", "silent-failure-hunter", "type-design-analyzer", "pr-test-analyzer", "comment-analyzer"] },
-    "claude-md-management": { "installed": true, "required": false, "agents": ["revise-claude-md"] }
+    "subagents": { "installed": true, "required": true }
   },
   "missingDependencies": []
 }
@@ -142,16 +131,11 @@ Write JSON to `.agents/tmp/env-check.json`:
   "reason": "MCP tool not found",
   "plugins": {
     "superpowers": { "installed": false, "required": true, "skills": [] },
-    "subagents": { "installed": true, "required": true },
-    "feature-dev": { "installed": true, "required": false, "agents": ["code-explorer", "code-architect"] },
-    "pr-review-toolkit": { "installed": false, "required": false, "agents": [] },
-    "claude-md-management": { "installed": true, "required": false, "agents": ["revise-claude-md"] }
+    "subagents": { "installed": true, "required": true }
   },
-  "missingDependencies": ["superpowers (required: brainstorming)", "pr-review-toolkit (optional: code-reviewer, silent-failure-hunter, ...)"]
+  "missingDependencies": ["superpowers (required: brainstorming)"]
 }
 ```
-
-The orchestrator reads `state.plugins` to decide which supplementary agents to dispatch. Missing optional plugins cause those agents to be silently skipped — the primary agent still runs.
 
 ## Guidelines
 
