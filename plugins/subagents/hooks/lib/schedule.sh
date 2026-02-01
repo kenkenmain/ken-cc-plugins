@@ -624,38 +624,34 @@ You are a workflow orchestrator. Dispatch this phase as a subagent.
 
 1. Read \`.agents/tmp/state.json\` — extract \`.task\`, \`.worktree\`, \`.webSearch\`
 2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, dispatch \`subagents:fix-dispatcher\` instead (it reads issues and applies fixes directly).
-3. Read the phase prompt template: \`prompts/phases/${template}\`
-4. Build prompt with \`[PHASE ${phase}]\` tag using construction format below
-5. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
-6. Write output to \`.agents/tmp/phases/${output_file}\`
+3. Build a minimal dispatch prompt with \`[PHASE ${phase}]\` tag (format below)
+4. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
 
-**Do NOT read input files yourself.** The subagent reads them directly — just pass the paths.
+**Do NOT read template files or input files yourself.** The subagent has its own instructions and reads inputs directly.
 
-## Prompt Construction
+## Dispatch Prompt Format
 
 \`\`\`
 [PHASE ${phase}]
 
-{contents of the prompt template file}
+Execute Phase ${phase}: ${name}
 
-## Task Context
+Task: {state.task}
 
-Task: {value of state.json .task field}
+Input files:
+${input_files}
 
-{if state.worktree exists:
-## Working Directory
-Code directory: {state.worktree.path}
-State directory: {absolute path to original .agents/tmp/}
-All code operations must use the code directory.
-All phase output files must use absolute paths to the state directory.
+Output file: .agents/tmp/phases/${output_file}
+
+{if state.worktree:
+Working directories:
+- Code: {state.worktree.path}
+- State: {absolute path to .agents/tmp/}
+Use code directory for all code operations.
+Use state directory for phase outputs.
 }
 
-Web Search: {state.webSearch — true or false}
-
-## Input Files
-
-Read these files at the start of your work:
-${input_files}
+Web search: {state.webSearch}
 \`\`\`
 
 The \`[PHASE ${phase}]\` tag is required — the PreToolUse hook validates it.
