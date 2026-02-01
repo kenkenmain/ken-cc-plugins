@@ -1,6 +1,6 @@
 ---
 description: Start a subagent workflow for complex task execution
-argument-hint: <task description> [--no-test] [--no-worktree] [--no-web-search] [--stage STAGE] [--plan PATH]
+argument-hint: <task description> [--no-test] [--no-worktree] [--no-web-search] [--profile minimal|standard|thorough] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
@@ -14,6 +14,7 @@ Start a workflow for complex task execution with parallel subagents and file-bas
 - `--no-test`: Optional. Skip the TEST stage
 - `--no-worktree`: Optional. Skip git worktree creation — all work happens in the current directory
 - `--no-web-search`: Optional. Disable web search for libraries — agents implement everything locally
+- `--profile minimal|standard|thorough`: Optional. Override pipeline profile selection (default: auto-detect from task complexity)
 - `--stage STAGE`: Optional. Start from specific stage (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
 - `--plan PATH`: Optional. Specify plan file path (for starting at IMPLEMENT with external plan)
 

@@ -637,6 +637,20 @@ jobs:
           fi
           echo "SUCCESS: All skill frontmatter validated"
 
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install bats
+        run: |
+          npm install -g bats
+
+      - name: Run tests
+        run: make test
+
   lint-markdown:
     name: Lint Markdown
     runs-on: ubuntu-latest

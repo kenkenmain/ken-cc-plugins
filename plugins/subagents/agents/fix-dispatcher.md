@@ -21,13 +21,15 @@ You are a review-fix agent. Your job is to read the issues identified by a revie
 ## Process
 
 1. Read `.agents/tmp/state.json` and extract the `reviewFix` object
-2. For each issue in `reviewFix.issues`:
-   a. Read the file at the `location` path
-   b. Understand the issue and the suggested fix
-   c. Apply the fix using Edit (preferred) or Write
-3. If a suggestion is unclear, use your best judgment to resolve the issue
-4. Do NOT introduce new issues while fixing existing ones
-5. Write a brief summary of all fixes applied
+2. **Determine scope:** If your prompt includes a `Fix Group: N` header, fix only that group's issues. Otherwise, fix all issues in `reviewFix.issues`.
+3. For each issue in scope:
+   a. Extract the file path from `location` (strip trailing `:line(:col)` — e.g., `src/auth/oauth.ts:42` → `src/auth/oauth.ts`). You can also use the group's `files` list for the file paths.
+   b. Read the file
+   c. Understand the issue and the suggested fix
+   d. Apply the fix using Edit (preferred) or Write
+4. If a suggestion is unclear, use your best judgment to resolve the issue
+5. Do NOT introduce new issues while fixing existing ones
+6. Write a brief summary of all fixes applied
 
 ## Input
 
@@ -39,17 +41,41 @@ The `state.reviewFix` object contains:
     "phase": "2.3",
     "attempt": 1,
     "maxAttempts": 10,
-    "issues": [
+    "issues": [...],
+    "groups": [
       {
-        "severity": "HIGH",
-        "location": "src/auth/oauth.ts:42",
-        "issue": "Missing input validation on redirect_uri",
-        "suggestion": "Add URL validation before redirect"
+        "id": 0,
+        "files": ["src/auth/oauth.ts"],
+        "issues": [
+          {
+            "severity": "HIGH",
+            "location": "src/auth/oauth.ts:42",
+            "issue": "Missing input validation on redirect_uri",
+            "suggestion": "Add URL validation before redirect"
+          }
+        ]
       }
-    ]
+    ],
+    "groupCount": 1,
+    "parallel": false
   }
 }
 ```
+
+## Parallel Fix Groups
+
+When dispatched for a specific group, your prompt will include:
+
+```
+Fix Group: {groupId}
+Files: {file list}
+Issues:
+- {issue1}
+- {issue2}
+```
+
+**If a group is specified:** fix only that group's issues (from the listed files).
+**If no group is specified:** read all issues from `state.reviewFix.issues` as before.
 
 ## Guidelines
 

@@ -24,6 +24,7 @@ The dispatch command passes these flags:
 - `task`: The task description (required)
 - `ownerPpid`: The session PID for session scoping (required)
 - `--no-worktree`: Skip worktree creation (optional)
+- `--profile minimal|standard|thorough`: Override pipeline profile (optional)
 - Other flags (`--no-test`, `--stage`, `--plan`) as before
 
 ## Process
@@ -65,13 +66,25 @@ The dispatch command passes these flags:
    - **Test signals:** code changes → needs tests; docs-only → skip tests
    - **Docs signals:** API changes, new features → needs docs; internal refactor → skip docs
 
-5. Build the schedule array based on analysis and flags:
-   - Include all 13 phases by default
-   - If `--no-test` flag or analysis says tests unnecessary: remove phases 3.1, 3.3, 3.4, 3.5
-   - If `--stage` flag: start from specified stage
-   - If `--plan` flag: skip EXPLORE and PLAN stages, start at IMPLEMENT
+5. Select pipeline profile:
+   - If `--profile` flag provided: use that profile directly
+   - If `pipeline.defaultProfile` set in config: use that
+   - Otherwise, map complexity to profile:
+     - Simple → `minimal` (5 phases: EXPLORE, IMPLEMENT, FINAL — skips PLAN + TEST)
+     - Medium → `standard` (13 phases: all except 2.2 Simplify and 3.2 Analyze)
+     - Complex → `thorough` (15 phases: everything including 2.2 and 3.2)
+   - Store profile in state as `pipelineProfile`
 
-6. Build gates map for stage transitions
+6. Build the schedule array from the selected profile:
+   - `minimal`: phases 0, 2.1, 2.3, 4.2, 4.3
+   - `standard`: phases 0, 1.1, 1.2, 1.3, 2.1, 2.3, 3.1, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3
+   - `thorough`: all 15 phases (adds 2.2 Simplify and 3.2 Analyze Failures)
+   - If `--no-test` flag: additionally remove phases 3.1, 3.3, 3.4, 3.5
+   - If `--stage` flag: start from specified stage
+
+7. Build gates map for the selected profile:
+   - `minimal`: EXPLORE→IMPLEMENT, IMPLEMENT→FINAL, FINAL→COMPLETE
+   - `standard`/`thorough`: EXPLORE→PLAN, PLAN→IMPLEMENT, IMPLEMENT→TEST, TEST→FINAL, FINAL→COMPLETE
 
 7. Write `.agents/tmp/state.json`
 
@@ -87,6 +100,8 @@ The dispatch command passes these flags:
   "loopIteration": 0,
   "currentPhase": "0",
   "currentStage": "EXPLORE",
+  "pipelineProfile": "standard",
+  "supplementaryPolicy": "on-issues",
   "codexAvailable": true,
   "ownerPpid": "<PPID value passed from dispatch>",
   "worktree": {

@@ -67,7 +67,7 @@ The Stop hook calls `generate_phase_prompt()` from `schedule.sh` to build a phas
 EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 ```
 
-All 13 phases run as subagents. No inline phases.
+Phase count depends on pipeline profile: minimal (5), standard (13), thorough (15). All phases run as subagents.
 
 ### Phase Types
 
@@ -128,7 +128,7 @@ Only after both tiers are exhausted does the workflow set `status: "blocked"`. S
   - `subagents:code-quality-reviewer` — final code quality sweep
   - `subagents:test-coverage-reviewer` — test coverage completeness
   - `subagents:comment-reviewer` — comment accuracy
-- 4.3: Git commit, PR creation, worktree teardown via completion-handler
+- 4.3: Git commit, PR creation, worktree teardown via completion-handler + **`subagents:retrospective-analyst`** (supplementary) for workflow learnings
 
 ## Codex Availability: Optimistic Defaults + Runtime Fallback
 
@@ -220,7 +220,10 @@ State file: `.agents/tmp/state.json`
 Key state fields:
 
 - `ownerPpid`: Session PID for session scoping (hooks only fire for owner session)
-- `schedule`: Ordered array of all 13 phases to execute
+- `pipelineProfile`: Selected profile (`minimal`, `standard`, `thorough`)
+- `supplementaryPolicy`: `"on-issues"` (default) or `"always"` — controls dynamic supplementary dispatch
+- `supplementaryRun`: (optional) map of phase IDs where supplementary agents were triggered (e.g., `{"2.3": true}`)
+- `schedule`: Ordered array of phases to execute (5-15 depending on profile)
 - `gates`: Map of stage transitions to required output files
 - `stages`: Per-stage status, phases, and restart counts
 - `worktree`: (optional) `{ path, branch, createdAt }` — present when worktree isolation is active
@@ -240,7 +243,21 @@ All phase outputs: `.agents/tmp/phases/`
 
 All workflow phases are pre-scheduled at initialization. Stage transitions are enforced by hooks.
 
-### Schedule (13 phases)
+### Pipeline Profiles
+
+Profile is selected by the init agent based on task complexity (or `--profile` override):
+
+| Profile    | Phases | Stages                                    | When Used                              |
+| ---------- | ------ | ----------------------------------------- | -------------------------------------- |
+| `minimal`  | 5      | EXPLORE, IMPLEMENT, FINAL                 | Simple: typo, rename, config, single file |
+| `standard` | 13     | EXPLORE, PLAN, IMPLEMENT, TEST, FINAL     | Medium: feature, bugfix, 2-5 files     |
+| `thorough` | 15     | EXPLORE, PLAN, IMPLEMENT, TEST, FINAL     | Complex: architecture, security, 6+ files |
+
+`thorough` adds Phase 2.2 (Simplify) and Phase 3.2 (Analyze Failures) over `standard`.
+
+Config: `pipeline.defaultProfile` in `subagents-config.json`, or `--profile` CLI flag.
+
+### Schedule (standard profile, 13 phases)
 
 ```
 Phase 0   │ EXPLORE   │ Explore                 │ dispatch  ← GATE: EXPLORE→PLAN
@@ -315,8 +332,34 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 | `subagents:comment-reviewer`       | `pr-review-toolkit:comment-analyzer`    | 4.2       |
 | `subagents:claude-md-updater`      | `claude-md-management:revise-claude-md` | 4.1       |
 | `subagents:fix-dispatcher`         | inline orchestrator logic               | review-fix |
+| `subagents:retrospective-analyst`  | (new — no external equivalent)          | 4.3        |
 
 All supplementary agents are always available — no availability checks needed.
+
+### Dynamic Supplementary Dispatch
+
+Controlled by `supplementaryPolicy` (default: `"on-issues"`):
+
+| Policy      | Behavior                                                                 |
+| ----------- | ------------------------------------------------------------------------ |
+| `on-issues` | For review phases: dispatch primary only first. If approved → skip supplementary (saves tokens). If issues found → re-dispatch with supplementary included. Non-review phases always dispatch supplementary. |
+| `always`    | Dispatch primary + supplementary together for all phases (original behavior). |
+
+State tracking: `supplementaryRun["{phase}"] = true` is set by SubagentStop when primary finds issues. `get_supplementary_agents()` checks this flag to decide whether to include supplementary agents. Cleared on stage restart.
+
+### Parallel Fix Dispatch
+
+When review-fix cycles find issues across multiple files, fix-dispatchers run in parallel:
+
+```
+Review finds 4 issues: auth.ts (2), db.ts (1), api.ts (1)
+  → Group 1: auth.ts (sequential within group)
+  → Group 2: db.ts
+  → Group 3: api.ts
+  → 3 parallel fix-dispatchers
+```
+
+`group_issues_by_file()` in `review.sh` groups blocking issues by file path. `start_fix_cycle()` stores groups in `state.reviewFix.groups[]` with `pendingGroups` counter. SubagentStop decrements `pendingGroups` on each fix-dispatcher completion, only clearing the fix cycle when all groups finish.
 
 **External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer agent in Phase 1.1).
 
@@ -381,6 +424,7 @@ Dispatched by the orchestrator loop during workflow execution:
 | `test-coverage-reviewer.md` | 4.2 (supplement) | Test coverage analysis                |
 | `comment-reviewer.md`  | 4.2 (supplement)    | Comment accuracy review                 |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
+| `retrospective-analyst.md` | 4.3 (supplement) | Workflow metrics analysis, CLAUDE.md learnings |
 
 ### Hook Libraries
 

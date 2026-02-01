@@ -15,8 +15,10 @@ get_phase_output() {
     1.2) echo "1.2-plan.md" ;;
     1.3) echo "1.3-plan-review.json" ;;
     2.1) echo "2.1-tasks.json" ;;
+    2.2) echo "2.2-simplify.md" ;;
     2.3) echo "2.3-impl-review.json" ;;
     3.1) echo "3.1-test-results.json" ;;
+    3.2) echo "3.2-analysis.md" ;;
     3.3) echo "3.3-test-dev.json" ;;
     3.4) echo "3.4-test-dev-review.json" ;;
     3.5) echo "3.5-test-review.json" ;;
@@ -24,6 +26,93 @@ get_phase_output() {
     4.2) echo "4.2-final-review.json" ;;
     4.3) echo "4.3-completion.json" ;;
     *)   echo "" ;;
+  esac
+}
+
+# ===========================================================================
+# Pipeline Profile Support
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# get_profile_schedule <profile> -- Return the JSON schedule array for a
+#   pipeline profile. Profiles control which phases are included.
+#   minimal: 5 phases (EXPLORE, IMPLEMENT, FINAL — skips PLAN + TEST)
+#   standard: 13 phases (all except 2.2 Simplify and 3.2 Analyze Failures)
+#   thorough: 15 phases (everything)
+# ---------------------------------------------------------------------------
+get_profile_schedule() {
+  local profile="${1:?get_profile_schedule requires a profile name}"
+
+  case "$profile" in
+    minimal)
+      cat <<'EOF'
+[{"phase":"0","stage":"EXPLORE","name":"Explore","type":"dispatch"},{"phase":"2.1","stage":"IMPLEMENT","name":"Task Execution","type":"dispatch"},{"phase":"2.3","stage":"IMPLEMENT","name":"Implementation Review","type":"review"},{"phase":"4.2","stage":"FINAL","name":"Final Review","type":"review"},{"phase":"4.3","stage":"FINAL","name":"Completion","type":"subagent"}]
+EOF
+      ;;
+    standard)
+      cat <<'EOF'
+[{"phase":"0","stage":"EXPLORE","name":"Explore","type":"dispatch"},{"phase":"1.1","stage":"PLAN","name":"Brainstorm","type":"subagent"},{"phase":"1.2","stage":"PLAN","name":"Plan","type":"dispatch"},{"phase":"1.3","stage":"PLAN","name":"Plan Review","type":"review"},{"phase":"2.1","stage":"IMPLEMENT","name":"Task Execution","type":"dispatch"},{"phase":"2.3","stage":"IMPLEMENT","name":"Implementation Review","type":"review"},{"phase":"3.1","stage":"TEST","name":"Run Tests & Analyze","type":"subagent"},{"phase":"3.3","stage":"TEST","name":"Develop Tests","type":"subagent"},{"phase":"3.4","stage":"TEST","name":"Test Dev Review","type":"review"},{"phase":"3.5","stage":"TEST","name":"Test Review","type":"review"},{"phase":"4.1","stage":"FINAL","name":"Documentation","type":"subagent"},{"phase":"4.2","stage":"FINAL","name":"Final Review","type":"review"},{"phase":"4.3","stage":"FINAL","name":"Completion","type":"subagent"}]
+EOF
+      ;;
+    thorough)
+      cat <<'EOF'
+[{"phase":"0","stage":"EXPLORE","name":"Explore","type":"dispatch"},{"phase":"1.1","stage":"PLAN","name":"Brainstorm","type":"subagent"},{"phase":"1.2","stage":"PLAN","name":"Plan","type":"dispatch"},{"phase":"1.3","stage":"PLAN","name":"Plan Review","type":"review"},{"phase":"2.1","stage":"IMPLEMENT","name":"Task Execution","type":"dispatch"},{"phase":"2.2","stage":"IMPLEMENT","name":"Simplify","type":"subagent"},{"phase":"2.3","stage":"IMPLEMENT","name":"Implementation Review","type":"review"},{"phase":"3.1","stage":"TEST","name":"Run Tests & Analyze","type":"subagent"},{"phase":"3.2","stage":"TEST","name":"Analyze Failures","type":"subagent"},{"phase":"3.3","stage":"TEST","name":"Develop Tests","type":"subagent"},{"phase":"3.4","stage":"TEST","name":"Test Dev Review","type":"review"},{"phase":"3.5","stage":"TEST","name":"Test Review","type":"review"},{"phase":"4.1","stage":"FINAL","name":"Documentation","type":"subagent"},{"phase":"4.2","stage":"FINAL","name":"Final Review","type":"review"},{"phase":"4.3","stage":"FINAL","name":"Completion","type":"subagent"}]
+EOF
+      ;;
+    *)
+      echo "get_profile_schedule: unknown profile '$profile'" >&2
+      return 1
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# get_profile_gates <profile> -- Return the JSON gates map for a profile.
+#   Gates define stage transition requirements.
+# ---------------------------------------------------------------------------
+get_profile_gates() {
+  local profile="${1:?get_profile_gates requires a profile name}"
+
+  case "$profile" in
+    minimal)
+      cat <<'EOF'
+{"EXPLORE->IMPLEMENT":{"required":["0-explore.md"],"phase":"0"},"IMPLEMENT->FINAL":{"required":["2.1-tasks.json","2.3-impl-review.json"],"phase":"2.3"},"FINAL->COMPLETE":{"required":["4.2-final-review.json"],"phase":"4.2"}}
+EOF
+      ;;
+    standard)
+      cat <<'EOF'
+{"EXPLORE->PLAN":{"required":["0-explore.md"],"phase":"0"},"PLAN->IMPLEMENT":{"required":["1.1-brainstorm.md","1.2-plan.md","1.3-plan-review.json"],"phase":"1.3"},"IMPLEMENT->TEST":{"required":["2.1-tasks.json","2.3-impl-review.json"],"phase":"2.3"},"TEST->FINAL":{"required":["3.1-test-results.json","3.3-test-dev.json","3.5-test-review.json"],"phase":"3.5"},"FINAL->COMPLETE":{"required":["4.2-final-review.json"],"phase":"4.2"}}
+EOF
+      ;;
+    thorough)
+      cat <<'EOF'
+{"EXPLORE->PLAN":{"required":["0-explore.md"],"phase":"0"},"PLAN->IMPLEMENT":{"required":["1.1-brainstorm.md","1.2-plan.md","1.3-plan-review.json"],"phase":"1.3"},"IMPLEMENT->TEST":{"required":["2.1-tasks.json","2.3-impl-review.json"],"phase":"2.3"},"TEST->FINAL":{"required":["3.1-test-results.json","3.3-test-dev.json","3.5-test-review.json"],"phase":"3.5"},"FINAL->COMPLETE":{"required":["4.2-final-review.json"],"phase":"4.2"}}
+EOF
+      ;;
+    *)
+      echo "get_profile_gates: unknown profile '$profile'" >&2
+      return 1
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# get_profile_stages <profile> -- Return space-separated list of active stages.
+# ---------------------------------------------------------------------------
+get_profile_stages() {
+  local profile="${1:?get_profile_stages requires a profile name}"
+
+  case "$profile" in
+    minimal)
+      echo "EXPLORE IMPLEMENT FINAL"
+      ;;
+    standard|thorough)
+      echo "EXPLORE PLAN IMPLEMENT TEST FINAL"
+      ;;
+    *)
+      echo "get_profile_stages: unknown profile '$profile'" >&2
+      return 1
+      ;;
   esac
 }
 
@@ -66,6 +155,11 @@ is_last_phase() {
 get_phase_input_files() {
   local phase="${1:?get_phase_input_files requires a phase ID}"
 
+  # Check if PLAN stage exists in the actual schedule (not just the profile name).
+  # This handles cases where PLAN is disabled in config regardless of profile.
+  local has_plan
+  has_plan="$(read_state | jq -r '[.schedule[] | select(.phase == "1.2")] | if length > 0 then "true" else "false" end' 2>/dev/null || echo "true")"
+
   case "$phase" in
     0)
       echo "- None (use task description from state.json \`.task\` field)"
@@ -81,14 +175,30 @@ get_phase_input_files() {
       echo "- \`.agents/tmp/phases/1.2-plan.md\`"
       ;;
     2.1)
-      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      if [[ "$has_plan" == "true" ]]; then
+        echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      else
+        echo "- \`.agents/tmp/phases/0-explore.md\`"
+        echo "- Task description from state.json \`.task\` field"
+      fi
+      ;;
+    2.2)
+      echo "- \`.agents/tmp/phases/2.1-tasks.json\`"
+      echo "- Run \`git diff\` for current changes"
       ;;
     2.3)
-      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      if [[ "$has_plan" == "true" ]]; then
+        echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      else
+        echo "- \`.agents/tmp/phases/0-explore.md\`"
+      fi
       echo "- Run \`git diff\` for current changes"
       ;;
     3.1)
       echo "- Test commands from project config (Makefile, package.json, etc.)"
+      ;;
+    3.2)
+      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
       ;;
     3.3)
       echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
@@ -104,7 +214,9 @@ get_phase_input_files() {
       echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"
       ;;
     4.1)
-      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      if [[ "$has_plan" == "true" ]]; then
+        echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      fi
       echo "- \`.agents/tmp/phases/2.1-tasks.json\`"
       ;;
     4.2)
@@ -132,8 +244,10 @@ get_phase_template() {
     1.2) echo "1.2-plan.md" ;;
     1.3) echo "1.3-plan-review.md" ;;
     2.1) echo "2.1-implement.md" ;;
+    2.2) echo "2.2-simplify.md" ;;
     2.3) echo "2.3-impl-review.md" ;;
     3.1) echo "3.1-run-tests.md" ;;
+    3.2) echo "3.2-analyze.md" ;;
     3.3) echo "3.3-develop-tests.md" ;;
     3.4) echo "3.4-test-dev-review.md" ;;
     3.5) echo "3.5-test-review.md" ;;
@@ -201,7 +315,9 @@ get_phase_subagent() {
     1.1) echo "subagents:brainstormer" ;;
     1.2) echo "subagents:planner" ;;
     2.1) echo "subagents:task-agent" ;;
+    2.2) echo "subagents:simplifier" ;;
     3.1) state_get '.testRunner // "subagents:test-runner"' ;;
+    3.2) state_get '.failureAnalyzer // "subagents:failure-analyzer"' ;;
     3.3) echo "subagents:test-developer" ;;
     4.1) echo "subagents:doc-updater" ;;
     4.3) echo "subagents:completion-handler" ;;
@@ -232,16 +348,34 @@ get_phase_model() {
   case "$phase" in
     0|1.1|1.2) echo "inherit" ;;   # EXPLORE + PLAN: inherit from parent
     2.1)   echo "per-task" ;;  # IMPLEMENT: complexity-based
+    2.2)   echo "sonnet" ;;    # Simplify: sonnet
     *)     echo "sonnet" ;;    # TEST + FINAL: sonnet
   esac
 }
 
+# ===========================================================================
+# Dynamic Supplementary Agent Support
+# ===========================================================================
+
 # ---------------------------------------------------------------------------
-# get_supplementary_agents <phase> -- Return supplementary agents for a phase.
-#   Output: newline-separated list of subagent_type strings, or empty.
+# get_supplementary_policy -- Read supplementary agent dispatch policy.
+#   Returns "on-issues" (default) or "always".
+#   "on-issues": for review phases, only dispatch supplementary on second pass
+#     after primary finds issues (saves tokens when primary approves).
+#   "always": dispatch supplementary alongside primary every time.
 # ---------------------------------------------------------------------------
-get_supplementary_agents() {
-  local phase="${1:?get_supplementary_agents requires a phase ID}"
+get_supplementary_policy() {
+  local policy
+  policy="$(state_get '.supplementaryPolicy // "on-issues"' 2>/dev/null || echo "on-issues")"
+  echo "$policy"
+}
+
+# ---------------------------------------------------------------------------
+# _raw_supplementary_agents <phase> -- Return supplementary agents for a phase
+#   WITHOUT checking policy. Internal helper for policy-aware wrapper.
+# ---------------------------------------------------------------------------
+_raw_supplementary_agents() {
+  local phase="${1:?_raw_supplementary_agents requires a phase ID}"
 
   case "$phase" in
     0)
@@ -263,8 +397,71 @@ get_supplementary_agents() {
       echo "subagents:test-coverage-reviewer"
       echo "subagents:comment-reviewer"
       ;;
+    4.3)
+      echo "subagents:retrospective-analyst"
+      ;;
     *)
       # No supplementary agents
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# get_supplementary_agents <phase> -- Return supplementary agents for a phase,
+#   respecting the supplementary dispatch policy.
+#
+#   For review phases with "on-issues" policy: only returns agents on the
+#   second pass (after state.supplementaryRun[phase] is set by the hook).
+#   For non-review phases or "always" policy: returns agents unconditionally.
+# ---------------------------------------------------------------------------
+get_supplementary_agents() {
+  local phase="${1:?get_supplementary_agents requires a phase ID}"
+
+  # Check policy for review phases
+  local phase_type
+  phase_type="$(get_phase_type "$phase" 2>/dev/null || echo "")"
+
+  if [[ "$phase_type" == "review" ]]; then
+    local policy
+    policy="$(get_supplementary_policy)"
+
+    if [[ "$policy" == "on-issues" ]]; then
+      # Only include supplementary on second pass (after primary found issues)
+      local supp_run
+      supp_run="$(state_get ".supplementaryRun[\"$phase\"] // false" 2>/dev/null || echo "false")"
+      if [[ "$supp_run" != "true" ]]; then
+        return 0
+      fi
+    fi
+  fi
+
+  _raw_supplementary_agents "$phase"
+}
+
+# ---------------------------------------------------------------------------
+# is_supplementary_agent <agent_type> -- Return 0 if the agent type is a known
+#   supplementary agent (not the primary phase agent). Used by the SubagentStop
+#   hook to skip output validation when a supplementary agent finishes before
+#   the primary agent has written the phase output file.
+# ---------------------------------------------------------------------------
+is_supplementary_agent() {
+  local agent_type="${1:-}"
+  [[ -z "$agent_type" ]] && return 1
+
+  case "$agent_type" in
+    subagents:deep-explorer|\
+    subagents:architecture-analyst|\
+    subagents:code-quality-reviewer|\
+    subagents:error-handling-reviewer|\
+    subagents:type-reviewer|\
+    subagents:test-coverage-reviewer|\
+    subagents:comment-reviewer|\
+    subagents:claude-md-updater|\
+    subagents:retrospective-analyst)
+      return 0
+      ;;
+    *)
+      return 1
       ;;
   esac
 }
@@ -503,7 +700,12 @@ NONE
 
 ## Review-Fix Cycle
 
-When `state.reviewFix` exists, dispatch `subagents:fix-dispatcher` instead. The SubagentStop hook manages clearing `reviewFix`, deleting stale output, and re-triggering the review.
+When `state.reviewFix` exists, dispatch `subagents:fix-dispatcher` instead:
+
+- **If `state.reviewFix.parallel` is true:** dispatch one `subagents:fix-dispatcher` per group in `state.reviewFix.groups[]`. For each group, include `Fix Group: {group.id}` and the group's issues in the prompt. Dispatch all groups in parallel (same Task tool message).
+- **If `state.reviewFix.parallel` is false or absent:** dispatch a single `subagents:fix-dispatcher` for all issues.
+
+The SubagentStop hook tracks group completion and clears `reviewFix` when all groups finish.
 REVIEW
   fi
 

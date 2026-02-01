@@ -130,7 +130,7 @@ is_fix_cycle_active() {
 
 # ---------------------------------------------------------------------------
 # get_max_fix_attempts -- Read the max fix attempts from state,
-#   falling back to the default (3).
+#   falling back to the default (10).
 # ---------------------------------------------------------------------------
 get_max_fix_attempts() {
   local configured
@@ -144,8 +144,34 @@ get_max_fix_attempts() {
 }
 
 # ---------------------------------------------------------------------------
+# group_issues_by_file <review_result_json> -- Group blocking issues by file.
+#   Returns JSON array: [{"id":0,"files":["src/a.ts"],"issues":[...]}, ...]
+#   Issues with locations in the same file are grouped together.
+#   Single-file or no-location issues produce a single group.
+# ---------------------------------------------------------------------------
+group_issues_by_file() {
+  local review_result="${1:?group_issues_by_file requires review result JSON}"
+
+  echo "$review_result" | jq -c '
+    def loc_file:
+      .location
+      | if (. // "") == "" then "unknown"
+        else gsub(":[0-9]+(:[0-9]+)?$"; "")
+        | if . == "" then "unknown" else . end
+        end;
+    [.blockingIssues | sort_by(loc_file) | group_by(loc_file)
+    | to_entries[] | {
+      id: .key,
+      files: [.value[] | loc_file] | unique,
+      issues: .value
+    }]
+  '
+}
+
+# ---------------------------------------------------------------------------
 # start_fix_cycle <phase_id> <stage> <review_result_json> -- Set up a
 #   review-fix cycle in state. Records the issues and attempt counter.
+#   Groups issues by file for potential parallel dispatch.
 #   Does NOT advance the phase — keeps currentPhase on the review phase.
 # ---------------------------------------------------------------------------
 start_fix_cycle() {
@@ -161,7 +187,17 @@ start_fix_cycle() {
   local max_attempts
   max_attempts="$(get_max_fix_attempts)"
 
-  # Write both per-phase counter and reviewFix object
+  # Group issues by file for parallel fix dispatch
+  local groups
+  groups="$(group_issues_by_file "$review_result")"
+  local group_count
+  group_count="$(echo "$groups" | jq 'length')"
+  local is_parallel="false"
+  if [[ "$group_count" -gt 1 ]]; then
+    is_parallel="true"
+  fi
+
+  # Write per-phase counter and reviewFix object with groups
   state_update "
     .stages[\"$stage\"].phases[\"$phase_id\"].fixAttempts = $next_attempt |
     .reviewFix = {
@@ -169,7 +205,11 @@ start_fix_cycle() {
       \"stage\": \"$stage\",
       \"attempt\": $next_attempt,
       \"maxAttempts\": $max_attempts,
-      \"issues\": ($review_result | .blockingIssues)
+      \"issues\": ($review_result | .blockingIssues),
+      \"groups\": $groups,
+      \"groupCount\": $group_count,
+      \"pendingGroups\": $group_count,
+      \"parallel\": $is_parallel
     }
   "
 }
@@ -303,6 +343,8 @@ restart_stage() {
     ${reset_expr}
     | .currentPhase = \"$first_phase\"
     | del(.reviewFix)
+    | del(.supplementaryRun)
+    | del(.coverageLoop)
     | .restartHistory = ((.restartHistory // []) + [{
         \"stage\": \"$stage\",
         \"fromPhase\": \"$phase\",
