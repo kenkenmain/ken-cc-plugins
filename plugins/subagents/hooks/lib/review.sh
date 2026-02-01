@@ -191,3 +191,128 @@ complete_fix_cycle() {
   # Clear the fix cycle
   state_update 'del(.reviewFix)'
 }
+
+# ---------------------------------------------------------------------------
+# get_max_stage_restarts -- Read the max stage restarts from state,
+#   falling back to the default (3).
+# ---------------------------------------------------------------------------
+DEFAULT_MAX_STAGE_RESTARTS=3
+
+get_max_stage_restarts() {
+  local configured
+  configured="$(state_get '.reviewPolicy.maxStageRestarts // empty')"
+
+  if [[ -n "$configured" && "$configured" != "null" ]]; then
+    echo "$configured"
+  else
+    echo "$DEFAULT_MAX_STAGE_RESTARTS"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# get_first_phase_of_stage <stage> -- Look up the first phase in the
+#   schedule that belongs to the given stage.
+#   Prints the phase ID (e.g., "2.1") or empty if stage not found.
+# ---------------------------------------------------------------------------
+get_first_phase_of_stage() {
+  local stage="${1:?get_first_phase_of_stage requires a stage name}"
+
+  read_state | jq -r --arg s "$stage" '
+    [.schedule[] | select(.stage == $s)] | .[0].phase // empty
+  '
+}
+
+# ---------------------------------------------------------------------------
+# get_phase_outputs_for_stage <stage> -- Return output filenames for all
+#   phases in the given stage, one per line.
+# ---------------------------------------------------------------------------
+get_phase_outputs_for_stage() {
+  local stage="${1:?get_phase_outputs_for_stage requires a stage name}"
+
+  local phases
+  phases="$(read_state | jq -r --arg s "$stage" '
+    [.schedule[] | select(.stage == $s) | .phase] | .[]
+  ')"
+
+  local phase output
+  while IFS= read -r phase; do
+    [[ -z "$phase" ]] && continue
+    output="$(get_phase_output "$phase")"
+    [[ -n "$output" ]] && echo "$output"
+  done <<< "$phases"
+}
+
+# ---------------------------------------------------------------------------
+# restart_stage <stage> <phase> <reason> -- Restart the given stage from
+#   its first phase. Increments the stage restart counter, deletes all
+#   phase output files for the stage, resets fix attempt counters, resets
+#   currentPhase, and logs to restartHistory.
+#
+#   Returns 0 on success (restart initiated).
+#   Returns 1 if max stage restarts exceeded (caller should block).
+# ---------------------------------------------------------------------------
+restart_stage() {
+  local stage="${1:?restart_stage requires a stage name}"
+  local phase="${2:?restart_stage requires the current phase ID}"
+  local reason="${3:?restart_stage requires a reason}"
+
+  local max_restarts
+  max_restarts="$(get_max_stage_restarts)"
+
+  # Read current restart count for this stage
+  local current_restarts
+  current_restarts="$(state_get ".stages[\"$stage\"].stageRestarts // 0")"
+
+  if [[ "$current_restarts" -ge "$max_restarts" ]]; then
+    return 1
+  fi
+
+  local next_restarts=$((current_restarts + 1))
+
+  local first_phase
+  first_phase="$(get_first_phase_of_stage "$stage")"
+
+  if [[ -z "$first_phase" ]]; then
+    echo "restart_stage: could not find first phase for stage $stage" >&2
+    return 1
+  fi
+
+  # Delete all phase output files for this stage
+  local output_file
+  while IFS= read -r output_file; do
+    [[ -z "$output_file" ]] && continue
+    rm -f "$PHASES_DIR/$output_file"
+  done <<< "$(get_phase_outputs_for_stage "$stage")"
+
+  # Build jq expression to reset fix attempts for all phases in this stage
+  # and update restart counter, currentPhase, and restartHistory
+  local phase_ids
+  phase_ids="$(read_state | jq -r --arg s "$stage" '
+    [.schedule[] | select(.stage == $s) | .phase] | .[]
+  ')"
+
+  local reset_expr=""
+  local p
+  while IFS= read -r p; do
+    [[ -z "$p" ]] && continue
+    reset_expr="${reset_expr} | .stages[\"$stage\"].phases[\"$p\"] = {}"
+  done <<< "$phase_ids"
+
+  state_update "
+    .stages[\"$stage\"].stageRestarts = $next_restarts
+    ${reset_expr}
+    | .currentPhase = \"$first_phase\"
+    | del(.reviewFix)
+    | .restartHistory = ((.restartHistory // []) + [{
+        \"stage\": \"$stage\",
+        \"fromPhase\": \"$phase\",
+        \"toPhase\": \"$first_phase\",
+        \"restart\": $next_restarts,
+        \"maxRestarts\": $max_restarts,
+        \"reason\": \"$reason\",
+        \"at\": now | todate
+      }])
+  "
+
+  return 0
+}

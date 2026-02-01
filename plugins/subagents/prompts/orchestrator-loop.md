@@ -190,11 +190,21 @@ Fix the following issues found during review of phase {reviewFix.phase} (attempt
 5. Write a brief summary of what you fixed
 ```
 
-### Max Attempts
+### Max Attempts (Two-Tier Retry)
 
 The fix attempt counter is **per-phase** — stored at `stages[stage].phases[phase].fixAttempts` in state. Each review phase (1.3, 2.3, 3.4, 3.5, 4.2) tracks its own counter independently. The `reviewFix.attempt` field is a convenience copy for prompt construction.
 
-After `maxAttempts` (default: 10, configurable via `state.reviewPolicy.maxFixAttempts`), the workflow blocks and requires user intervention via `/subagents:resume`.
+When fix attempts are exhausted (`maxFixAttempts`, default: 10), the workflow does **not** immediately block. Instead, it **restarts the entire stage** from its first phase (clean slate). This gives the workflow a fresh run through explore/plan/implement before hitting the review again.
+
+```
+Tier 1: 10 fix attempts per review phase (within one run of the stage)
+Tier 2: 3 stage restarts (each restart resets fix counters to 0)
+Total:  up to 3 x 10 = 30 fix attempts before truly blocking
+```
+
+Stage restarts are tracked at `stages[stage].stageRestarts` and logged in `restartHistory[]`. Only after both tiers are exhausted does the workflow block and require user intervention via `/subagents:resume`.
+
+Configurable via `state.reviewPolicy.maxFixAttempts` (default: 10) and `state.reviewPolicy.maxStageRestarts` (default: 3).
 
 ## What NOT To Do
 
