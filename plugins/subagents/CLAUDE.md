@@ -295,19 +295,19 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 
 **These are SEPARATE namespaces. Never mix them.**
 
-| Type      | Valid Values                                                                      | Usage                       |
-| --------- | --------------------------------------------------------------------------------- | --------------------------- |
-| ModelId   | `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, `claude-haiku-4-5-20251001`, `inherit` | Task tool `model` parameter |
-| McpToolId | `codex-high`                                                                      | Review phase `tool` field   |
+| Type      | Valid Values                                        | Usage                       |
+| --------- | --------------------------------------------------- | --------------------------- |
+| ModelId   | `sonnet`, `opus`, `haiku`, `inherit`                | Task tool `model` parameter |
+| McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## Review Model Selection
 
 Review phases (1.3, 2.3, 3.4, 3.5, 4.2) use tiered model selection based on Codex availability:
 
-| Codex Available | Primary Reviewer          | Supplementary Model            | Rationale                                       |
-| --------------- | ------------------------- | ------------------------------ | ----------------------------------------------- |
-| Yes             | `codex-high` (all reviews)  | `claude-sonnet-4-5-20250929` | Codex handles review; plugins need speed |
-| No              | `subagents:claude-reviewer` | `claude-opus-4-5-20251101`   | Plugins are primary review path; need thoroughness |
+| Codex Available | Primary Reviewer          | Supplementary Model | Rationale                                       |
+| --------------- | ------------------------- | ------------------- | ----------------------------------------------- |
+| Yes             | `codex-high` (all reviews)  | `sonnet`         | Codex handles review; plugins need speed |
+| No              | `subagents:claude-reviewer` | `opus`            | Plugins are primary review path; need thoroughness |
 
 All Codex review phases use `codex-high` — no distinction between phases.
 
@@ -453,7 +453,7 @@ Agent definitions are Markdown files with YAML frontmatter. The frontmatter conf
 name: my-agent
 description: "When Claude should delegate to this agent"
 tools: [Read, Glob, Grep]
-model: claude-sonnet-4-5-20250929
+model: sonnet
 ---
 
 System prompt content here. This is ALL the agent receives —
@@ -468,7 +468,7 @@ not the full Claude Code system prompt.
 | `description`     | Yes      | When Claude should delegate — write clearly so Claude routes correctly |
 | `tools`           | No       | Allowlist of tools. Inherits all tools if omitted               |
 | `disallowedTools` | No       | Denylist — removed from inherited or specified tools            |
-| `model`           | No       | `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, `claude-haiku-4-5-20251001`, or `inherit` (default: `inherit`) |
+| `model`           | No       | `sonnet`, `opus`, `haiku`, or `inherit` (default: `inherit`)   |
 | `permissionMode`  | No       | `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, `plan` |
 | `skills`          | No       | Skills injected fully into agent context at startup             |
 | `hooks`           | No       | Lifecycle hooks scoped to this agent                            |
@@ -492,12 +492,12 @@ Claude uses the `description` field to decide when to delegate. Write it to:
 
 ### Model Selection
 
-| Model                            | When to use                                                   |
-| -------------------------------- | ------------------------------------------------------------- |
-| `claude-haiku-4-5-20251001`      | Fast read-only exploration, low-latency search, cost control  |
-| `claude-sonnet-4-5-20250929`     | Balanced capability — analysis, code review, moderate tasks   |
-| `claude-opus-4-5-20251101`       | Complex reasoning, thorough review, multi-file implementation |
-| `inherit`                        | Same model as parent conversation (default)                   |
+| Model     | When to use                                                   |
+| --------- | ------------------------------------------------------------- |
+| `haiku`   | Fast read-only exploration, low-latency search, cost control  |
+| `sonnet`  | Balanced capability — analysis, code review, moderate tasks   |
+| `opus`    | Complex reasoning, thorough review, multi-file implementation |
+| `inherit` | Same model as parent conversation (default)                   |
 
 ### System Prompt Structure (Convention)
 
