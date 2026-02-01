@@ -126,7 +126,9 @@ The dispatch command passes these flags:
     "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
   },
   "codexTimeout": {
-    "reviewPhases": 600000,
+    "reviewPhases": 300000,
+    "finalReviewPhases": null,
+    "implementPhases": 1800000,
     "testPhases": 600000,
     "explorePhases": 600000,
     "maxRetries": 2

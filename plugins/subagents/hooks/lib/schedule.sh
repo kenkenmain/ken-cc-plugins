@@ -270,6 +270,90 @@ get_supplementary_agents() {
 }
 
 # ---------------------------------------------------------------------------
+# _git_loc_changed -- Estimate total lines changed (insertions + deletions)
+#   in the working tree. Tries merge-base against main/master first (captures
+#   full branch changes), falls back to uncommitted diff against HEAD.
+#   Returns 0 if git fails or no changes detected.
+# ---------------------------------------------------------------------------
+_git_loc_changed() {
+  local dir="${1:-.}"
+  local stat_line=""
+
+  # Try diff against main's merge base (captures full branch changes)
+  local base
+  base="$(git -C "$dir" merge-base HEAD main 2>/dev/null \
+       || git -C "$dir" merge-base HEAD master 2>/dev/null \
+       || echo "")"
+  if [[ -n "$base" ]]; then
+    stat_line="$(git -C "$dir" diff "$base" --shortstat 2>/dev/null || echo "")"
+  fi
+
+  # Fallback: uncommitted changes against HEAD
+  if [[ -z "$stat_line" ]]; then
+    stat_line="$(git -C "$dir" diff HEAD --shortstat 2>/dev/null || echo "")"
+  fi
+
+  local ins
+  ins="$(echo "$stat_line" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)"
+  local del
+  del="$(echo "$stat_line" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)"
+  echo $(( ${ins:-0} + ${del:-0} ))
+}
+
+# ---------------------------------------------------------------------------
+# get_phase_timeout <phase> -- Return the phase-aware Codex timeout in ms.
+#   Review phases get a short timeout (reviews should be fast).
+#   Implementation phases get a long timeout (coding needs time).
+#   Test phases get a medium timeout.
+#   Final review (4.2) scales by code size: 10 min (<500 LOC) / 15 min (≥500).
+# ---------------------------------------------------------------------------
+get_phase_timeout() {
+  local phase="${1:?get_phase_timeout requires a phase ID}"
+  local phase_type
+  phase_type="$(get_phase_type "$phase")"
+
+  case "$phase_type" in
+    review)
+      if [[ "$phase" == "4.2" ]]; then
+        # User override takes precedence
+        local override
+        override="$(state_get '.codexTimeout.finalReviewPhases // empty')"
+        if [[ -n "$override" && "$override" != "null" ]]; then
+          echo "$override"
+          return
+        fi
+        # Scale by code size
+        local code_dir
+        code_dir="$(state_get '.worktree.path // empty')"
+        [[ -z "$code_dir" || "$code_dir" == "null" ]] && code_dir="."
+        local loc
+        loc="$(_git_loc_changed "$code_dir")"
+        if [[ "$loc" -ge 500 ]]; then
+          echo 900000   # 15 min for large changes
+        else
+          echo 600000   # 10 min for small/medium changes
+        fi
+      else
+        state_get '.codexTimeout.reviewPhases // 300000'
+      fi
+      ;;
+    *)
+      case "$phase" in
+        2.1)
+          state_get '.codexTimeout.implementPhases // 1800000'
+          ;;
+        3.1|3.3)
+          state_get '.codexTimeout.testPhases // 600000'
+          ;;
+        *)
+          state_get '.codexTimeout.reviewPhases // 300000'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # get_dispatch_rules <phase_type> -- Return type-specific dispatch rules.
 # ---------------------------------------------------------------------------
 get_dispatch_rules() {
@@ -436,15 +520,17 @@ COVERAGE
   # Codex timeout handling (for phases using Codex agents)
   if [[ "$subagent" == *"codex"* ]]; then
     local timeout_ms
-    timeout_ms="$(state_get '.codexTimeout.reviewPhases // 600000')"
+    timeout_ms="$(get_phase_timeout "$phase")"
+    local timeout_label
+    timeout_label="$(( timeout_ms / 60000 )) min"
     cat <<TIMEOUT
 
 ## Codex Timeout Handling
 
 This phase uses a Codex agent. Dispatch with timeout protection:
 
-1. Dispatch via Task tool with \`run_in_background: true\`
-2. Call \`TaskOutput(task_id, block=true, timeout=${timeout_ms})\`
+1. Dispatch via Task tool with \`run_in_background: true\` (MANDATORY — the PreToolUse hook blocks direct MCP calls and non-background Codex dispatches)
+2. Call \`TaskOutput(task_id, block=true, timeout=${timeout_ms})\` (${timeout_label})
 3. If result received: write to output file normally
 4. If timeout: call \`TaskStop(task_id)\`, then write timeout error JSON to the output file:
    \`\`\`json
