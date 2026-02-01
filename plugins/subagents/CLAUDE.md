@@ -71,13 +71,13 @@ All 15 phases run as subagents. No inline phases.
 ### EXPLORE Stage (Phase 0)
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
-- **Supplementary:** `feature-dev:code-explorer` runs in parallel for deep architecture tracing
+- **Supplementary:** `subagents:deep-explorer` runs in parallel for deep architecture tracing
 - Output: `.agents/tmp/phases/0-explore.md`
 
 ### PLAN Stage (Phases 1.1-1.3)
 
 - 1.1: Brainstorm via brainstormer agent
-- 1.2: Parallel planner agents + **`feature-dev:code-architect`** for architecture blueprint
+- 1.2: Parallel planner agents + **`subagents:architecture-analyst`** for architecture blueprint
 - 1.3: Plan review via state.reviewer (all reviews use `codex-xhigh` when Codex available)
 - Output: `.agents/tmp/phases/1.2-plan.md`
 
@@ -86,9 +86,9 @@ All 15 phases run as subagents. No inline phases.
 - 2.1: Wave-based task execution via task-agent
 - 2.2: Code simplification via simplifier agent
 - 2.3: Implementation review via state.reviewer + **supplementary parallel checks:**
-  - `pr-review-toolkit:code-reviewer` — code quality and conventions
-  - `pr-review-toolkit:silent-failure-hunter` — error handling gaps
-  - `pr-review-toolkit:type-design-analyzer` — type design quality
+  - `subagents:code-quality-reviewer` — code quality and conventions
+  - `subagents:error-handling-reviewer` — error handling gaps
+  - `subagents:type-reviewer` — type design quality
 - Output: `.agents/tmp/phases/2.1-tasks.json`
 
 ### TEST Stage (Phases 3.1-3.5)
@@ -115,11 +115,11 @@ Only after both tiers are exhausted does the workflow set `status: "blocked"`. S
 
 ### FINAL Stage (Phases 4.1-4.3)
 
-- 4.1: Documentation via doc-updater + **`claude-md-management:revise-claude-md`** in parallel
+- 4.1: Documentation via doc-updater + **`subagents:claude-md-updater`** in parallel
 - 4.2: Final review via state.reviewer + **supplementary parallel checks:**
-  - `pr-review-toolkit:code-reviewer` — final code quality sweep
-  - `pr-review-toolkit:pr-test-analyzer` — test coverage completeness
-  - `pr-review-toolkit:comment-analyzer` — comment accuracy
+  - `subagents:code-quality-reviewer` — final code quality sweep
+  - `subagents:test-coverage-reviewer` — test coverage completeness
+  - `subagents:comment-reviewer` — comment accuracy
 - 4.3: Git commit, PR creation, worktree teardown via completion-handler
 
 ## Phase Prompt Templates
@@ -222,22 +222,25 @@ Task complexity determines model selection during Phase 2.1:
 | Medium | opus-4.5    | 2-3 files, 50-200 LOC                    |
 | Hard   | codex-xhigh | 4+ files, >200 LOC, security/concurrency |
 
-## Supplementary Plugin Agents
+## Supplementary Agents
 
-External plugins provide specialized agents that run **in parallel** with primary phase agents:
+Native agents that run **in parallel** with primary phase agents (all self-contained within subagents plugin):
 
-| Plugin                 | Agents Provided                                                    | Phases    | Required |
-| ---------------------- | ------------------------------------------------------------------ | --------- | -------- |
-| `superpowers`          | `brainstorming` skill                                              | 1.1       | yes      |
-| `feature-dev`          | `code-explorer`, `code-architect`                                  | 0, 1.2    | no       |
-| `pr-review-toolkit`    | `code-reviewer`, `silent-failure-hunter`, `type-design-analyzer`, `pr-test-analyzer`, `comment-analyzer` | 2.3, 4.2 | no |
-| `claude-md-management` | `revise-claude-md`                                                 | 4.1       | no       |
+| Agent                              | Replaces                                | Phases    |
+| ---------------------------------- | --------------------------------------- | --------- |
+| `subagents:deep-explorer`          | `feature-dev:code-explorer`             | 0         |
+| `subagents:architecture-analyst`   | `feature-dev:code-architect`            | 1.2       |
+| `subagents:code-quality-reviewer`  | `pr-review-toolkit:code-reviewer`       | 2.3, 4.2  |
+| `subagents:error-handling-reviewer` | `pr-review-toolkit:silent-failure-hunter` | 2.3     |
+| `subagents:type-reviewer`          | `pr-review-toolkit:type-design-analyzer` | 2.3      |
+| `subagents:test-coverage-reviewer` | `pr-review-toolkit:pr-test-analyzer`    | 4.2       |
+| `subagents:comment-reviewer`       | `pr-review-toolkit:comment-analyzer`    | 4.2       |
+| `subagents:claude-md-updater`      | `claude-md-management:revise-claude-md` | 4.1       |
+| `subagents:fix-dispatcher`         | inline orchestrator logic               | review-fix |
 
-**When Codex is available:** Codex is the primary reviewer; plugin agents are supplementary parallel checks catching specialized issues.
+All supplementary agents are always available — no env-check availability logic needed.
 
-**When Codex is unavailable:** Plugin agents become the primary review path alongside `claude-reviewer`.
-
-Missing optional plugins are detected by env-check and silently skipped at dispatch time.
+**External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill in Phase 1.1).
 
 ## Commands
 
@@ -263,7 +266,7 @@ Dispatched by the dispatch command before the orchestrator loop starts:
 
 | Agent File             | Purpose                                                        |
 | ---------------------- | -------------------------------------------------------------- |
-| `env-check.md`         | Probes Codex MCP + verifies plugin dependencies (sonnet)       |
+| `env-check.md`         | Probes Codex MCP + verifies required plugins (sonnet)          |
 | `init-codex.md`        | Workflow init with Codex task analysis + worktree creation      |
 | `init-claude.md`       | Workflow init with Claude reasoning (Codex fallback) + worktree |
 
@@ -278,18 +281,27 @@ Dispatched by the orchestrator loop during workflow execution:
 | Agent File             | Phase(s)            | Purpose                                 |
 | ---------------------- | ------------------- | --------------------------------------- |
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
+| `deep-explorer.md`     | 0                   | Deep architecture tracing (supplementary) |
 | `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
+| `architecture-analyst.md` | 1.2              | Architecture blueprint (supplementary)  |
 | `codex-reviewer.md`    | 1.3, 2.3, 3.4, 3.5, 4.2 | Codex MCP review dispatch (when Codex available) |
 | `claude-reviewer.md`   | 1.3, 2.3, 3.4, 3.5, 4.2 | Claude reasoning review (Codex fallback) |
+| `fix-dispatcher.md`    | review-fix          | Reads review issues and applies fixes directly |
 | `difficulty-estimator.md` | 2.1              | Task complexity scoring (Claude)        |
 | `codex-difficulty-estimator.md` | 2.1        | Task complexity scoring (Codex MCP)     |
 | `task-agent.md`        | 2.1                 | Task execution (wave-based parallel)    |
 | `simplifier.md`        | 2.2                 | Code simplification                     |
+| `code-quality-reviewer.md` | 2.3, 4.2        | Code quality and conventions (supplementary) |
+| `error-handling-reviewer.md` | 2.3           | Silent failure hunting (supplementary)  |
+| `type-reviewer.md`     | 2.3                 | Type design analysis (supplementary)    |
 | `test-runner.md`       | 3.1                 | Lint and test execution (Claude)        |
 | `codex-test-runner.md` | 3.1                 | Lint and test execution (Codex MCP)     |
 | `failure-analyzer.md`  | 3.2                 | Test failure analysis and fixes (Claude) |
 | `codex-failure-analyzer.md` | 3.2            | Test failure analysis via Codex MCP     |
-| `test-developer.md`   | 3.3                 | Writes tests and CI until coverage threshold met |
+| `test-developer.md`    | 3.3                 | Writes tests and CI until coverage threshold met |
 | `doc-updater.md`       | 4.1                 | Documentation updates                   |
+| `claude-md-updater.md` | 4.1                 | CLAUDE.md updates (supplementary)       |
+| `test-coverage-reviewer.md` | 4.2            | Test coverage analysis (supplementary)  |
+| `comment-reviewer.md`  | 4.2                 | Comment accuracy review (supplementary) |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
