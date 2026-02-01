@@ -32,13 +32,15 @@ Use prompts/high-stakes/plan-review.md criteria. Tool: codex-high.
 ## Execution
 
 1. Determine which Codex tool from the prompt (`Tool: codex-high` or `Tool: codex-xhigh`)
-2. Call the Codex MCP tool directly with the full prompt:
+2. Call the Codex MCP tool directly with the full prompt. Prepend a time limit instruction:
 
 **For codex-high:**
 
 ```
 mcp__codex-high__codex(
-  prompt: "{the full prompt you received}",
+  prompt: "TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
+
+  {the full prompt you received}",
   cwd: "{working directory}"
 )
 ```
@@ -47,7 +49,9 @@ mcp__codex-high__codex(
 
 ```
 mcp__codex-xhigh__codex(
-  prompt: "{the full prompt you received}",
+  prompt: "TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
+
+  {the full prompt you received}",
   cwd: "{working directory}"
 )
 ```

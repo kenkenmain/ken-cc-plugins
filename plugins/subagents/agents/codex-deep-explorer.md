@@ -27,7 +27,9 @@ You are a thin dispatch layer. Your job is to pass the deep architecture explora
 
 ```
 mcp__codex-xhigh__codex(
-  prompt: "Perform deep architecture exploration of this codebase for the following task:
+  prompt: "TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
+
+    Perform deep architecture exploration of this codebase for the following task:
     {task description}
 
     Trace execution paths from entry points to outputs.

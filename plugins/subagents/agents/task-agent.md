@@ -120,6 +120,18 @@ On failure:
 }
 ```
 
+## Post-Implementation Simplification
+
+After implementing the task, review your code changes and simplify:
+
+1. **Eliminate duplication:** If you wrote similar code blocks, extract a shared helper
+2. **Reduce nesting:** Flatten deep if/else chains with early returns or guard clauses
+3. **Remove dead code:** Delete any commented-out code, unused imports, or unreachable branches
+4. **Simplify expressions:** Replace verbose patterns with idiomatic constructs for the language
+5. **Keep changes minimal:** Only simplify code you wrote — do not refactor surrounding code
+
+This replaces a separate simplification phase. The goal is clean, readable code on first delivery.
+
 ## Focus
 
 Execute ONLY your assigned task:

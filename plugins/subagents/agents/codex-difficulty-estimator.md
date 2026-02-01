@@ -27,7 +27,9 @@ You are a thin dispatch layer. Your job is to pass the complexity scoring task t
 
 ```
 mcp__codex-high__codex(
-  prompt: "Score implementation task complexity from the plan at .agents/tmp/phases/1.2-plan.md.
+  prompt: "TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
+
+    Score implementation task complexity from the plan at .agents/tmp/phases/1.2-plan.md.
     Use prompts/complexity-scoring.md criteria.
     For each task evaluate: file count, LOC estimate, dependencies, risk factors.
     Classify as easy (sonnet-4.5), medium (opus-4.5), or hard (codex-xhigh).

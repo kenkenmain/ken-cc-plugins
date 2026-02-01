@@ -2,26 +2,33 @@
 
 This plugin implements a hook-driven subagent architecture for Claude Code. Every workflow phase runs as an isolated subagent, with shell hooks enforcing progression, gates, and auto-chaining.
 
-## Architecture Overview (v4 — Ralph-Style Loop)
+## Architecture Overview (v5 — Phase-Specific Prompts)
 
 ```
 Main Conversation (Orchestrator Loop)
 │
-├── Stop hook injects FULL orchestrator prompt (prompts/orchestrator-loop.md)
+├── Stop hook generates PHASE-SPECIFIC orchestrator prompt (~40-70 lines)
 │   └── Claude reads state → dispatches current phase as subagent (Task tool)
 │
 ├── SubagentStop hook validates → advances state → exits silently
 │   └── No stdout — pure side-effect (validate output, check gates, advance)
+│   └── Codex timeout detection → retry tracking → Claude fallback
 │
-├── Stop hook fires again → re-injects same orchestrator prompt
+├── Stop hook fires again → generates next phase's prompt
 │   └── Claude reads updated state → dispatches next phase
 │
 ├── PreToolUse hook validates dispatch matches current phase
 │
+├── Session scoping: hooks only fire for the owning session ($PPID)
+│
 └── Phases communicate only via .agents/tmp/phases/ files
 ```
 
-**Key Design (Ralph Pattern):** The Stop hook re-injects the **complete orchestrator prompt** every iteration — not a hint. Claude reads `.agents/tmp/state.json` to determine the current phase and dispatches it. No conversation memory required. State on disk determines behavior. The SubagentStop hook is a pure side-effect hook (validate, advance, exit silently).
+**Key Design (Ralph Pattern):** The Stop hook generates a **phase-specific orchestrator prompt** every iteration via `generate_phase_prompt()` in `schedule.sh`. This replaces the previous full 130-line `orchestrator-loop.md` injection, reducing token overhead by ~50%. Claude reads `.agents/tmp/state.json` to determine the current phase and dispatches it. No conversation memory required. State on disk determines behavior. The SubagentStop hook is a pure side-effect hook (validate, advance, exit silently).
+
+### Session Scoping
+
+Hooks use `$PPID`-based session detection to prevent cross-conversation interference. At workflow start, the dispatch command captures `$PPID` and stores it as `ownerPpid` in state.json. All hooks call `check_session_owner()` — if `$PPID` doesn't match, the hook exits 0 (allows, doesn't interfere). Backward compatible: missing `ownerPpid` skips the check.
 
 ### Git Worktree Isolation
 
@@ -42,15 +49,15 @@ Three shell hooks enforce the workflow:
 
 | Hook                  | Event        | Purpose                                                          |
 | --------------------- | ------------ | ---------------------------------------------------------------- |
-| `on-subagent-stop.sh` | SubagentStop | Validate output, check gates, advance state (silent — no stdout) |
-| `on-stop.sh`          | Stop         | Re-inject full orchestrator prompt (Ralph-style loop driver)     |
+| `on-subagent-stop.sh` | SubagentStop | Validate output, check gates, advance state, Codex fallback      |
+| `on-stop.sh`          | Stop         | Generate phase-specific prompt (Ralph-style loop driver)          |
 | `on-task-dispatch.sh` | PreToolUse   | Validate Task dispatches match expected phase                    |
 
-Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh).
+Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh).
 
 ### Ralph-Style Loop Mechanics
 
-The Stop hook reads `prompts/orchestrator-loop.md` and injects it as the `reason` in `{"decision":"block","reason":"<prompt>"}`. This is the same complete prompt every time. Claude reads `.agents/tmp/state.json` to determine the current phase, dispatches it as a subagent, and the cycle repeats. The SubagentStop hook handles state advancement silently (no stdout output).
+The Stop hook calls `generate_phase_prompt()` from `schedule.sh` to build a phase-specific prompt (~40-70 lines) and injects it as the `reason` in `{"decision":"block","reason":"<prompt>"}`. The prompt includes only the current phase's dispatch instructions, supplementary agents, and relevant rules. `prompts/orchestrator-loop.md` is kept as a reference document but is NOT injected at runtime. Claude reads `.agents/tmp/state.json` to determine the current phase, dispatches it as a subagent, and the cycle repeats.
 
 ## Workflow Stages
 
@@ -58,43 +65,42 @@ The Stop hook reads `prompts/orchestrator-loop.md` and injects it as the `reason
 EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 ```
 
-All 15 phases run as subagents. No inline phases.
+All 12 phases run as subagents. No inline phases.
 
 ### Phase Types
 
-| Type       | Description                         | Examples                      |
-| ---------- | ----------------------------------- | ----------------------------- |
-| `dispatch` | Parallel batch (multiple subagents) | 0, 1.2, 2.1                  |
-| `subagent` | Single subagent                     | 1.1, 2.2, 3.1, 3.2, 3.3, 4.1, 4.3 |
-| `review`   | Review via state.reviewer agent     | 1.3, 2.3, 3.4, 3.5, 4.2           |
+| Type       | Description                         | Examples                |
+| ---------- | ----------------------------------- | ----------------------- |
+| `dispatch` | Parallel batch (multiple subagents) | 0, 1.2, 2.1            |
+| `subagent` | Single subagent                     | 3.1, 3.3, 4.1, 4.3     |
+| `review`   | Review via state.reviewer agent     | 1.3, 2.3, 3.4, 3.5, 4.2 |
 
 ### EXPLORE Stage (Phase 0)
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
 - **Supplementary:** `subagents:codex-deep-explorer` (Codex available) or `subagents:deep-explorer` (fallback) for deep architecture tracing
-- Output: `.agents/tmp/phases/0-explore.md`
+- **Supplementary:** `subagents:brainstormer` — runs after explorers to synthesize 2-3 implementation approaches
+- Output: `.agents/tmp/phases/0-explore.md` + `.agents/tmp/phases/1.1-brainstorm.md`
 
-### PLAN Stage (Phases 1.1-1.3)
+### PLAN Stage (Phases 1.2-1.3)
 
-- 1.1: Brainstorm via brainstormer agent
 - 1.2: Parallel planner agents + **`subagents:architecture-analyst`** for architecture blueprint
 - 1.3: Plan review via state.reviewer (all reviews use `codex-xhigh` when Codex available)
+- Input: both `0-explore.md` and `1.1-brainstorm.md` from EXPLORE
 - Output: `.agents/tmp/phases/1.2-plan.md`
 
-### IMPLEMENT Stage (Phases 2.1-2.3)
+### IMPLEMENT Stage (Phases 2.1, 2.3)
 
-- 2.1: Wave-based task execution via task-agent
-- 2.2: Code simplification via simplifier agent
+- 2.1: Wave-based task execution via task-agent (includes post-implementation simplification)
 - 2.3: Implementation review via state.reviewer + **supplementary parallel checks:**
   - `subagents:code-quality-reviewer` — code quality and conventions
   - `subagents:error-handling-reviewer` — error handling gaps
   - `subagents:type-reviewer` — type design quality
 - Output: `.agents/tmp/phases/2.1-tasks.json`
 
-### TEST Stage (Phases 3.1-3.5)
+### TEST Stage (Phases 3.1, 3.3-3.5)
 
-- 3.1: Run lint and test commands via state.testRunner agent
-- 3.2: Analyze failures via state.failureAnalyzer agent
+- 3.1: **Run tests AND analyze failures** via state.testRunner agent (merged — produces both `3.1-test-results.json` and `3.2-analysis.md`)
 - 3.3: **Develop Tests & CI** via test-developer agent (coverage loop — writes tests until `coverageThreshold` met, default 90%)
 - 3.4: Test development review via state.reviewer
 - 3.5: Test review via state.reviewer — **checks coverage threshold**; loops back to 3.3 if coverage not met
@@ -122,21 +128,55 @@ Only after both tiers are exhausted does the workflow set `status: "blocked"`. S
   - `subagents:comment-reviewer` — comment accuracy
 - 4.3: Git commit, PR creation, worktree teardown via completion-handler
 
+## Codex Timeout & Fallback
+
+Three-layer defense against Codex MCP hangs:
+
+### Layer 1: Prompt-Level Time Limit
+
+All Codex agent prompts include "TIME LIMIT: Complete within 10 minutes." This is a soft hint — the model may not respect it.
+
+### Layer 2: Background Dispatch + TaskOutput Timeout
+
+For phases using Codex agents, the generated orchestrator prompt instructs:
+1. Dispatch via Task with `run_in_background: true`
+2. Poll with `TaskOutput(task_id, block=true, timeout=600000)` (10 min)
+3. On timeout: `TaskStop(task_id)` + write `{"codexTimeout": true}` error JSON
+
+### Layer 3: Retry Tracking + Auto Claude Fallback
+
+`hooks/lib/fallback.sh` manages retry tracking and automatic fallback:
+- SubagentStop hook detects `codexTimeout: true` or missing output
+- Increments `dispatchRetries` counter per phase
+- After `maxRetries` (default: 2): switches ALL Codex agents to Claude equivalents
+- Records switch in `state.codexFallback` with timestamp and reason
+
+```
+Codex phase dispatch:
+  Layer 1: Prompt says "complete within 10 min"
+  Layer 2: Background dispatch with 10-min timeout
+           → Success: proceed normally
+           → Timeout: cancel + write {"codexTimeout": true}
+  Layer 3: SubagentStop detects timeout marker
+           → Retry 1: delete timeout output, re-dispatch Codex
+           → Retry 2: switch to Claude agents, re-dispatch Claude
+           → Claude succeeds: proceed normally
+```
+
 ## Phase Prompt Templates
 
-Each phase has a prompt template in `prompts/phases/`:
+Each active phase has a prompt template in `prompts/phases/`:
 
 ```
 prompts/phases/
 ├── 0-explore.md
-├── 1.1-brainstorm.md
+├── 1.1-brainstorm.md         (still used by brainstormer supplementary agent)
 ├── 1.2-plan.md
 ├── 1.3-plan-review.md
 ├── 2.1-implement.md
-├── 2.2-simplify.md
 ├── 2.3-impl-review.md
-├── 3.1-run-tests.md
-├── 3.2-analyze-failures.md
+├── 3.1-run-tests.md          (merged: produces both test results + analysis)
+├── 3.2-analyze-failures.md   (reference only — no longer scheduled)
 ├── 3.3-develop-tests.md
 ├── 3.4-test-dev-review.md
 ├── 3.5-test-review.md
@@ -153,10 +193,13 @@ State file: `.agents/tmp/state.json`
 
 Key state fields:
 
-- `schedule`: Ordered array of all phases to execute
+- `ownerPpid`: Session PID for session scoping (hooks only fire for owner session)
+- `schedule`: Ordered array of all 12 phases to execute
 - `gates`: Map of stage transitions to required output files
 - `stages`: Per-stage status, phases, and restart counts
 - `worktree`: (optional) `{ path, branch, createdAt }` — present when worktree isolation is active
+- `codexTimeout`: `{ reviewPhases, testPhases, explorePhases, maxRetries }` — timeout config (ms)
+- `codexFallback`: (optional) `{ switchedAt, reason }` — present after auto-fallback to Claude
 - `coverageThreshold`: target test coverage percentage (default: 90)
 - `coverageLoop`: (optional) tracks 3.3→3.5 iteration when coverage below threshold (max 20 iterations)
 - `webSearch`: whether agents can search for libraries online (default: true, disable with `--no-web-search`)
@@ -171,14 +214,22 @@ All phase outputs: `.agents/tmp/phases/`
 
 All workflow phases are pre-scheduled at initialization. Stage transitions are enforced by hooks.
 
-### Schedule
+### Schedule (12 phases)
 
-The `schedule` array in state lists every phase in execution order. Each entry has:
-
-- `phase`: identifier (e.g., `"1.3"`)
-- `stage`: parent stage (`EXPLORE`, `PLAN`, `IMPLEMENT`, `TEST`, `FINAL`)
-- `name`: human-readable label
-- `type`: execution type (`dispatch`, `subagent`, `review`)
+```
+Phase 0   │ EXPLORE   │ Explore (+ Brainstorm)  │ dispatch  ← GATE: EXPLORE→PLAN
+Phase 1.2 │ PLAN      │ Plan                    │ dispatch
+Phase 1.3 │ PLAN      │ Plan Review             │ review    ← GATE: PLAN→IMPLEMENT
+Phase 2.1 │ IMPLEMENT │ Implement (+ simplify)  │ dispatch
+Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review    ← GATE: IMPLEMENT→TEST
+Phase 3.1 │ TEST      │ Run Tests & Analyze     │ subagent
+Phase 3.3 │ TEST      │ Develop Tests           │ subagent
+Phase 3.4 │ TEST      │ Test Dev Review         │ review
+Phase 3.5 │ TEST      │ Test Review             │ review    ← GATE: TEST→FINAL
+Phase 4.1 │ FINAL     │ Documentation           │ subagent
+Phase 4.2 │ FINAL     │ Final Review            │ review    ← GATE: FINAL→COMPLETE
+Phase 4.3 │ FINAL     │ Completion              │ subagent
+```
 
 ### Gates
 
@@ -230,6 +281,7 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 | ---------------------------------- | --------------------------------------- | --------- |
 | `subagents:codex-deep-explorer`    | `feature-dev:code-explorer` (Codex)     | 0         |
 | `subagents:deep-explorer`          | `feature-dev:code-explorer` (fallback)  | 0         |
+| `subagents:brainstormer`           | separate Phase 1.1                      | 0         |
 | `subagents:architecture-analyst`   | `feature-dev:code-architect`            | 1.2       |
 | `subagents:code-quality-reviewer`  | `pr-review-toolkit:code-reviewer`       | 2.3, 4.2  |
 | `subagents:error-handling-reviewer` | `pr-review-toolkit:silent-failure-hunter` | 2.3     |
@@ -241,7 +293,7 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 
 All supplementary agents are always available — no env-check availability logic needed.
 
-**External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill in Phase 1.1).
+**External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer supplementary agent in Phase 0).
 
 ## Commands
 
@@ -273,7 +325,7 @@ Dispatched by the dispatch command before the orchestrator loop starts:
 
 Flow: `env-check` → if codex available → `init-codex`, else → `init-claude`
 
-Both init agents create a git worktree (unless `--no-worktree`) and record `state.worktree` in state.json.
+Both init agents create a git worktree (unless `--no-worktree`) and record `state.worktree` and `state.ownerPpid` in state.json.
 
 ### Phase Agents
 
@@ -282,28 +334,38 @@ Dispatched by the orchestrator loop during workflow execution:
 | Agent File             | Phase(s)            | Purpose                                 |
 | ---------------------- | ------------------- | --------------------------------------- |
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
-| `deep-explorer.md`     | 0                   | Deep architecture tracing (Codex fallback) |
-| `codex-deep-explorer.md` | 0                 | Deep architecture tracing via Codex MCP   |
-| `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
+| `deep-explorer.md`     | 0 (supplement)      | Deep architecture tracing (Codex fallback) |
+| `codex-deep-explorer.md` | 0 (supplement)    | Deep architecture tracing via Codex MCP   |
+| `brainstormer.md`      | 0 (supplement)      | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
-| `architecture-analyst.md` | 1.2              | Architecture blueprint (supplementary)  |
+| `architecture-analyst.md` | 1.2 (supplement) | Architecture blueprint                  |
 | `codex-reviewer.md`    | 1.3, 2.3, 3.4, 3.5, 4.2 | Codex MCP review dispatch (when Codex available) |
 | `claude-reviewer.md`   | 1.3, 2.3, 3.4, 3.5, 4.2 | Claude reasoning review (Codex fallback) |
 | `fix-dispatcher.md`    | review-fix          | Reads review issues and applies fixes directly |
 | `difficulty-estimator.md` | 2.1              | Task complexity scoring (Claude)        |
 | `codex-difficulty-estimator.md` | 2.1        | Task complexity scoring (Codex MCP)     |
-| `task-agent.md`        | 2.1                 | Task execution (wave-based parallel)    |
-| `simplifier.md`        | 2.2                 | Code simplification                     |
+| `task-agent.md`        | 2.1                 | Task execution + simplification (wave-based parallel) |
 | `code-quality-reviewer.md` | 2.3, 4.2        | Code quality and conventions (supplementary) |
 | `error-handling-reviewer.md` | 2.3           | Silent failure hunting (supplementary)  |
 | `type-reviewer.md`     | 2.3                 | Type design analysis (supplementary)    |
-| `test-runner.md`       | 3.1                 | Lint and test execution (Claude)        |
-| `codex-test-runner.md` | 3.1                 | Lint and test execution (Codex MCP)     |
-| `failure-analyzer.md`  | 3.2                 | Test failure analysis and fixes (Claude) |
-| `codex-failure-analyzer.md` | 3.2            | Test failure analysis via Codex MCP     |
+| `test-runner.md`       | 3.1                 | Lint, test, and failure analysis (Claude) |
+| `codex-test-runner.md` | 3.1                 | Lint, test, and failure analysis (Codex MCP) |
+| `failure-analyzer.md`  | (reference)         | Kept for reference — merged into test-runner |
+| `codex-failure-analyzer.md` | (reference)    | Kept for reference — merged into codex-test-runner |
+| `simplifier.md`        | (reference)         | Kept for reference — merged into task-agent |
 | `test-developer.md`    | 3.3                 | Writes tests and CI until coverage threshold met |
 | `doc-updater.md`       | 4.1                 | Documentation updates                   |
-| `claude-md-updater.md` | 4.1                 | CLAUDE.md updates (supplementary)       |
-| `test-coverage-reviewer.md` | 4.2            | Test coverage analysis (supplementary)  |
-| `comment-reviewer.md`  | 4.2                 | Comment accuracy review (supplementary) |
+| `claude-md-updater.md` | 4.1 (supplement)    | CLAUDE.md updates                       |
+| `test-coverage-reviewer.md` | 4.2 (supplement) | Test coverage analysis                |
+| `comment-reviewer.md`  | 4.2 (supplement)    | Comment accuracy review                 |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
+
+### Hook Libraries
+
+| Library File       | Purpose                                          |
+| ------------------ | ------------------------------------------------ |
+| `state.sh`         | State I/O, session scoping (`check_session_owner`) |
+| `gates.sh`         | Stage gate validation                            |
+| `schedule.sh`      | Phase advancement, `generate_phase_prompt()`     |
+| `review.sh`        | Review validation, fix cycles, stage restarts    |
+| `fallback.sh`      | Codex timeout detection, retry tracking, Claude fallback |

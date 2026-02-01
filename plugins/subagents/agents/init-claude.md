@@ -70,8 +70,8 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
    - **Docs signals:** API changes, new features → needs docs; internal refactor → skip docs
 
 6. Build the schedule array based on analysis and flags:
-   - Include all 15 phases by default
-   - If `--no-test` flag or analysis says tests unnecessary: remove phases 3.1, 3.2, 3.3, 3.4, 3.5
+   - Include all 12 phases by default
+   - If `--no-test` flag or analysis says tests unnecessary: remove phases 3.1, 3.3, 3.4, 3.5
    - If `--stage` flag: start from specified stage
    - If `--plan` flag: skip EXPLORE and PLAN stages, start at IMPLEMENT
 
@@ -92,6 +92,7 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
   "currentPhase": "0",
   "currentStage": "EXPLORE",
   "codexAvailable": false,
+  "ownerPpid": "<PPID value passed from dispatch>",
   "worktree": {
     "path": "/absolute/path/to/repo--subagent",
     "branch": "subagents/task-slug",
@@ -109,14 +110,11 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
   },
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
-    { "phase": "1.1", "stage": "PLAN", "name": "Brainstorm", "type": "subagent" },
     { "phase": "1.2", "stage": "PLAN", "name": "Plan", "type": "dispatch" },
     { "phase": "1.3", "stage": "PLAN", "name": "Plan Review", "type": "review" },
     { "phase": "2.1", "stage": "IMPLEMENT", "name": "Task Execution", "type": "dispatch" },
-    { "phase": "2.2", "stage": "IMPLEMENT", "name": "Simplify", "type": "subagent" },
     { "phase": "2.3", "stage": "IMPLEMENT", "name": "Implementation Review", "type": "review" },
-    { "phase": "3.1", "stage": "TEST", "name": "Run Tests", "type": "subagent" },
-    { "phase": "3.2", "stage": "TEST", "name": "Analyze Failures", "type": "subagent" },
+    { "phase": "3.1", "stage": "TEST", "name": "Run Tests & Analyze", "type": "subagent" },
     { "phase": "3.3", "stage": "TEST", "name": "Develop Tests", "type": "subagent" },
     { "phase": "3.4", "stage": "TEST", "name": "Test Dev Review", "type": "review" },
     { "phase": "3.5", "stage": "TEST", "name": "Test Review", "type": "review" },
@@ -130,6 +128,12 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
     "IMPLEMENT->TEST": { "required": ["2.1-tasks.json", "2.3-impl-review.json"], "phase": "2.3" },
     "TEST->FINAL": { "required": ["3.1-test-results.json", "3.3-test-dev.json", "3.5-test-review.json"], "phase": "3.5" },
     "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
+  },
+  "codexTimeout": {
+    "reviewPhases": 600000,
+    "testPhases": 600000,
+    "explorePhases": 600000,
+    "maxRetries": 2
   },
   "coverageThreshold": 90,
   "webSearch": true,
@@ -171,7 +175,7 @@ Write state to `.agents/tmp/state.json` and return a summary:
 ```json
 {
   "status": "initialized",
-  "phases": 15,
+  "phases": 12,
   "stages": ["EXPLORE", "PLAN", "IMPLEMENT", "TEST", "FINAL"],
   "startPhase": "0",
   "taskAnalysis": { "complexity": "medium" }

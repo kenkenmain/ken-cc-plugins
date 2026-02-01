@@ -19,6 +19,7 @@ source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/gates.sh"
 source "$SCRIPT_DIR/lib/schedule.sh"
 source "$SCRIPT_DIR/lib/review.sh"
+source "$SCRIPT_DIR/lib/fallback.sh"
 
 # ---------------------------------------------------------------------------
 # 1. Consume stdin (hook input -- ignored for now)
@@ -37,6 +38,13 @@ fi
 # ---------------------------------------------------------------------------
 STATE_PLUGIN="$(state_get '.plugin // empty')"
 if [[ -n "$STATE_PLUGIN" && "$STATE_PLUGIN" != "subagents" ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 2c. Session scoping: if a different session, don't interfere
+# ---------------------------------------------------------------------------
+if ! check_session_owner; then
   exit 0
 fi
 
@@ -61,9 +69,17 @@ if [[ -z "$EXPECTED_OUTPUT" ]]; then
   exit 2
 fi
 
+# ---------------------------------------------------------------------------
+# 4a. Check for Codex timeout output or missing output — handle with fallback
+# ---------------------------------------------------------------------------
+if is_codex_timeout "$CURRENT_PHASE"; then
+  handle_missing_or_timeout "$CURRENT_PHASE" "$CURRENT_STAGE"
+  exit 0  # Let Stop hook re-inject → orchestrator re-dispatches with updated agents
+fi
+
 if ! phase_file_exists "$EXPECTED_OUTPUT"; then
-  echo "on-subagent-stop: expected output file '$EXPECTED_OUTPUT' not found for phase $CURRENT_PHASE" >&2
-  exit 2
+  handle_missing_or_timeout "$CURRENT_PHASE" "$CURRENT_STAGE"
+  exit 0  # Let Stop hook re-inject → retry
 fi
 
 # ---------------------------------------------------------------------------

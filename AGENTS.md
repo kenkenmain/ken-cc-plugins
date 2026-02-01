@@ -33,7 +33,7 @@ ken-cc-plugins/
 │   │   ├── commands/                      # Slash commands (dispatch, resume, status, stop)
 │   │   ├── agents/                        # Agent definitions (init-claude, init-codex, etc.)
 │   │   ├── hooks/                         # Shell hooks (on-subagent-stop, on-stop, on-task-dispatch)
-│   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh)
+│   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh)
 │   │   ├── prompts/                       # Orchestrator + phase prompt templates
 │   │   ├── skills/                        # workflow, state-manager, configuration
 │   │   └── CLAUDE.md                      # Subagents-specific architecture docs
