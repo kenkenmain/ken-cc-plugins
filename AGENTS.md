@@ -17,6 +17,9 @@
 /subagents:dispatch <task> --no-worktree               # Without git worktree isolation
 /subagents:dispatch <task> --no-test                   # Skip test stage
 /subagents:dispatch <task> --no-web-search             # Disable library search
+/subagents:debug <bug description>                     # Parallel solution search
+/subagents:debug --solutions 5 <bug description>       # Search 5 solutions
+/subagents:debug --test --auto <bug description>       # Auto-apply best fix
 
 # Plugin Development
 claude plugin install ./plugins/superpowers-iterate    # Install locally
@@ -30,12 +33,12 @@ ken-cc-plugins/
 ├── plugins/
 │   ├── subagents/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest
-│   │   ├── commands/                      # Slash commands (dispatch, resume, status, stop)
-│   │   ├── agents/                        # Agent definitions (init-claude, init-codex, etc.)
+│   │   ├── commands/                      # Slash commands (dispatch, debug, resume, status, stop)
+│   │   ├── agents/                        # Agent definitions (init-claude, init-codex, solution-searcher, etc.)
 │   │   ├── hooks/                         # Shell hooks (on-subagent-stop, on-stop, on-task-dispatch)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh)
 │   │   ├── prompts/                       # Orchestrator + phase prompt templates
-│   │   ├── skills/                        # workflow, state-manager, configuration
+│   │   ├── skills/                        # workflow, state-manager, configuration, parallel-debug
 │   │   └── CLAUDE.md                      # Subagents-specific architecture docs
 │   └── superpowers-iterate/
 │       ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
