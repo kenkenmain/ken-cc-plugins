@@ -202,7 +202,7 @@ After the user (or `--auto`) selects a solution:
 
 - **Fewer than N agents succeed:** Rank only the successful ones. Mention failed agents in the summary.
 - **Zero fixes produced:** Report that no solutions were found. Suggest the user provide more context.
-- **Git isolation fails:** If `git stash create` or `git checkout .` fails, fall back to single-agent mode (dispatch agents one at a time, restoring between each).
+- **Git isolation fails:** If `git stash push -u` or `git checkout . && git clean -fd` fails, fall back to single-agent mode (dispatch agents one at a time, restoring between each).
 - **Patch application fails:** If `git apply` fails for the chosen solution, display the patch content and suggest manual application.
 - **Malformed agent output:** Record as failed with error details, continue with remaining agents.
 
