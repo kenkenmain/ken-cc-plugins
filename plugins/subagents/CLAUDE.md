@@ -243,9 +243,41 @@ All supplementary agents are always available — no env-check availability logi
 
 **External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill in Phase 1.1).
 
+## Parallel Debug Skill
+
+The `/subagents:debug` command provides a standalone parallel solution search for debugging. It is NOT part of the 15-phase workflow -- it runs independently within a single conversation.
+
+### Flow
+
+```
+User invokes /subagents:debug <bug description>
+  -> Skill reads bug context (error, failing test, relevant files)
+  -> Skill generates N solution hypotheses (default: 3)
+  -> Dispatches N solution-searcher agents in parallel via Task tool
+  -> Each agent independently:
+     - Analyzes the bug from its assigned angle
+     - Proposes a specific fix (with diffs)
+     - Optionally tests the fix
+  -> Dispatches solution-ranker agent to evaluate all solutions
+  -> Presents ranked solutions to user
+  -> Applies the user's chosen solution
+```
+
+### Arguments
+
+- `<bug description>` -- required, describes the bug or error
+- `--solutions N` -- number of parallel solutions to search (default: 3, min: 2, max: 10)
+- `--test` -- each agent runs tests after applying its fix
+- `--auto` -- automatically apply the top-ranked solution without confirmation
+
+### Git Isolation
+
+Parallel agents all modify the same working tree. The skill handles isolation by: (1) stashing any uncommitted user changes with `git stash push -u` before dispatch, (2) having each agent capture its diff (`git diff`) and fully restore the working tree (`git checkout . && git clean -fd`) before returning, and (3) restoring the user's stash after all agents complete. Only the chosen solution's patch is applied at the end.
+
 ## Commands
 
 - `/subagents:dispatch <task>` - Start workflow
+- `/subagents:debug <bug description>` - Parallel solution search debugger
 - `/subagents:stop` - Stop gracefully with checkpoint
 - `/subagents:resume` - Resume from checkpoint
 - `/subagents:status` - Show progress
@@ -256,6 +288,7 @@ All supplementary agents are always available — no env-check availability logi
 - `workflow` - Thin orchestrator loop (dispatches phases, hooks handle enforcement)
 - `state-manager` - State schema documentation and recovery procedures
 - `configuration` - Config loading and merging
+- `parallel-debug` - Parallel solution search for debugging (dispatches N agents with different hypotheses)
 
 ## Agents
 
@@ -307,3 +340,12 @@ Dispatched by the orchestrator loop during workflow execution:
 | `test-coverage-reviewer.md` | 4.2            | Test coverage analysis (supplementary)  |
 | `comment-reviewer.md`  | 4.2                 | Comment accuracy review (supplementary) |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
+
+### Debug Agents
+
+Dispatched by the `/subagents:debug` command (standalone, not part of the 15-phase workflow):
+
+| Agent File              | Phase(s) | Purpose                                        |
+| ----------------------- | -------- | ---------------------------------------------- |
+| `solution-searcher.md`  | debug    | Parallel solution search (investigate + fix)   |
+| `solution-ranker.md`    | debug    | Solution comparison and ranking                |

@@ -30,6 +30,24 @@ claude plugin install superpowers-iterate@ken-cc-plugins
 
 See [AGENTS.md](AGENTS.md) for workflow architecture, modes, and state management details.
 
+### subagents
+
+Hook-driven subagent architecture with parallel debugging. 15-phase workflow with gate enforcement.
+
+```bash
+/subagents:dispatch <task>                          # Full workflow
+/subagents:dispatch <task> --no-worktree            # Without git worktree isolation
+/subagents:debug <bug description>                  # Parallel solution search
+/subagents:debug --solutions 5 <bug description>    # Search 5 solutions
+/subagents:status                                   # Check progress
+```
+
+**Stages:** Explore -> Plan -> Implement -> Test -> Final
+
+**Debug Mode:** Dispatches multiple agents to search for different solutions to a bug in parallel, ranks them, and lets you choose.
+
+See [plugins/subagents/README.md](plugins/subagents/README.md) for full documentation.
+
 ## License
 
 MIT

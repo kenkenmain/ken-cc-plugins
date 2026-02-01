@@ -4,7 +4,7 @@
 
 ## Overview
 
-Orchestrates complex tasks through a main conversation that dispatches parallel subagents for exploration, planning, and task execution.
+Orchestrates complex tasks through a main conversation that dispatches parallel subagents for exploration, planning, task execution, and debugging.
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -13,7 +13,8 @@ Orchestrates complex tasks through a main conversation that dispatches parallel 
 │   ├─ PLAN stage (parallel Plan agents)              │
 │   ├─ IMPLEMENT stage (parallel Task agents)         │
 │   ├─ TEST stage                                     │
-│   └─ FINAL stage                                    │
+│   ├─ FINAL stage                                    │
+│   └─ DEBUG mode (parallel Solution agents)          │
 └─────────────────────────────────────────────────────┘
          │
          ▼ Dispatches via Task tool
@@ -21,7 +22,8 @@ Orchestrates complex tasks through a main conversation that dispatches parallel 
 │ Parallel Subagents (minimal context)                │
 │   ├─ Explore agents (1-10, codebase exploration)    │
 │   ├─ Plan agents (1-10, detailed planning)          │
-│   └─ Task agents (wave-based, implementation)       │
+│   ├─ Task agents (wave-based, implementation)       │
+│   └─ Solution agents (parallel bug fix search)      │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -47,6 +49,22 @@ Start a new workflow.
 /subagents:dispatch Add user authentication with OAuth support
 /subagents:dispatch --no-test Refactor the payment module
 /subagents:dispatch --stage IMPLEMENT --plan docs/plans/my-plan.md Continue from plan
+```
+
+### `/subagents:debug <bug description>`
+
+Search for multiple solutions to a bug in parallel.
+
+**Options:**
+
+- `--solutions N` - Number of parallel solutions to search (default: 3, min: 2, max: 10)
+- `--test` - Run tests after each agent applies its fix
+- `--auto` - Automatically apply the top-ranked solution
+
+```
+/subagents:debug "TypeError: Cannot read property 'id' of undefined in auth middleware"
+/subagents:debug --solutions 5 "Tests fail intermittently on CI"
+/subagents:debug --test --auto "Login form validation not working"
 ```
 
 ### `/subagents:status`
@@ -119,6 +137,19 @@ Configure plugin settings (models, timeouts, severity thresholds).
 | 4.1   | Docs         | Update documentation             |
 | 4.2   | Final Review | Final validation via codex-xhigh |
 | 4.3   | Completion   | Git branch and PR creation       |
+
+## Parallel Debug Mode
+
+The `/subagents:debug` command is a standalone debugging tool -- it does NOT use the 15-phase workflow, hooks, or state file. It runs within a single conversation:
+
+1. **Context Gathering** -- analyze bug description and find relevant files
+2. **Hypothesis Generation** -- generate N distinct solution angles
+3. **Parallel Search** -- dispatch N solution-searcher agents simultaneously
+4. **Ranking** -- solution-ranker agent evaluates and scores all solutions
+5. **Selection** -- user chooses which solution to apply (or `--auto` for top-ranked)
+6. **Application** -- apply the chosen solution's patch
+
+Each agent captures its changes as a git diff and restores the working tree, so parallel agents do not conflict.
 
 ## Complexity Scoring
 
