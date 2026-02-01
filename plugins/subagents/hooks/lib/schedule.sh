@@ -66,19 +66,52 @@ get_phase_input_files() {
   local phase="${1:?get_phase_input_files requires a phase ID}"
 
   case "$phase" in
-    0)   echo "task description (from state.json)" ;;
-    1.2) echo ".agents/tmp/phases/0-explore.md, .agents/tmp/phases/1.1-brainstorm.md" ;;
-    1.3) echo ".agents/tmp/phases/1.2-plan.md" ;;
-    2.1) echo ".agents/tmp/phases/1.2-plan.md" ;;
-    2.3) echo ".agents/tmp/phases/1.2-plan.md, git diff" ;;
-    3.1) echo "config test commands" ;;
-    3.3) echo ".agents/tmp/phases/3.1-test-results.json, .agents/tmp/phases/3.2-analysis.md" ;;
-    3.4) echo ".agents/tmp/phases/3.3-test-dev.json, .agents/tmp/phases/3.1-test-results.json" ;;
-    3.5) echo ".agents/tmp/phases/3.1-test-results.json, .agents/tmp/phases/3.2-analysis.md, .agents/tmp/phases/3.3-test-dev.json" ;;
-    4.1) echo ".agents/tmp/phases/1.2-plan.md, .agents/tmp/phases/2.1-tasks.json" ;;
-    4.2) echo "all .agents/tmp/phases/*.json" ;;
-    4.3) echo ".agents/tmp/phases/4.2-final-review.json" ;;
-    *)   echo "" ;;
+    0)
+      echo "- None (use task description from state.json \`.task\` field)"
+      ;;
+    1.2)
+      echo "- \`.agents/tmp/phases/0-explore.md\`"
+      echo "- \`.agents/tmp/phases/1.1-brainstorm.md\`"
+      ;;
+    1.3)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      ;;
+    2.1)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      ;;
+    2.3)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      echo "- Run \`git diff\` for current changes"
+      ;;
+    3.1)
+      echo "- Test commands from project config (Makefile, package.json, etc.)"
+      ;;
+    3.3)
+      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+      echo "- \`.agents/tmp/phases/3.2-analysis.md\` (secondary output from phase 3.1 — may not exist if tests passed)"
+      ;;
+    3.4)
+      echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"
+      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+      ;;
+    3.5)
+      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+      echo "- \`.agents/tmp/phases/3.2-analysis.md\`"
+      echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"
+      ;;
+    4.1)
+      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+      echo "- \`.agents/tmp/phases/2.1-tasks.json\`"
+      ;;
+    4.2)
+      echo "- All \`.agents/tmp/phases/*.json\` files"
+      ;;
+    4.3)
+      echo "- \`.agents/tmp/phases/4.2-final-review.json\`"
+      ;;
+    *)
+      echo "- None"
+      ;;
   esac
 }
 
@@ -205,13 +238,7 @@ get_supplementary_agents() {
 
   case "$phase" in
     0)
-      local codex_available
-      codex_available="$(state_get '.codexAvailable // false')"
-      if [[ "$codex_available" == "true" ]]; then
-        echo "subagents:codex-deep-explorer"
-      else
-        echo "subagents:deep-explorer"
-      fi
+      echo "subagents:deep-explorer"
       echo "subagents:brainstormer"
       ;;
     1.2)
@@ -307,13 +334,14 @@ You are a workflow orchestrator. Dispatch this phase as a subagent.
 
 ## Instructions
 
-1. Read \`.agents/tmp/state.json\`
+1. Read \`.agents/tmp/state.json\` — extract \`.task\`, \`.worktree\`, \`.webSearch\`
 2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, dispatch \`subagents:fix-dispatcher\` instead (it reads issues and applies fixes directly).
 3. Read the phase prompt template: \`prompts/phases/${template}\`
-4. Read input files: ${input_files}
-5. Build prompt with \`[PHASE ${phase}]\` tag using construction format below
-6. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
-7. Write output to \`.agents/tmp/phases/${output_file}\`
+4. Build prompt with \`[PHASE ${phase}]\` tag using construction format below
+5. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
+6. Write output to \`.agents/tmp/phases/${output_file}\`
+
+**Do NOT read input files yourself.** The subagent reads them directly — just pass the paths.
 
 ## Prompt Construction
 
@@ -338,7 +366,8 @@ Web Search: {state.webSearch — true or false}
 
 ## Input Files
 
-{contents or summaries of the input files}
+Read these files at the start of your work:
+${input_files}
 \`\`\`
 
 The \`[PHASE ${phase}]\` tag is required — the PreToolUse hook validates it.

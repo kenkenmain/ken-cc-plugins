@@ -23,37 +23,50 @@ Parse from $ARGUMENTS to extract task description and flags.
 
 Use the `configuration` skill to load merged config (defaults → global → project).
 
-## Step 1.5: Capture Session PID
+## Step 1.5: Pre-flight Checks
 
-Run `echo $PPID` via Bash to capture the current Claude Code session PID. Pass this value as `ownerPpid` to the init agent in Step 2. This enables session scoping — hooks will only fire for the session that started the workflow.
+Run quick inline checks via Bash — no separate agent dispatch needed.
 
-## Step 1.6: Environment Check
+**Git check (fatal):**
 
-Dispatch `subagents:env-check` agent to probe Codex MCP availability, git, and required plugins. This writes `.agents/tmp/env-check.json`.
+```bash
+git --version 2>/dev/null || echo "FATAL:git"
+```
 
-**After env-check completes, read `.agents/tmp/env-check.json` and check `fatal`:**
+If git is not available, stop immediately:
+```
+Workflow cannot start: git is not installed or not functional.
 
+To fix: install git
+```
 
-- If `fatal: true`: **STOP immediately.** Display the error to the user and exit:
-  ```
-  Workflow cannot start: {fatalReason}
+**Plugin check (fatal):**
 
-  Missing dependencies: {missingDependencies joined with ", "}
+```bash
+# Check superpowers plugin has brainstorming skill
+ls ~/.claude/plugins/*/skills/brainstorming/SKILL.md 2>/dev/null | head -1
+```
 
-  To fix:
-  - git not found → install git
-  - superpowers plugin → claude plugin install <path-to-superpowers>
-  - subagents plugin → claude plugin install <path-to-subagents>
-  ```
-  Do NOT proceed to Step 2. Do NOT create state. Clean up `.agents/tmp/` if it was created.
+If superpowers brainstorming skill not found, stop immediately:
+```
+Workflow cannot start: superpowers plugin not installed (required for brainstorming skill).
 
-- If `fatal: false`: continue to Step 2.
+To fix: claude plugin install <path-to-superpowers>
+```
+
+**Capture session PID:**
+
+```bash
+echo $PPID
+```
+
+Pass this value as `ownerPpid` to the init agent. This enables session scoping — hooks only fire for the session that started the workflow.
 
 ## Step 2: Initialize State
 
 Use `state-manager` skill to create `.agents/tmp/state.json`.
 
-Pass parsed flags to the init agent, including `--no-worktree` if set. The init agent reads the env-check result and creates the worktree (unless `--no-worktree`).
+Dispatch `subagents:init-claude` with task description, ownerPpid, and parsed flags (including `--no-worktree` if set). The init agent creates the worktree (unless `--no-worktree`), analyzes the task, and writes initial state with **optimistic Codex defaults** (Codex reviewers configured by default — runtime fallback handles unavailability).
 
 Build the `schedule` array from the full phase list, filtering out disabled stages:
 
@@ -88,7 +101,7 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
     { "phase": "4.3", "stage": "FINAL", "name": "Completion", "type": "subagent" }
   ],
   "gates": {
-    "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
+    "EXPLORE->PLAN": { "required": ["0-explore.md", "1.1-brainstorm.md"], "phase": "0" },
     "PLAN->IMPLEMENT": {
       "required": ["1.2-plan.md", "1.3-plan-review.json"],
       "phase": "1.3"
@@ -142,7 +155,7 @@ Phase 4.2 │ FINAL     │ Final Review            │ review    ← GATE: FINA
 Phase 4.3 │ FINAL     │ Completion              │ subagent
 
 Stage Gates:
-  EXPLORE → PLAN:    requires 0-explore.md
+  EXPLORE → PLAN:    requires 0-explore.md, 1.1-brainstorm.md
   PLAN → IMPLEMENT:  requires 1.2-plan.md, 1.3-plan-review.json
   IMPLEMENT → TEST:  requires 2.1-tasks.json, 2.3-impl-review.json
   TEST → FINAL:      requires 3.1-test-results.json, 3.3-test-dev.json, 3.5-test-review.json

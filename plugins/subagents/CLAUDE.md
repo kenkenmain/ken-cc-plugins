@@ -78,7 +78,7 @@ All 12 phases run as subagents. No inline phases.
 ### EXPLORE Stage (Phase 0)
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
-- **Supplementary:** `subagents:codex-deep-explorer` (Codex available) or `subagents:deep-explorer` (fallback) for deep architecture tracing
+- **Supplementary:** `subagents:deep-explorer` for deep architecture tracing (always Claude — avoids Codex timeout risk on supplementary agents)
 - **Supplementary:** `subagents:brainstormer` — runs after explorers to synthesize 2-3 implementation approaches
 - Output: `.agents/tmp/phases/0-explore.md` + `.agents/tmp/phases/1.1-brainstorm.md`
 
@@ -127,6 +127,10 @@ Only after both tiers are exhausted does the workflow set `status: "blocked"`. S
   - `subagents:test-coverage-reviewer` — test coverage completeness
   - `subagents:comment-reviewer` — comment accuracy
 - 4.3: Git commit, PR creation, worktree teardown via completion-handler
+
+## Codex Availability: Optimistic Defaults + Runtime Fallback
+
+State always initializes with `codexAvailable: true` and Codex reviewer agents configured. No pre-workflow Codex probe — if Codex MCP is unavailable, the first review phase timeout triggers automatic fallback to Claude agents via `fallback.sh`.
 
 ## Codex Timeout & Fallback
 
@@ -237,7 +241,7 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 
 | Gate            | Required Files                                  | Blocks Transition To |
 | --------------- | ----------------------------------------------- | -------------------- |
-| EXPLORE->PLAN   | `0-explore.md`                                  | PLAN                 |
+| EXPLORE->PLAN   | `0-explore.md`, `1.1-brainstorm.md`             | PLAN                 |
 | PLAN->IMPLEMENT | `1.2-plan.md`, `1.3-plan-review.json`           | IMPLEMENT            |
 | IMPLEMENT->TEST | `2.1-tasks.json`, `2.3-impl-review.json`        | TEST                 |
 | TEST->FINAL     | `3.1-test-results.json`, `3.3-test-dev.json`, `3.5-test-review.json` | FINAL     |
@@ -279,8 +283,7 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 
 | Agent                              | Replaces                                | Phases    |
 | ---------------------------------- | --------------------------------------- | --------- |
-| `subagents:codex-deep-explorer`    | `feature-dev:code-explorer` (Codex)     | 0         |
-| `subagents:deep-explorer`          | `feature-dev:code-explorer` (fallback)  | 0         |
+| `subagents:deep-explorer`          | `feature-dev:code-explorer`             | 0         |
 | `subagents:brainstormer`           | separate Phase 1.1                      | 0         |
 | `subagents:architecture-analyst`   | `feature-dev:code-architect`            | 1.2       |
 | `subagents:code-quality-reviewer`  | `pr-review-toolkit:code-reviewer`       | 2.3, 4.2  |
@@ -291,7 +294,7 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 | `subagents:claude-md-updater`      | `claude-md-management:revise-claude-md` | 4.1       |
 | `subagents:fix-dispatcher`         | inline orchestrator logic               | review-fix |
 
-All supplementary agents are always available — no env-check availability logic needed.
+All supplementary agents are always available — no availability checks needed.
 
 **External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer supplementary agent in Phase 0).
 
@@ -319,13 +322,11 @@ Dispatched by the dispatch command before the orchestrator loop starts:
 
 | Agent File             | Purpose                                                        |
 | ---------------------- | -------------------------------------------------------------- |
-| `env-check.md`         | Probes Codex MCP + verifies required plugins (sonnet)          |
-| `init-codex.md`        | Workflow init with Codex task analysis + worktree creation      |
-| `init-claude.md`       | Workflow init with Claude reasoning (Codex fallback) + worktree |
+| `init-claude.md`       | Workflow init with Claude reasoning, worktree creation, optimistic Codex defaults |
 
-Flow: `env-check` → if codex available → `init-codex`, else → `init-claude`
+Flow: dispatch runs inline git+plugin checks → `init-claude` (always). Pre-flight checks are inline bash in the dispatch command. Codex reviewers are configured optimistically; `fallback.sh` handles runtime unavailability.
 
-Both init agents create a git worktree (unless `--no-worktree`) and record `state.worktree` and `state.ownerPpid` in state.json.
+The init agent creates a git worktree (unless `--no-worktree`) and records `state.worktree` and `state.ownerPpid` in state.json.
 
 ### Phase Agents
 
@@ -334,8 +335,7 @@ Dispatched by the orchestrator loop during workflow execution:
 | Agent File             | Phase(s)            | Purpose                                 |
 | ---------------------- | ------------------- | --------------------------------------- |
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
-| `deep-explorer.md`     | 0 (supplement)      | Deep architecture tracing (Codex fallback) |
-| `codex-deep-explorer.md` | 0 (supplement)    | Deep architecture tracing via Codex MCP   |
+| `deep-explorer.md`     | 0 (supplement)      | Deep architecture tracing               |
 | `brainstormer.md`      | 0 (supplement)      | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
 | `architecture-analyst.md` | 1.2 (supplement) | Architecture blueprint                  |

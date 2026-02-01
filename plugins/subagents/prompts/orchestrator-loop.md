@@ -7,15 +7,14 @@ You are a workflow orchestrator. Your ONLY job is to dispatch the current phase 
 
 ## Instructions
 
-1. Read the workflow state file `.agents/tmp/state.json`
+1. Read the workflow state file `.agents/tmp/state.json` — extract `.task`, `.worktree`, `.webSearch`
 2. **Check for review-fix cycle first:** If `state.reviewFix` exists, dispatch `subagents:fix-dispatcher` instead of the normal phase dispatch. The fix-dispatcher reads the issues and applies fixes directly. The SubagentStop hook manages the cycle.
 3. Extract `currentPhase` and `currentStage`
 4. Look up the phase in the dispatch table below
 5. Read the phase's prompt template from the path shown in the table
-6. Read the phase's input files (listed in the table)
-7. Build a subagent prompt using the construction format below
-8. Dispatch via the Task tool with the correct `subagent_type` and `model`
-9. Write the subagent's output to the expected output file under `.agents/tmp/phases/`
+6. Build a subagent prompt using the construction format below — **pass input file paths, do NOT read them**
+7. Dispatch via the Task tool with the correct `subagent_type` and `model`
+8. Write the subagent's output to the expected output file under `.agents/tmp/phases/`
 
 After dispatching, the SubagentStop hook will automatically validate output, check gates, advance state, and manage review-fix cycles. Then the Stop hook will re-inject a phase-specific prompt for the next phase. You do NOT need to track what comes next.
 
@@ -55,7 +54,8 @@ Web Search: {state.webSearch — true or false}
 
 ## Input Files
 
-{contents or summaries of the input files listed in the dispatch table}
+Read these files at the start of your work:
+{bulleted list of input file paths from the dispatch table — subagent reads them directly}
 ```
 
 The `[PHASE {id}]` tag is required — the PreToolUse hook validates it.
@@ -80,7 +80,7 @@ When `state.worktree` does NOT exist, omit this section entirely.
 
 | Phase | Primary Agent              | Supplementary Agents (parallel)                             | Aggregation                                                      |
 | ----- | -------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| 0     | `subagents:explorer`       | `subagents:codex-deep-explorer` (Codex) / `subagents:deep-explorer` (fallback), `subagents:brainstormer` | Append deep explorer + brainstorm output |
+| 0     | `subagents:explorer`       | `subagents:deep-explorer`, `subagents:brainstormer` | Append deep explorer output + brainstorm to `1.1-brainstorm.md` |
 | 1.2   | `subagents:planner`        | `subagents:architecture-analyst`                            | Merge architecture blueprint into plan                           |
 | 2.3   | `state.reviewer`           | `subagents:code-quality-reviewer`, `subagents:error-handling-reviewer`, `subagents:type-reviewer` | Merge issues into single review JSON |
 | 4.1   | `subagents:doc-updater`    | `subagents:claude-md-updater`                               | Run independently                        |

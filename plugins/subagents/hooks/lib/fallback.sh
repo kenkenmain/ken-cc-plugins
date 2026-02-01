@@ -41,6 +41,7 @@ switch_to_claude() {
     .testRunner = \"subagents:test-runner\" |
     .failureAnalyzer = \"subagents:failure-analyzer\" |
     .difficultyEstimator = \"subagents:difficulty-estimator\" |
+    .codexAvailable = false |
     .codexFallback = {
       \"switchedAt\": (now | todate),
       \"reason\": \"$reason\"
@@ -68,11 +69,12 @@ handle_missing_or_timeout() {
   retry_count="$(state_get ".stages[\"$stage\"].phases[\"$phase\"].dispatchRetries // 0")"
   local next_retry=$((retry_count + 1))
 
-  # Check if we should switch to Claude
+  # Check if we should switch to Claude — use the phase's actual agent,
+  # not just .reviewer, to catch non-review Codex agents (testRunner, etc.)
   if [[ "$next_retry" -ge "$max_retries" ]]; then
-    local reviewer
-    reviewer="$(state_get '.reviewer // empty')"
-    if [[ "$reviewer" == *"codex"* ]]; then
+    local phase_agent
+    phase_agent="$(get_phase_subagent "$phase" 2>/dev/null || state_get '.reviewer // empty')"
+    if [[ "$phase_agent" == *"codex"* ]]; then
       switch_to_claude "dispatch retry limit ($next_retry attempts) at phase $phase"
       # Delete the timeout output so the review runs fresh with Claude
       local output_file
