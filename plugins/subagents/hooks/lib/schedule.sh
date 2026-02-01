@@ -198,6 +198,7 @@ get_phase_subagent() {
 
   case "$phase" in
     0)   echo "subagents:explorer" ;;
+    1.1) echo "subagents:brainstormer" ;;
     1.2) echo "subagents:planner" ;;
     2.1) echo "subagents:task-agent" ;;
     3.1) state_get '.testRunner // "subagents:test-runner"' ;;
@@ -229,7 +230,7 @@ get_phase_model() {
   fi
 
   case "$phase" in
-    0|1.2) echo "inherit" ;;   # EXPLORE + PLAN: inherit from parent
+    0|1.1|1.2) echo "inherit" ;;   # EXPLORE + PLAN: inherit from parent
     2.1)   echo "per-task" ;;  # IMPLEMENT: complexity-based
     *)     echo "sonnet" ;;    # TEST + FINAL: sonnet
   esac
@@ -245,7 +246,6 @@ get_supplementary_agents() {
   case "$phase" in
     0)
       echo "subagents:deep-explorer"
-      echo "subagents:brainstormer"
       ;;
     1.2)
       echo "subagents:architecture-analyst"

@@ -70,7 +70,7 @@ Dispatch `subagents:init-claude` with task description, ownerPpid, and parsed fl
 
 Build the `schedule` array from the full phase list, filtering out disabled stages:
 
-1. Start with the full 12-phase list (see state-manager skill for schema)
+1. Start with the full 13-phase list (see state-manager skill for schema)
 2. If `--no-test` or `config.stages.TEST.enabled: false`: remove phases 3.1, 3.3, 3.4, 3.5
 3. If any other stage is disabled in config: remove its phases
 4. Build the `gates` map, adjusting for disabled stages:
@@ -88,6 +88,7 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
   "ownerPpid": "<captured from Step 1.5>",
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
+    { "phase": "1.1", "stage": "PLAN", "name": "Brainstorm", "type": "subagent" },
     { "phase": "1.2", "stage": "PLAN", "name": "Plan", "type": "dispatch" },
     { "phase": "1.3", "stage": "PLAN", "name": "Plan Review", "type": "review" },
     { "phase": "2.1", "stage": "IMPLEMENT", "name": "Task Execution", "type": "dispatch" },
@@ -101,9 +102,9 @@ Build the `schedule` array from the full phase list, filtering out disabled stag
     { "phase": "4.3", "stage": "FINAL", "name": "Completion", "type": "subagent" }
   ],
   "gates": {
-    "EXPLORE->PLAN": { "required": ["0-explore.md", "1.1-brainstorm.md"], "phase": "0" },
+    "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
     "PLAN->IMPLEMENT": {
-      "required": ["1.2-plan.md", "1.3-plan-review.json"],
+      "required": ["1.1-brainstorm.md", "1.2-plan.md", "1.3-plan-review.json"],
       "phase": "1.3"
     },
     "IMPLEMENT->TEST": {
@@ -141,7 +142,8 @@ Show the user the planned execution order and gate checkpoints:
 ```
 Workflow Schedule ({N} phases)
 ==============================
-Phase 0   │ EXPLORE   │ Explore (+ Brainstorm)  │ dispatch  ← GATE: EXPLORE→PLAN
+Phase 0   │ EXPLORE   │ Explore                 │ dispatch  ← GATE: EXPLORE→PLAN
+Phase 1.1 │ PLAN      │ Brainstorm              │ subagent
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch
 Phase 1.3 │ PLAN      │ Plan Review             │ review    ← GATE: PLAN→IMPLEMENT
 Phase 2.1 │ IMPLEMENT │ Task Execution          │ dispatch
@@ -155,8 +157,8 @@ Phase 4.2 │ FINAL     │ Final Review            │ review    ← GATE: FINA
 Phase 4.3 │ FINAL     │ Completion              │ subagent
 
 Stage Gates:
-  EXPLORE → PLAN:    requires 0-explore.md, 1.1-brainstorm.md
-  PLAN → IMPLEMENT:  requires 1.2-plan.md, 1.3-plan-review.json
+  EXPLORE → PLAN:    requires 0-explore.md
+  PLAN → IMPLEMENT:  requires 1.1-brainstorm.md, 1.2-plan.md, 1.3-plan-review.json
   IMPLEMENT → TEST:  requires 2.1-tasks.json, 2.3-impl-review.json
   TEST → FINAL:      requires 3.1-test-results.json, 3.3-test-dev.json, 3.5-test-review.json
   FINAL → COMPLETE:  requires 4.2-final-review.json

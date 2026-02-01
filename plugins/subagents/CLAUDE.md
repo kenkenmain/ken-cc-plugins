@@ -45,14 +45,15 @@ Use `--no-worktree` to skip worktree creation and work directly in the project d
 
 ## Hooks
 
-Four shell hooks enforce the workflow:
+Five shell hooks enforce the workflow:
 
-| Hook                  | Event        | Purpose                                                          |
-| --------------------- | ------------ | ---------------------------------------------------------------- |
-| `on-subagent-stop.sh` | SubagentStop | Validate output, check gates, advance state, Codex fallback      |
-| `on-stop.sh`          | Stop         | Generate phase-specific prompt (Ralph-style loop driver)          |
-| `on-task-dispatch.sh` | PreToolUse   | Validate Task dispatches match expected phase + enforce background dispatch for Codex agents |
-| `on-codex-guard.sh`   | PreToolUse   | Block direct Codex MCP calls, force background dispatch pattern  |
+| Hook                      | Event        | Purpose                                                          |
+| ------------------------- | ------------ | ---------------------------------------------------------------- |
+| `on-subagent-stop.sh`     | SubagentStop | Validate output, check gates, advance state, Codex fallback      |
+| `on-stop.sh`              | Stop         | Generate phase-specific prompt (Ralph-style loop driver)          |
+| `on-task-dispatch.sh`     | PreToolUse   | Validate Task dispatches match expected phase + enforce background dispatch for Codex agents |
+| `on-codex-guard.sh`       | PreToolUse   | Block direct Codex MCP calls, force background dispatch pattern  |
+| `on-orchestrator-guard.sh`| PreToolUse   | Block direct Edit/Write to code files, force subagent dispatch   |
 
 Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh).
 
@@ -66,7 +67,7 @@ The Stop hook calls `generate_phase_prompt()` from `schedule.sh` to build a phas
 EXPLORE → PLAN → IMPLEMENT → TEST → FINAL
 ```
 
-All 12 phases run as subagents. No inline phases.
+All 13 phases run as subagents. No inline phases.
 
 ### Phase Types
 
@@ -80,15 +81,15 @@ All 12 phases run as subagents. No inline phases.
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
 - **Supplementary:** `subagents:deep-explorer` for deep architecture tracing (always Claude — avoids Codex timeout risk on supplementary agents)
-- **Supplementary:** `subagents:brainstormer` — runs after explorers to synthesize 2-3 implementation approaches
-- Output: `.agents/tmp/phases/0-explore.md` + `.agents/tmp/phases/1.1-brainstorm.md`
+- Output: `.agents/tmp/phases/0-explore.md`
 
-### PLAN Stage (Phases 1.2-1.3)
+### PLAN Stage (Phases 1.1-1.3)
 
+- 1.1: Standalone brainstormer subagent — reads finalized `0-explore.md` and synthesizes 2-3 implementation approaches
 - 1.2: Parallel planner agents + **`subagents:architecture-analyst`** for architecture blueprint
 - 1.3: Plan review via state.reviewer (all reviews use `codex-xhigh` when Codex available)
-- Input: both `0-explore.md` and `1.1-brainstorm.md` from EXPLORE
-- Output: `.agents/tmp/phases/1.2-plan.md`
+- Input: both `0-explore.md` and `1.1-brainstorm.md`
+- Output: `.agents/tmp/phases/1.1-brainstorm.md`, `.agents/tmp/phases/1.2-plan.md`
 
 ### IMPLEMENT Stage (Phases 2.1, 2.3)
 
@@ -196,7 +197,7 @@ Each active phase has a prompt template in `prompts/phases/`:
 ```
 prompts/phases/
 ├── 0-explore.md
-├── 1.1-brainstorm.md         (still used by brainstormer supplementary agent)
+├── 1.1-brainstorm.md
 ├── 1.2-plan.md
 ├── 1.3-plan-review.md
 ├── 2.1-implement.md
@@ -219,7 +220,7 @@ State file: `.agents/tmp/state.json`
 Key state fields:
 
 - `ownerPpid`: Session PID for session scoping (hooks only fire for owner session)
-- `schedule`: Ordered array of all 12 phases to execute
+- `schedule`: Ordered array of all 13 phases to execute
 - `gates`: Map of stage transitions to required output files
 - `stages`: Per-stage status, phases, and restart counts
 - `worktree`: (optional) `{ path, branch, createdAt }` — present when worktree isolation is active
@@ -239,10 +240,11 @@ All phase outputs: `.agents/tmp/phases/`
 
 All workflow phases are pre-scheduled at initialization. Stage transitions are enforced by hooks.
 
-### Schedule (12 phases)
+### Schedule (13 phases)
 
 ```
-Phase 0   │ EXPLORE   │ Explore (+ Brainstorm)  │ dispatch  ← GATE: EXPLORE→PLAN
+Phase 0   │ EXPLORE   │ Explore                 │ dispatch  ← GATE: EXPLORE→PLAN
+Phase 1.1 │ PLAN      │ Brainstorm              │ subagent
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch
 Phase 1.3 │ PLAN      │ Plan Review             │ review    ← GATE: PLAN→IMPLEMENT
 Phase 2.1 │ IMPLEMENT │ Implement (+ simplify)  │ dispatch
@@ -262,8 +264,8 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 
 | Gate            | Required Files                                  | Blocks Transition To |
 | --------------- | ----------------------------------------------- | -------------------- |
-| EXPLORE->PLAN   | `0-explore.md`, `1.1-brainstorm.md`             | PLAN                 |
-| PLAN->IMPLEMENT | `1.2-plan.md`, `1.3-plan-review.json`           | IMPLEMENT            |
+| EXPLORE->PLAN   | `0-explore.md`                                  | PLAN                 |
+| PLAN->IMPLEMENT | `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json` | IMPLEMENT |
 | IMPLEMENT->TEST | `2.1-tasks.json`, `2.3-impl-review.json`        | TEST                 |
 | TEST->FINAL     | `3.1-test-results.json`, `3.3-test-dev.json`, `3.5-test-review.json` | FINAL     |
 | FINAL->COMPLETE | `4.2-final-review.json`                         | Completion           |
@@ -305,7 +307,6 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 | Agent                              | Replaces                                | Phases    |
 | ---------------------------------- | --------------------------------------- | --------- |
 | `subagents:deep-explorer`          | `feature-dev:code-explorer`             | 0         |
-| `subagents:brainstormer`           | separate Phase 1.1                      | 0         |
 | `subagents:architecture-analyst`   | `feature-dev:code-architect`            | 1.2       |
 | `subagents:code-quality-reviewer`  | `pr-review-toolkit:code-reviewer`       | 2.3, 4.2  |
 | `subagents:error-handling-reviewer` | `pr-review-toolkit:silent-failure-hunter` | 2.3     |
@@ -317,7 +318,7 @@ Native agents that run **in parallel** with primary phase agents (all self-conta
 
 All supplementary agents are always available — no availability checks needed.
 
-**External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer supplementary agent in Phase 0).
+**External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer agent in Phase 1.1).
 
 ## Commands
 
@@ -357,7 +358,7 @@ Dispatched by the orchestrator loop during workflow execution:
 | ---------------------- | ------------------- | --------------------------------------- |
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
 | `deep-explorer.md`     | 0 (supplement)      | Deep architecture tracing               |
-| `brainstormer.md`      | 0 (supplement)      | Implementation strategy analysis        |
+| `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
 | `architecture-analyst.md` | 1.2 (supplement) | Architecture blueprint                  |
 | `codex-reviewer.md`    | 1.3, 2.3, 3.4, 3.5, 4.2 | Codex MCP review dispatch (when Codex available) |

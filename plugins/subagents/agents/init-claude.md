@@ -66,7 +66,7 @@ The dispatch command passes these flags:
    - **Docs signals:** API changes, new features → needs docs; internal refactor → skip docs
 
 5. Build the schedule array based on analysis and flags:
-   - Include all 12 phases by default
+   - Include all 13 phases by default
    - If `--no-test` flag or analysis says tests unnecessary: remove phases 3.1, 3.3, 3.4, 3.5
    - If `--stage` flag: start from specified stage
    - If `--plan` flag: skip EXPLORE and PLAN stages, start at IMPLEMENT
@@ -106,6 +106,7 @@ The dispatch command passes these flags:
   },
   "schedule": [
     { "phase": "0", "stage": "EXPLORE", "name": "Explore", "type": "dispatch" },
+    { "phase": "1.1", "stage": "PLAN", "name": "Brainstorm", "type": "subagent" },
     { "phase": "1.2", "stage": "PLAN", "name": "Plan", "type": "dispatch" },
     { "phase": "1.3", "stage": "PLAN", "name": "Plan Review", "type": "review" },
     { "phase": "2.1", "stage": "IMPLEMENT", "name": "Task Execution", "type": "dispatch" },
@@ -119,8 +120,8 @@ The dispatch command passes these flags:
     { "phase": "4.3", "stage": "FINAL", "name": "Completion", "type": "subagent" }
   ],
   "gates": {
-    "EXPLORE->PLAN": { "required": ["0-explore.md", "1.1-brainstorm.md"], "phase": "0" },
-    "PLAN->IMPLEMENT": { "required": ["1.2-plan.md", "1.3-plan-review.json"], "phase": "1.3" },
+    "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
+    "PLAN->IMPLEMENT": { "required": ["1.1-brainstorm.md", "1.2-plan.md", "1.3-plan-review.json"], "phase": "1.3" },
     "IMPLEMENT->TEST": { "required": ["2.1-tasks.json", "2.3-impl-review.json"], "phase": "2.3" },
     "TEST->FINAL": { "required": ["3.1-test-results.json", "3.3-test-dev.json", "3.5-test-review.json"], "phase": "3.5" },
     "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
@@ -175,7 +176,7 @@ Write state to `.agents/tmp/state.json` and return a summary:
 ```json
 {
   "status": "initialized",
-  "phases": 12,
+  "phases": 13,
   "stages": ["EXPLORE", "PLAN", "IMPLEMENT", "TEST", "FINAL"],
   "startPhase": "0",
   "taskAnalysis": { "complexity": "medium" }
