@@ -1,7 +1,7 @@
 ---
 name: explorer
 description: "Use proactively to explore codebase structure, find patterns, and gather context before planning - dispatched as parallel batch (1-10 agents)"
-model: sonnet
+model: claude-sonnet-4-5-20250929
 color: cyan
 tools: [Read, Glob, Grep]
 ---
