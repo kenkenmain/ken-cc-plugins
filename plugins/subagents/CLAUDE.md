@@ -391,3 +391,244 @@ Dispatched by the orchestrator loop during workflow execution:
 | `schedule.sh`      | Phase advancement, `generate_phase_prompt()`     |
 | `review.sh`        | Review validation, fix cycles, stage restarts    |
 | `fallback.sh`      | Codex timeout detection, retry tracking, Claude fallback |
+
+## Subagent Development Guidelines
+
+Based on the official Claude Code subagent API (https://code.claude.com/docs/en/sub-agents).
+
+### File Format
+
+Agent definitions are Markdown files with YAML frontmatter. The frontmatter configures metadata; the body becomes the system prompt.
+
+```markdown
+---
+name: my-agent
+description: "When Claude should delegate to this agent"
+tools: [Read, Glob, Grep]
+model: sonnet
+---
+
+System prompt content here. This is ALL the agent receives —
+not the full Claude Code system prompt.
+```
+
+### Frontmatter Fields
+
+| Field             | Required | Description                                                     |
+| ----------------- | -------- | --------------------------------------------------------------- |
+| `name`            | Yes      | Unique identifier, lowercase with hyphens                       |
+| `description`     | Yes      | When Claude should delegate — write clearly so Claude routes correctly |
+| `tools`           | No       | Allowlist of tools. Inherits all tools if omitted               |
+| `disallowedTools` | No       | Denylist — removed from inherited or specified tools            |
+| `model`           | No       | `sonnet`, `opus`, `haiku`, or `inherit` (default: `inherit`)   |
+| `permissionMode`  | No       | `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, `plan` |
+| `skills`          | No       | Skills injected fully into agent context at startup             |
+| `hooks`           | No       | Lifecycle hooks scoped to this agent                            |
+| `color`           | No       | Background color for UI identification                          |
+
+### Critical Constraints
+
+- **No nesting:** Subagents cannot spawn other subagents. If a workflow needs nested delegation, chain agents from the main conversation or use skills.
+- **Isolated context:** Agents receive only their system prompt + basic environment info (working directory). They do NOT receive the full Claude Code system prompt or the parent conversation's context.
+- **Skills must be explicit:** Agents don't inherit skills from the parent. List them in `skills:` frontmatter to inject the full skill content.
+- **Tool restrictions matter:** Use `tools` (allowlist) or `disallowedTools` (denylist) to enforce capabilities. Read-only agents should specify `tools: [Read, Glob, Grep]` and explicitly exclude `Write`, `Edit`, `Task`.
+- **`disallowedTools: [Task]`** prevents agents from spawning further subagents — use this for leaf agents like `task-agent.md`.
+
+### Description Best Practices
+
+Claude uses the `description` field to decide when to delegate. Write it to:
+- State the agent's specialty clearly
+- Include "Use proactively" if the agent should be invoked without explicit user request
+- Describe trigger conditions (e.g., "after code changes", "when encountering errors")
+- Avoid generic descriptions — Claude needs specificity to route correctly
+
+### Model Selection
+
+| Model     | When to use                                                   |
+| --------- | ------------------------------------------------------------- |
+| `haiku`   | Fast read-only exploration, low-latency search, cost control  |
+| `sonnet`  | Balanced capability — analysis, code review, moderate tasks   |
+| `opus`    | Complex reasoning, thorough review, multi-file implementation |
+| `inherit` | Same model as parent conversation (default)                   |
+
+### System Prompt Structure (Convention)
+
+This plugin follows a consistent agent prompt structure:
+
+```markdown
+# Agent Name
+
+You are a [role]. Your job is to [primary responsibility].
+
+## Your Role
+- **Bullet points** describing what the agent does
+
+## Process
+1. Step-by-step numbered workflow
+
+## Output Format
+Description of expected output structure (JSON schema, markdown, etc.)
+
+## Guidelines / Constraints
+- Specific rules and boundaries
+```
+
+### Agent Scopes
+
+| Location                     | Scope                   | Priority    |
+| ---------------------------- | ----------------------- | ----------- |
+| `--agents` CLI flag          | Current session only    | 1 (highest) |
+| `.claude/agents/`            | Current project         | 2           |
+| `~/.claude/agents/`          | All user projects       | 3           |
+| Plugin `agents/` directory   | Where plugin is enabled | 4 (lowest)  |
+
+Plugin agents (this plugin's `agents/` dir) have lowest priority. User or project agents with the same name will override them.
+
+## Hook Development Guidelines
+
+Based on the official Claude Code hooks API (https://code.claude.com/docs/en/hooks).
+
+### Hook Types
+
+| Type      | Description                                          | Key Fields         |
+| --------- | ---------------------------------------------------- | ------------------ |
+| `command` | Shell script execution — receives JSON on stdin      | `command`, `async` |
+| `prompt`  | Single-turn LLM evaluation — returns `{ok, reason}`  | `prompt`, `model`  |
+| `agent`   | Multi-turn subagent with tool access (Read, Grep, Glob) | `prompt`, `model` |
+
+### Hook Events
+
+| Event                | When it fires                          | Can block? | Matcher input        |
+| -------------------- | -------------------------------------- | ---------- | -------------------- |
+| `SessionStart`       | Session begins or resumes              | No         | `startup`, `resume`, `clear`, `compact` |
+| `UserPromptSubmit`   | User submits a prompt                  | Yes        | (none)               |
+| `PreToolUse`         | Before tool call executes              | Yes        | Tool name            |
+| `PermissionRequest`  | Permission dialog about to show        | Yes        | Tool name            |
+| `PostToolUse`        | After tool call succeeds               | No         | Tool name            |
+| `PostToolUseFailure` | After tool call fails                  | No         | Tool name            |
+| `Notification`       | Claude Code sends notification         | No         | Notification type    |
+| `SubagentStart`      | Subagent is spawned                    | No         | Agent type name      |
+| `SubagentStop`       | Subagent finishes                      | Yes        | Agent type name      |
+| `Stop`               | Claude finishes responding             | Yes        | (none)               |
+| `PreCompact`         | Before context compaction              | No         | `manual`, `auto`     |
+| `SessionEnd`         | Session terminates                     | No         | Exit reason          |
+
+### Exit Codes
+
+| Code  | Meaning                                                                |
+| ----- | ---------------------------------------------------------------------- |
+| `0`   | Success — stdout parsed for JSON output (`decision`, `reason`, etc.)   |
+| `2`   | Blocking error — stderr fed to Claude as error, action blocked         |
+| Other | Non-blocking error — stderr shown in verbose mode, execution continues |
+
+### Plugin Hook Configuration (`hooks/hooks.json`)
+
+```json
+{
+  "description": "Human-readable description",
+  "hooks": {
+    "EventName": [
+      {
+        "matcher": "regex pattern",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/script.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+- Use `${CLAUDE_PLUGIN_ROOT}` for plugin-relative paths
+- Use `"$CLAUDE_PROJECT_DIR"` for project-relative paths (quote for spaces)
+- Matchers are regex: `Edit|Write` matches either, `mcp__.*` matches all MCP tools
+- Omit matcher or use `"*"` to match all occurrences
+
+### JSON Input (stdin)
+
+All hooks receive common fields plus event-specific fields:
+
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "/path/to/transcript.jsonl",
+  "cwd": "/current/working/dir",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "npm test" }
+}
+```
+
+### JSON Output (stdout)
+
+On exit 0, hooks can print JSON to stdout:
+
+| Field            | Description                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| `decision`       | `"block"` prevents the action (PreToolUse, Stop, SubagentStop) |
+| `reason`         | Explanation — shown to Claude when blocking                  |
+| `continue`       | `false` stops Claude entirely (takes precedence over `decision`) |
+| `stopReason`     | Message shown to user when `continue: false`                 |
+| `suppressOutput` | `true` hides stdout from verbose mode                        |
+| `systemMessage`  | Warning shown to user                                        |
+
+Event-specific fields go in `hookSpecificOutput`:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow|deny|ask",
+    "permissionDecisionReason": "explanation",
+    "additionalContext": "context for Claude",
+    "updatedInput": { "field": "modified value" }
+  }
+}
+```
+
+### Shell Script Conventions (This Plugin)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/state.sh"
+
+# 1. Read JSON input from stdin
+INPUT="$(cat)"
+
+# 2. Check workflow active + session scoping
+if ! is_workflow_active; then exit 0; fi
+if ! check_session_owner; then exit 0; fi
+
+# 3. Plugin guard (only act on subagents workflows)
+STATE_PLUGIN="$(state_get '.plugin // empty')"
+if [[ -n "$STATE_PLUGIN" && "$STATE_PLUGIN" != "subagents" ]]; then
+  exit 0
+fi
+
+# 4. Extract fields with jq
+TOOL_NAME="$(echo "$INPUT" | jq -r '.tool_name // ""')"
+
+# 5. Output decision as JSON (or exit 0 silently to allow)
+jq -n --arg reason "Explanation" \
+  '{"decision":"block","reason":$reason}'
+```
+
+### Key Patterns
+
+- **Session scoping:** Always call `check_session_owner()` to prevent cross-conversation interference
+- **Plugin guard:** Check `state.plugin == "subagents"` to avoid interfering with other plugins' workflows
+- **Workflow check:** `is_workflow_active` returns false when no workflow is running — exit 0 to allow normal operation
+- **Silent allow:** Exit 0 with no output to allow without interference
+- **Blocking:** Exit 0 with `{"decision":"block","reason":"..."}` to block with guidance to Claude
+- **Error blocking:** Exit 2 with stderr message for hard blocks without JSON
+- **Atomic state writes:** Use `hooks/lib/state.sh` helpers with jq for state updates — write to tmp then move
+- **Validate with `bash -n`:** Always run `bash -n <script>` after modifying hook shell scripts
+- **Variable declarations:** Use `local var; var="$(cmd)"` not `local var="$(cmd)"` (avoids masking exit codes with `set -e`)
