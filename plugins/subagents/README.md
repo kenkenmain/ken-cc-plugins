@@ -117,7 +117,7 @@ Configure plugin settings (models, timeouts, severity thresholds).
 | Phase | Name         | Description                      |
 | ----- | ------------ | -------------------------------- |
 | 4.1   | Docs         | Update documentation             |
-| 4.2   | Final Review | Final validation via codex-xhigh |
+| 4.2   | Final Review | Final validation via codex-high |
 | 4.3   | Completion   | Git branch and PR creation       |
 
 ## Complexity Scoring
@@ -126,9 +126,9 @@ Tasks classified at runtime for model selection:
 
 | Level  | Execution               | Criteria                                 |
 | ------ | ----------------------- | ---------------------------------------- |
-| Easy   | Task agent (sonnet-4.5) | Single file, <50 LOC                     |
-| Medium | Task agent (opus-4.5)   | 2-3 files, 50-200 LOC                    |
-| Hard   | Codex MCP (codex-xhigh) | 4+ files, >200 LOC, security/concurrency |
+| Easy   | task-agent → codex-high | Single file, <50 LOC                     |
+| Medium | task-agent → codex-high | 2-3 files, 50-200 LOC                    |
+| Hard   | task-agent → codex-high | 4+ files, >200 LOC, security/concurrency |
 
 ## Configuration
 
@@ -155,9 +155,9 @@ Project configuration overrides global.
     "IMPLEMENT": {
       "tasks": {
         "complexityModels": {
-          "easy": "sonnet-4.5",
-          "medium": "opus-4.5",
-          "hard": "codex-xhigh"
+          "easy": "codex-high",
+          "medium": "codex-high",
+          "hard": "codex-high"
         }
       }
     }
@@ -209,7 +209,7 @@ Workflow state tracked in `.agents/tmp/state.json`:
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
 | ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
-| McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
+| McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## License
 

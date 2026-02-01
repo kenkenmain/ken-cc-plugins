@@ -30,16 +30,16 @@ Display merged config and exit:
 
 ```
 Complexity Scoring:
-  Easy: sonnet-4.5 (Task agent)
-  Medium: opus-4.5 (Task agent)
-  Hard: codex-xhigh (Codex MCP)
+  Easy: codex-high (via task-agent wrapper)
+  Medium: codex-high (via task-agent wrapper)
+  Hard: codex-high (via task-agent wrapper)
 
 Stages:
   EXPLORE:   enabled=true, maxParallelAgents=10
   PLAN:      review=codex-high
   IMPLEMENT: useComplexityScoring=true, maxParallelAgents=10
   TEST:      enabled=true, lint="make lint", test="make test"
-  FINAL:     review=codex-xhigh, git.workflow=branch+PR
+  FINAL:     review=codex-high, git.workflow=branch+PR
 
 Compaction:
   betweenStages: true
@@ -68,11 +68,11 @@ Use AskUserQuestion to configure:
 - header: "Complexity"
 - options:
   - label: "Easy tasks"
-    description: "Currently: sonnet-4.5 (Task agent)"
+    description: "Currently: codex-high (via task-agent wrapper)"
   - label: "Medium tasks"
-    description: "Currently: opus-4.5 (Task agent)"
+    description: "Currently: codex-high (via task-agent wrapper)"
   - label: "Hard tasks"
-    description: "Currently: codex-xhigh (Codex MCP)"
+    description: "Currently: codex-high (via task-agent wrapper)"
 
 ### Test Stage
 

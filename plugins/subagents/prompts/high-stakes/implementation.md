@@ -75,4 +75,4 @@ You are reviewing code implementation produced by task agents. Focus on correctn
 
 ## Note
 
-Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` when Codex is available.
+Invoked via `codex-reviewer` subagent with `tool: "codex-high"` when Codex is available.

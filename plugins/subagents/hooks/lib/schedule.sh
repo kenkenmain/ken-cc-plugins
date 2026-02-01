@@ -748,7 +748,7 @@ TIMEOUT
 
 ## Model Selection
 
-Model varies per task based on complexity scoring: easy→sonnet, medium→opus, hard→codex-xhigh.
+All tasks dispatched via task-agent (thin wrapper) to codex-high MCP. Complexity scoring used for tracking.
 PERTASK
   elif [[ "$phase_type" == "review" ]]; then
     cat <<'REVIEWMODEL'

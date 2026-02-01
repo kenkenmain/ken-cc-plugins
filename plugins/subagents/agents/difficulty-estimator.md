@@ -33,9 +33,9 @@ You are a task complexity scorer. Your job is to analyze implementation tasks fr
 
 | Level  | Criteria                                          | Execution Model |
 | ------ | ------------------------------------------------- | --------------- |
-| Easy   | Single file, <50 LOC changes, well-defined scope  | sonnet-4.5      |
-| Medium | 2-3 files, 50-200 LOC, moderate dependencies      | opus-4.5        |
-| Hard   | 4+ files, >200 LOC, security/concurrency concerns | codex-xhigh     |
+| Easy   | Single file, <50 LOC changes, well-defined scope  | codex-high      |
+| Medium | 2-3 files, 50-200 LOC, moderate dependencies      | codex-high      |
+| Hard   | 4+ files, >200 LOC, security/concurrency concerns | codex-high      |
 
 ## Guidelines
 
@@ -57,8 +57,8 @@ Write JSON to the output file:
       "taskId": "<id>",
       "complexity": "easy | medium | hard",
       "reasoning": "<one line explanation>",
-      "execution": "task-agent | codex-mcp",
-      "model": "sonnet-4.5 | opus-4.5 | null",
+      "execution": "codex-mcp",
+      "model": null,
       "fileCount": 1,
       "locEstimate": 30,
       "riskFactors": []
@@ -73,7 +73,7 @@ Write JSON to the output file:
 }
 ```
 
-Note: Hard complexity tasks use `codex-xhigh` MCP directly, so `model` is `null` and `execution` is `codex-mcp`.
+Note: All tasks are dispatched via task-agent (thin wrapper) to `codex-high` MCP. Complexity scoring is used for tracking and logging.
 
 ## Error Handling
 

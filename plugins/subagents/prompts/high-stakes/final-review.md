@@ -82,4 +82,4 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 
 ## Note
 
-Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` for maximum reasoning depth. All review phases use `codex-xhigh` when Codex is available.
+Invoked via `codex-reviewer` subagent with `tool: "codex-high"` when Codex is available.

@@ -6,9 +6,9 @@ You are classifying tasks for appropriate model assignment. Analyze each task an
 
 | Level  | Execution                    | Criteria                                          |
 | ------ | ---------------------------- | ------------------------------------------------- |
-| Easy   | Task agent (sonnet-4.5)      | Single file, <50 LOC changes, well-defined scope  |
-| Medium | Task agent (opus-4.5)        | 2-3 files, 50-200 LOC, moderate dependencies      |
-| Hard   | codex-reviewer (codex-xhigh) | 4+ files, >200 LOC, security/concurrency concerns |
+| Easy   | task-agent → codex-high      | Single file, <50 LOC changes, well-defined scope  |
+| Medium | task-agent → codex-high      | 2-3 files, 50-200 LOC, moderate dependencies      |
+| Hard   | task-agent → codex-high      | 4+ files, >200 LOC, security/concurrency concerns |
 
 ## Task Analysis Checklist
 
@@ -32,12 +32,12 @@ For each task, return:
   "taskId": "<id>",
   "complexity": "easy" | "medium" | "hard",
   "reasoning": "<one line explanation>",
-  "execution": "task-agent" | "codex-mcp",
-  "model": "sonnet-4.5" | "opus-4.5" | "haiku-4.5" | null
+  "execution": "codex-mcp",
+  "model": null
 }
 ```
 
-Note: Hard complexity tasks use `codex-xhigh` MCP directly, so `model` is null.
+Note: All tasks are dispatched via task-agent (thin wrapper) to `codex-high` MCP, so `model` is always null. Complexity scoring is used for tracking and logging.
 
 ## Guidelines
 

@@ -87,7 +87,7 @@ Phase count depends on pipeline profile: minimal (5), standard (13), thorough (1
 
 - 1.1: Standalone brainstormer subagent — reads finalized `0-explore.md` and synthesizes 2-3 implementation approaches
 - 1.2: Parallel planner agents + **`subagents:architecture-analyst`** for architecture blueprint
-- 1.3: Plan review via state.reviewer (all reviews use `codex-xhigh` when Codex available)
+- 1.3: Plan review via state.reviewer (all reviews use `codex-high` when Codex available)
 - Input: both `0-explore.md` and `1.1-brainstorm.md`
 - Output: `.agents/tmp/phases/1.1-brainstorm.md`, `.agents/tmp/phases/1.2-plan.md`
 
@@ -97,7 +97,6 @@ Phase count depends on pipeline profile: minimal (5), standard (13), thorough (1
   - Task agents write unit tests alongside code (hybrid approach) — `testsWritten` array in output
   - Tests follow project conventions (search-before-write pattern for framework/convention discovery)
   - Skip conditions: config-only, generated code, docs-only, test-file-only changes
-  - `maxWriteFiles`: 5 (implementation + test files combined)
 - 2.3: Implementation review via state.reviewer + **supplementary parallel checks:**
   - `subagents:code-quality-reviewer` — code quality and conventions
   - `subagents:error-handling-reviewer` — error handling gaps
@@ -146,7 +145,7 @@ Four-layer defense against Codex MCP hangs:
 ### Layer 0: Hook-Enforced Background Dispatch (Mechanical Guard)
 
 PreToolUse hooks (`on-codex-guard.sh` + `on-task-dispatch.sh`) mechanically block:
-- Direct `mcp__codex-xhigh__codex` / `mcp__codex-high__codex` calls during active workflow
+- Direct `mcp__codex-high__codex` calls during active workflow
 - Codex agent Task dispatches without `run_in_background: true`
 
 This is the **only layer that doesn't depend on Claude following prompt instructions**. It forces all Codex MCP usage through background-dispatched Task agents, making Layer 2 timeout mechanically enforceable.
@@ -299,7 +298,7 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
 | ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
-| McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
+| McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## Review Model Selection
 
@@ -307,10 +306,10 @@ Review phases (1.3, 2.3, 3.4, 3.5, 4.2) use tiered model selection based on Code
 
 | Codex Available | Primary Reviewer          | Supplementary Model | Rationale                                       |
 | --------------- | ------------------------- | ------------------- | ----------------------------------------------- |
-| Yes             | `codex-xhigh` (all reviews) | `sonnet`         | Codex handles deep reasoning; plugins need speed |
+| Yes             | `codex-high` (all reviews)  | `sonnet`         | Codex handles review; plugins need speed |
 | No              | `subagents:claude-reviewer` | `opus`            | Plugins are primary review path; need thoroughness |
 
-All Codex review phases use `codex-xhigh` — no distinction between phases.
+All Codex review phases use `codex-high` — no distinction between phases.
 
 ## Complexity Scoring
 
@@ -318,9 +317,9 @@ Task complexity determines model selection during Phase 2.1:
 
 | Level  | Model       | Criteria                                 |
 | ------ | ----------- | ---------------------------------------- |
-| Easy   | sonnet-4.5  | Single file, <50 LOC                     |
-| Medium | opus-4.5    | 2-3 files, 50-200 LOC                    |
-| Hard   | codex-xhigh | 4+ files, >200 LOC, security/concurrency |
+| Easy   | codex-high  | Single file, <50 LOC                     |
+| Medium | codex-high  | 2-3 files, 50-200 LOC                    |
+| Hard   | codex-high  | 4+ files, >200 LOC, security/concurrency |
 
 ## Supplementary Agents
 
