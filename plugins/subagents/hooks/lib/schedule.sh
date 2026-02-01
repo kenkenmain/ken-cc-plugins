@@ -224,8 +224,9 @@ get_phase_model() {
   fi
 
   case "$phase" in
-    2.1) echo "per-task" ;;
-    *)   echo "inherit" ;;
+    0|1.2) echo "inherit" ;;   # EXPLORE + PLAN: inherit from parent
+    2.1)   echo "per-task" ;;  # IMPLEMENT: complexity-based
+    *)     echo "sonnet" ;;    # TEST + FINAL: sonnet
   esac
 }
 
