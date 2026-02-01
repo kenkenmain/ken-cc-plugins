@@ -203,6 +203,7 @@ get_phase_input_files() {
     3.3)
       echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
       echo "- \`.agents/tmp/phases/3.2-analysis.md\` (secondary output from phase 3.1 — may not exist if tests passed)"
+      echo "- \`.agents/tmp/phases/2.1-tasks.json\` (check \`testsWritten\` entries — skip already-tested code)"
       ;;
     3.4)
       echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"

@@ -33,13 +33,22 @@ You are reviewing code implementation produced by task agents. Focus on correctn
 - [ ] Character limits respected (description: 100, instructions: 2000)
 - [ ] Dependency outputs properly summarized (max 500 chars each)
 
+### 5. Test Quality
+
+- [ ] Tests written for new/modified code (testsWritten array present — empty is valid for config-only, generated, or docs-only changes)
+- [ ] Assertions are meaningful (verify behavior, not implementation details)
+- [ ] Edge cases covered (error paths, boundary values, empty inputs)
+- [ ] Tests follow project conventions (framework, file location, naming)
+- [ ] No false positives (tests do not pass trivially or assert always-true conditions)
+- [ ] Test files target the correct source files (testsWritten[].targetFile matches modified files)
+
 ## Severity Levels
 
 | Severity | Examples                                                     |
 | -------- | ------------------------------------------------------------ |
-| HIGH     | Security vulnerability, data corruption risk, plan violation |
-| MEDIUM   | Missing error handling, poor performance, code smell         |
-| LOW      | Style inconsistency, minor optimization opportunity          |
+| HIGH     | Security vulnerability, data corruption risk, plan violation, no tests for critical code path |
+| MEDIUM   | Missing error handling, poor performance, code smell, weak assertions, missing edge case tests |
+| LOW      | Style inconsistency, minor optimization opportunity, test naming convention          |
 
 ## Output Format
 

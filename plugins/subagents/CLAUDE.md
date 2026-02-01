@@ -93,17 +93,22 @@ Phase count depends on pipeline profile: minimal (5), standard (13), thorough (1
 
 ### IMPLEMENT Stage (Phases 2.1, 2.3)
 
-- 2.1: Wave-based task execution via task-agent (includes post-implementation simplification)
+- 2.1: Wave-based task execution via task-agent (includes **test writing** + post-implementation simplification)
+  - Task agents write unit tests alongside code (hybrid approach) — `testsWritten` array in output
+  - Tests follow project conventions (search-before-write pattern for framework/convention discovery)
+  - Skip conditions: config-only, generated code, docs-only, test-file-only changes
+  - `maxWriteFiles`: 5 (implementation + test files combined)
 - 2.3: Implementation review via state.reviewer + **supplementary parallel checks:**
   - `subagents:code-quality-reviewer` — code quality and conventions
   - `subagents:error-handling-reviewer` — error handling gaps
   - `subagents:type-reviewer` — type design quality
-- Output: `.agents/tmp/phases/2.1-tasks.json`
+  - Review criteria includes **test quality** (section 5 in `high-stakes/implementation.md`)
+- Output: `.agents/tmp/phases/2.1-tasks.json` (includes per-task `testsWritten`, aggregate `testsTotal`/`testFiles`)
 
 ### TEST Stage (Phases 3.1, 3.3-3.5)
 
 - 3.1: **Run tests AND analyze failures** via state.testRunner agent (merged — produces both `3.1-test-results.json` and `3.2-analysis.md`)
-- 3.3: **Develop Tests & CI** via test-developer agent (coverage loop — writes tests until `coverageThreshold` met, default 90%)
+- 3.3: **Develop Tests & CI** via test-developer agent (**gap-filler** — reads `2.1-tasks.json` for existing `testsWritten`, then fills remaining coverage gaps until `coverageThreshold` met, default 90%)
 - 3.4: Test development review via state.reviewer
 - 3.5: Test review via state.reviewer — **checks coverage threshold**; loops back to 3.3 if coverage not met
 
