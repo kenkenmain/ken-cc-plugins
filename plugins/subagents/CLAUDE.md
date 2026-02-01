@@ -180,7 +180,6 @@ prompts/phases/
 ├── 2.1-implement.md
 ├── 2.3-impl-review.md
 ├── 3.1-run-tests.md          (merged: produces both test results + analysis)
-├── 3.2-analyze-failures.md   (reference only — no longer scheduled)
 ├── 3.3-develop-tests.md
 ├── 3.4-test-dev-review.md
 ├── 3.5-test-review.md

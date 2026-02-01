@@ -11,6 +11,7 @@ get_phase_output() {
 
   case "$phase" in
     0)   echo "0-explore.md" ;;
+    1.1) echo "1.1-brainstorm.md" ;;
     1.2) echo "1.2-plan.md" ;;
     1.3) echo "1.3-plan-review.json" ;;
     2.1) echo "2.1-tasks.json" ;;
@@ -69,6 +70,9 @@ get_phase_input_files() {
     0)
       echo "- None (use task description from state.json \`.task\` field)"
       ;;
+    1.1)
+      echo "- \`.agents/tmp/phases/0-explore.md\`"
+      ;;
     1.2)
       echo "- \`.agents/tmp/phases/0-explore.md\`"
       echo "- \`.agents/tmp/phases/1.1-brainstorm.md\`"
@@ -124,6 +128,7 @@ get_phase_template() {
 
   case "$phase" in
     0)   echo "0-explore.md" ;;
+    1.1) echo "1.1-brainstorm.md" ;;
     1.2) echo "1.2-plan.md" ;;
     1.3) echo "1.3-plan-review.md" ;;
     2.1) echo "2.1-implement.md" ;;
