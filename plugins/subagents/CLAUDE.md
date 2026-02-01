@@ -87,23 +87,30 @@ Phase count depends on pipeline profile: minimal (5), standard (13), thorough (1
 
 - 1.1: Standalone brainstormer subagent — reads finalized `0-explore.md` and synthesizes 2-3 implementation approaches
 - 1.2: Parallel planner agents + **`subagents:architecture-analyst`** for architecture blueprint
-- 1.3: Plan review via state.reviewer (all reviews use `codex-xhigh` when Codex available)
+- 1.3: Plan review via state.reviewer (all reviews use `codex-high` when Codex available)
 - Input: both `0-explore.md` and `1.1-brainstorm.md`
 - Output: `.agents/tmp/phases/1.1-brainstorm.md`, `.agents/tmp/phases/1.2-plan.md`
 
 ### IMPLEMENT Stage (Phases 2.1, 2.3)
 
-- 2.1: Wave-based task execution via task-agent (includes post-implementation simplification)
+- 2.1: Wave-based task execution via complexity-routed task agents (includes **test writing** + post-implementation simplification)
+  - Easy tasks → `sonnet-task-agent` (direct execution, model=sonnet)
+  - Medium tasks → `opus-task-agent` (direct execution, model=opus)
+  - Hard tasks → `codex-task-agent` (Codex mode) or `opus-task-agent` (Claude mode, when `codexAvailable: false`)
+  - Task agents write unit tests alongside code (hybrid approach) — `testsWritten` array in output
+  - Tests follow project conventions (search-before-write pattern for framework/convention discovery)
+  - Skip conditions: config-only, generated code, docs-only, test-file-only changes
 - 2.3: Implementation review via state.reviewer + **supplementary parallel checks:**
   - `subagents:code-quality-reviewer` — code quality and conventions
   - `subagents:error-handling-reviewer` — error handling gaps
   - `subagents:type-reviewer` — type design quality
-- Output: `.agents/tmp/phases/2.1-tasks.json`
+  - Review criteria includes **test quality** (section 5 in `high-stakes/implementation.md`)
+- Output: `.agents/tmp/phases/2.1-tasks.json` (includes per-task `testsWritten`, aggregate `testsTotal`/`testFiles`)
 
 ### TEST Stage (Phases 3.1, 3.3-3.5)
 
-- 3.1: **Run tests AND analyze failures** via state.testRunner agent (merged — produces both `3.1-test-results.json` and `3.2-analysis.md`)
-- 3.3: **Develop Tests & CI** via test-developer agent (coverage loop — writes tests until `coverageThreshold` met, default 90%)
+- 3.1: **Run tests AND analyze failures** via state.testDeveloper agent (merged — produces both `3.1-test-results.json` and `3.2-analysis.md`)
+- 3.3: **Develop Tests & CI** via state.testDeveloper agent (**gap-filler** — reads `2.1-tasks.json` for existing `testsWritten`, then fills remaining coverage gaps until `coverageThreshold` met, default 90%)
 - 3.4: Test development review via state.reviewer
 - 3.5: Test review via state.reviewer — **checks coverage threshold**; loops back to 3.3 if coverage not met
 
@@ -123,16 +130,17 @@ Only after both tiers are exhausted does the workflow set `status: "blocked"`. S
 
 ### FINAL Stage (Phases 4.1-4.3)
 
-- 4.1: Documentation via doc-updater + **`subagents:claude-md-updater`** in parallel
+- 4.1: Documentation via state.docUpdater + **`subagents:claude-md-updater`** in parallel
 - 4.2: Final review via state.reviewer + **supplementary parallel checks:**
   - `subagents:code-quality-reviewer` — final code quality sweep
   - `subagents:test-coverage-reviewer` — test coverage completeness
   - `subagents:comment-reviewer` — comment accuracy
 - 4.3: Git commit, PR creation, worktree teardown via completion-handler + **`subagents:retrospective-analyst`** (supplementary) for workflow learnings
 
-## Codex Availability: Optimistic Defaults + Runtime Fallback
+## Codex Availability: Dispatch Mode Determines Defaults
 
-State always initializes with `codexAvailable: true` and Codex reviewer agents configured. No pre-workflow Codex probe — if Codex MCP is unavailable, the first review phase timeout triggers automatic fallback to Claude agents via `fallback.sh`.
+- **`dispatch` (Codex mode):** State initializes with `codexAvailable: true` and Codex agents configured. No pre-workflow Codex probe — if Codex MCP is unavailable, the first review phase timeout triggers automatic fallback to Claude agents via `fallback.sh`.
+- **`dispatch-claude` (Claude mode):** State initializes with `codexAvailable: false` and Claude agents configured. No Codex MCP dependency, no fallback needed.
 
 ## Codex Timeout & Fallback
 
@@ -141,7 +149,7 @@ Four-layer defense against Codex MCP hangs:
 ### Layer 0: Hook-Enforced Background Dispatch (Mechanical Guard)
 
 PreToolUse hooks (`on-codex-guard.sh` + `on-task-dispatch.sh`) mechanically block:
-- Direct `mcp__codex-xhigh__codex` / `mcp__codex-high__codex` calls during active workflow
+- Direct `mcp__codex-high__codex` calls during active workflow
 - Codex agent Task dispatches without `run_in_background: true`
 
 This is the **only layer that doesn't depend on Claude following prompt instructions**. It forces all Codex MCP usage through background-dispatched Task agents, making Layer 2 timeout mechanically enforceable.
@@ -293,8 +301,8 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
-| ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
-| McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
+| ModelId   | `sonnet`, `opus`, `haiku`, `inherit`                | Task tool `model` parameter |
+| McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## Review Model Selection
 
@@ -302,20 +310,20 @@ Review phases (1.3, 2.3, 3.4, 3.5, 4.2) use tiered model selection based on Code
 
 | Codex Available | Primary Reviewer          | Supplementary Model | Rationale                                       |
 | --------------- | ------------------------- | ------------------- | ----------------------------------------------- |
-| Yes             | `codex-xhigh` (all reviews) | `sonnet`         | Codex handles deep reasoning; plugins need speed |
+| Yes             | `codex-high` (all reviews)  | `sonnet`         | Codex handles review; plugins need speed |
 | No              | `subagents:claude-reviewer` | `opus`            | Plugins are primary review path; need thoroughness |
 
-All Codex review phases use `codex-xhigh` — no distinction between phases.
+All Codex review phases use `codex-high` — no distinction between phases.
 
 ## Complexity Scoring
 
-Task complexity determines model selection during Phase 2.1:
+Task complexity determines agent selection during Phase 2.1:
 
-| Level  | Model       | Criteria                                 |
-| ------ | ----------- | ---------------------------------------- |
-| Easy   | sonnet-4.5  | Single file, <50 LOC                     |
-| Medium | opus-4.5    | 2-3 files, 50-200 LOC                    |
-| Hard   | codex-xhigh | 4+ files, >200 LOC, security/concurrency |
+| Level  | Agent (Codex mode)  | Agent (Claude mode) | Criteria                                 |
+| ------ | ------------------- | ------------------- | ---------------------------------------- |
+| Easy   | sonnet-task-agent   | sonnet-task-agent   | Single file, <50 LOC                     |
+| Medium | opus-task-agent     | opus-task-agent     | 2-3 files, 50-200 LOC                    |
+| Hard   | codex-task-agent    | opus-task-agent     | 4+ files, >200 LOC, security/concurrency |
 
 ## Supplementary Agents
 
@@ -365,7 +373,11 @@ Review finds 4 issues: auth.ts (2), db.ts (1), api.ts (1)
 
 ## Commands
 
-- `/subagents:dispatch <task>` - Start workflow
+- `/subagents:init <task>` - Create worktree + start workflow (main entry point, persists across restarts)
+- `/subagents:teardown` - Commit, push to GitHub, create PR, remove worktree
+- `/subagents:preflight` - Run pre-flight checks and environment setup
+- `/subagents:dispatch <task>` - Start workflow (Codex MCP defaults)
+- `/subagents:dispatch-claude <task>` - Start workflow (Claude-only, no Codex MCP)
 - `/subagents:stop` - Stop gracefully with checkpoint
 - `/subagents:resume` - Resume from checkpoint
 - `/subagents:status` - Show progress
@@ -387,9 +399,9 @@ Dispatched by the dispatch command before the orchestrator loop starts:
 
 | Agent File             | Purpose                                                        |
 | ---------------------- | -------------------------------------------------------------- |
-| `init-claude.md`       | Workflow init with Claude reasoning, worktree creation, optimistic Codex defaults |
+| `init-claude.md`       | Workflow init with Claude reasoning, worktree creation, Codex/Claude defaults |
 
-Flow: dispatch runs inline git+plugin checks → `init-claude` (always). Pre-flight checks are inline bash in the dispatch command. Codex reviewers are configured optimistically; `fallback.sh` handles runtime unavailability.
+Flow: dispatch runs inline git+plugin checks → `init-claude` (always) → orchestrator loop. Pre-flight checks are inline bash in the dispatch command. For `dispatch` (Codex mode), agents are configured optimistically; `fallback.sh` handles runtime unavailability. For `dispatch-claude`, Claude agents are configured directly.
 
 The init agent creates a git worktree (unless `--no-worktree`) and records `state.worktree` and `state.ownerPpid` in state.json.
 
@@ -409,17 +421,21 @@ Dispatched by the orchestrator loop during workflow execution:
 | `fix-dispatcher.md`    | review-fix          | Reads review issues and applies fixes directly |
 | `difficulty-estimator.md` | 2.1              | Task complexity scoring (Claude)        |
 | `codex-difficulty-estimator.md` | 2.1        | Task complexity scoring (Codex MCP)     |
-| `task-agent.md`        | 2.1                 | Task execution + simplification (wave-based parallel) |
+| `sonnet-task-agent.md` | 2.1 (easy)          | Direct task execution (model=sonnet) — wave-based parallel |
+| `opus-task-agent.md`   | 2.1 (medium)        | Direct task execution (model=opus) — wave-based parallel |
+| `codex-task-agent.md`  | 2.1 (hard)          | Codex-high MCP task wrapper — wave-based parallel |
 | `code-quality-reviewer.md` | 2.3, 4.2        | Code quality and conventions (supplementary) |
 | `error-handling-reviewer.md` | 2.3           | Silent failure hunting (supplementary)  |
 | `type-reviewer.md`     | 2.3                 | Type design analysis (supplementary)    |
-| `test-runner.md`       | 3.1                 | Lint, test, and failure analysis (Claude) |
-| `codex-test-runner.md` | 3.1                 | Lint, test, and failure analysis (Codex MCP) |
-| `failure-analyzer.md`  | (reference)         | Kept for reference — merged into test-runner |
-| `codex-failure-analyzer.md` | (reference)    | Kept for reference — merged into codex-test-runner |
-| `simplifier.md`        | (reference)         | Kept for reference — merged into task-agent |
-| `test-developer.md`    | 3.3                 | Writes tests and CI until coverage threshold met |
-| `doc-updater.md`       | 4.1                 | Documentation updates                   |
+| `test-runner.md`       | (reference)         | Kept for reference — merged into test-developer |
+| `codex-test-runner.md` | (reference)         | Kept for reference — merged into codex-test-developer |
+| `failure-analyzer.md`  | (reference)         | Kept for reference — merged into test-developer |
+| `codex-failure-analyzer.md` | (reference)    | Kept for reference — merged into codex-test-developer |
+| `simplifier.md`        | (reference)         | Kept for reference — merged into task agents |
+| `test-developer.md`    | 3.1, 3.3            | Run tests, analyze failures, write tests until coverage met (Claude) |
+| `codex-test-developer.md` | 3.1, 3.3         | Thin codex-high MCP wrapper for test execution and development |
+| `doc-updater.md`       | 4.1                 | Documentation updates (Claude)          |
+| `codex-doc-updater.md` | 4.1                 | Thin codex-high MCP wrapper for documentation |
 | `claude-md-updater.md` | 4.1 (supplement)    | CLAUDE.md updates                       |
 | `test-coverage-reviewer.md` | 4.2 (supplement) | Test coverage analysis                |
 | `comment-reviewer.md`  | 4.2 (supplement)    | Comment accuracy review                 |
@@ -476,7 +492,7 @@ not the full Claude Code system prompt.
 - **Isolated context:** Agents receive only their system prompt + basic environment info (working directory). They do NOT receive the full Claude Code system prompt or the parent conversation's context.
 - **Skills must be explicit:** Agents don't inherit skills from the parent. List them in `skills:` frontmatter to inject the full skill content.
 - **Tool restrictions matter:** Use `tools` (allowlist) or `disallowedTools` (denylist) to enforce capabilities. Read-only agents should specify `tools: [Read, Glob, Grep]` and explicitly exclude `Write`, `Edit`, `Task`.
-- **`disallowedTools: [Task]`** prevents agents from spawning further subagents — use this for leaf agents like `task-agent.md`.
+- **`disallowedTools: [Task]`** prevents agents from spawning further subagents — use this for leaf agents like `sonnet-task-agent.md`.
 
 ### Description Best Practices
 

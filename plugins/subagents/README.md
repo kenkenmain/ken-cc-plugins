@@ -7,22 +7,31 @@
 Orchestrates complex tasks through a main conversation that dispatches parallel subagents for exploration, planning, and task execution.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│ Main Conversation (Orchestrator)                    │
-│   ├─ EXPLORE stage (parallel Explore agents)        │
-│   ├─ PLAN stage (parallel Plan agents)              │
-│   ├─ IMPLEMENT stage (parallel Task agents)         │
-│   ├─ TEST stage                                     │
-│   └─ FINAL stage                                    │
-└─────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│ Pre-Workflow                                              │
+│   └─ init-claude (state init, worktree, agent defaults)   │
+└───────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌───────────────────────────────────────────────────────────┐
+│ Main Conversation (Orchestrator)                          │
+│   ├─ EXPLORE stage (parallel Explore agents)              │
+│   ├─ PLAN stage (parallel Plan agents)                    │
+│   ├─ IMPLEMENT stage (complexity-routed Task agents)      │
+│   ├─ TEST stage                                           │
+│   └─ FINAL stage                                          │
+└───────────────────────────────────────────────────────────┘
          │
          ▼ Dispatches via Task tool
-┌─────────────────────────────────────────────────────┐
-│ Parallel Subagents (minimal context)                │
-│   ├─ Explore agents (1-10, codebase exploration)    │
-│   ├─ Plan agents (1-10, detailed planning)          │
-│   └─ Task agents (wave-based, implementation)       │
-└─────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│ Parallel Subagents (minimal context)                      │
+│   ├─ Explore agents (1-10, codebase exploration)          │
+│   ├─ Plan agents (1-10, detailed planning)                │
+│   └─ Task agents (wave-based, complexity-routed):         │
+│       ├─ Easy  → sonnet-task-agent (direct, sonnet)       │
+│       ├─ Medium → opus-task-agent (direct, opus)          │
+│       └─ Hard  → codex-task-agent or opus-task-agent      │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ## Installation
@@ -33,9 +42,41 @@ claude plugin install ./plugins/subagents
 
 ## Commands
 
+### `/subagents:init <task>`
+
+Main entry point. Creates a git worktree for isolated development, then starts a subagent workflow. The worktree persists across Claude restarts.
+
+```
+/subagents:init Add OAuth support
+/subagents:init --claude Add OAuth support
+/subagents:init --no-worktree Quick config fix
+/subagents:init --claude --no-test Refactor module
+```
+
+Use `--claude` for Claude-only mode (no Codex MCP). All other flags pass through to dispatch.
+
+### `/subagents:teardown`
+
+Commit, push to GitHub, create PR, and remove worktree.
+
+```
+/subagents:teardown
+/subagents:teardown --no-pr
+/subagents:teardown --force
+```
+
+### `/subagents:preflight`
+
+Run pre-flight checks and environment setup. Verifies git, superpowers plugin, build tools, and Codex MCP availability.
+
+```
+/subagents:preflight
+/subagents:preflight --fix
+```
+
 ### `/subagents:dispatch <task>`
 
-Start a new workflow.
+Start a new workflow with Codex MCP defaults (Codex reviewers configured by default, runtime fallback if unavailable).
 
 **Options:**
 
@@ -47,6 +88,17 @@ Start a new workflow.
 /subagents:dispatch Add user authentication with OAuth support
 /subagents:dispatch --no-test Refactor the payment module
 /subagents:dispatch --stage IMPLEMENT --plan docs/plans/my-plan.md Continue from plan
+```
+
+### `/subagents:dispatch-claude <task>`
+
+Start a new workflow using Claude agents only (no Codex MCP dependency). Same stages, schedule, and gates as `dispatch` — only the agent defaults differ.
+
+**Options:** Same as `dispatch`.
+
+```
+/subagents:dispatch-claude Add user authentication with OAuth support
+/subagents:dispatch-claude --no-test Refactor the payment module
 ```
 
 ### `/subagents:status`
@@ -117,18 +169,18 @@ Configure plugin settings (models, timeouts, severity thresholds).
 | Phase | Name         | Description                      |
 | ----- | ------------ | -------------------------------- |
 | 4.1   | Docs         | Update documentation             |
-| 4.2   | Final Review | Final validation via codex-xhigh |
+| 4.2   | Final Review | Final validation via codex-high |
 | 4.3   | Completion   | Git branch and PR creation       |
 
 ## Complexity Scoring
 
-Tasks classified at runtime for model selection:
+Tasks classified at runtime for agent routing:
 
-| Level  | Execution               | Criteria                                 |
-| ------ | ----------------------- | ---------------------------------------- |
-| Easy   | Task agent (sonnet-4.5) | Single file, <50 LOC                     |
-| Medium | Task agent (opus-4.5)   | 2-3 files, 50-200 LOC                    |
-| Hard   | Codex MCP (codex-xhigh) | 4+ files, >200 LOC, security/concurrency |
+| Level  | Agent (Codex mode)  | Agent (Claude mode) | Criteria                                 |
+| ------ | ------------------- | ------------------- | ---------------------------------------- |
+| Easy   | sonnet-task-agent   | sonnet-task-agent   | Single file, <50 LOC                     |
+| Medium | opus-task-agent     | opus-task-agent     | 2-3 files, 50-200 LOC                    |
+| Hard   | codex-task-agent    | opus-task-agent     | 4+ files, >200 LOC, security/concurrency |
 
 ## Configuration
 
@@ -155,9 +207,9 @@ Project configuration overrides global.
     "IMPLEMENT": {
       "tasks": {
         "complexityModels": {
-          "easy": "sonnet-4.5",
-          "medium": "opus-4.5",
-          "hard": "codex-xhigh"
+          "easy": "sonnet-task-agent",
+          "medium": "opus-task-agent",
+          "hard": "codex-task-agent"
         }
       }
     }
@@ -209,7 +261,7 @@ Workflow state tracked in `.agents/tmp/state.json`:
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
 | ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
-| McpToolId | `codex-high`, `codex-xhigh`                         | Review phase `tool` field   |
+| McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## License
 

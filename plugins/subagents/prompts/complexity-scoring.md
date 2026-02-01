@@ -4,11 +4,11 @@ You are classifying tasks for appropriate model assignment. Analyze each task an
 
 ## Classification Criteria
 
-| Level  | Execution                    | Criteria                                          |
-| ------ | ---------------------------- | ------------------------------------------------- |
-| Easy   | Task agent (sonnet-4.5)      | Single file, <50 LOC changes, well-defined scope  |
-| Medium | Task agent (opus-4.5)        | 2-3 files, 50-200 LOC, moderate dependencies      |
-| Hard   | codex-reviewer (codex-xhigh) | 4+ files, >200 LOC, security/concurrency concerns |
+| Level  | Agent               | Execution                       | Criteria                                          |
+| ------ | ------------------- | ------------------------------- | ------------------------------------------------- |
+| Easy   | sonnet-task-agent   | direct (model=sonnet)           | Single file, <50 LOC changes, well-defined scope  |
+| Medium | opus-task-agent     | direct (model=opus)             | 2-3 files, 50-200 LOC, moderate dependencies      |
+| Hard   | codex-task-agent    | codex-high MCP                  | 4+ files, >200 LOC, security/concurrency concerns |
 
 ## Task Analysis Checklist
 
@@ -32,12 +32,23 @@ For each task, return:
   "taskId": "<id>",
   "complexity": "easy" | "medium" | "hard",
   "reasoning": "<one line explanation>",
-  "execution": "task-agent" | "codex-mcp",
-  "model": "sonnet-4.5" | "opus-4.5" | "haiku-4.5" | null
+  "execution": "direct" | "codex-mcp",
+  "model": "sonnet" | "opus" | null,
+  "agent": "sonnet-task-agent" | "opus-task-agent" | "codex-task-agent"
 }
 ```
 
-Note: Hard complexity tasks use `codex-xhigh` MCP directly, so `model` is null.
+Mapping (Codex mode — `codexAvailable: true`):
+- Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`
+- Medium → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
+- Hard → `"execution": "codex-mcp", "model": null, "agent": "codex-task-agent"`
+
+Mapping (Claude mode — `codexAvailable: false`):
+- Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`
+- Medium → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
+- Hard → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
+
+Check `codexAvailable` in `state.json` to determine hard task routing.
 
 ## Guidelines
 

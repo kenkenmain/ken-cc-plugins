@@ -128,12 +128,12 @@ Task Details:
 -------------
 Phase 2.1 Tasks (Wave 2):
   Wave 1 (completed):
-    ✓ task-1: Create User model (sonnet-4.5, easy) - 45s
-    ✓ task-3: Add config (sonnet-4.5, easy) - 30s
+    ✓ task-1: Create User model (codex-high, easy) - 45s
+    ✓ task-3: Add config (codex-high, easy) - 30s
 
   Wave 2 (in_progress):
-    ⟳ task-2: Implement OAuth flow (opus-4.5, medium) - running
-    ○ task-4: Create auth routes (sonnet-4.5, easy) - pending
+    ⟳ task-2: Implement OAuth flow (codex-high, medium) - running
+    ○ task-4: Create auth routes (codex-high, easy) - pending
 
 Active Task Agents: 1
 ```

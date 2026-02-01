@@ -55,4 +55,4 @@ You are reviewing test coverage and quality for code produced by task agents.
 
 ## Note
 
-Invoked via `codex-reviewer` subagent with `tool: "codex-xhigh"` when Codex is available. For Phase 3.5 (Test Review), the output includes coverage threshold checking with `approved | needs_coverage | blocked` status.
+Invoked via `codex-reviewer` subagent with `tool: "codex-high"` when Codex is available. For Phase 3.5 (Test Review), the output includes coverage threshold checking with `approved | needs_coverage | blocked` status.

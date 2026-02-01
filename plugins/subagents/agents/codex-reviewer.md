@@ -3,7 +3,7 @@ name: codex-reviewer
 description: "Thin MCP wrapper that dispatches code review to Codex MCP during subagents workflow"
 model: sonnet
 color: blue
-tools: [mcp__codex-high__codex, mcp__codex-xhigh__codex]
+tools: [mcp__codex-high__codex]
 ---
 
 # Codex Reviewer Agent
@@ -31,10 +31,7 @@ Use prompts/high-stakes/plan-review.md criteria. Tool: codex-high.
 
 ## Execution
 
-1. Determine which Codex tool from the prompt (`Tool: codex-high` or `Tool: codex-xhigh`)
-2. Call the Codex MCP tool directly with the full prompt. Prepend a time limit instruction:
-
-**For codex-high:**
+1. Call `mcp__codex-high__codex` directly with the full prompt. Prepend a time limit instruction:
 
 ```
 mcp__codex-high__codex(
@@ -45,18 +42,7 @@ mcp__codex-high__codex(
 )
 ```
 
-**For codex-xhigh:**
-
-```
-mcp__codex-xhigh__codex(
-  prompt: "TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
-
-  {the full prompt you received}",
-  cwd: "{working directory}"
-)
-```
-
-3. Return the Codex response
+2. Return the Codex response
 
 **That's it.** Do not pre-read files or post-process beyond returning the result.
 
@@ -75,11 +61,11 @@ All review types include `status` and `issues[]` with `severity`, `location`, `i
 
 | Review Type    | Tool         | Prompt File                           |
 | -------------- | ------------ | ------------------------------------- |
-| plan           | codex-xhigh  | prompts/high-stakes/plan-review.md    |
-| implementation | codex-xhigh  | prompts/high-stakes/implementation.md |
-| test-dev       | codex-xhigh  | prompts/high-stakes/test-review.md    |
-| test           | codex-xhigh  | prompts/high-stakes/test-review.md    |
-| final          | codex-xhigh  | prompts/high-stakes/final-review.md   |
+| plan           | codex-high  | prompts/high-stakes/plan-review.md    |
+| implementation | codex-high  | prompts/high-stakes/implementation.md |
+| test-dev       | codex-high  | prompts/high-stakes/test-review.md    |
+| test           | codex-high  | prompts/high-stakes/test-review.md    |
+| final          | codex-high  | prompts/high-stakes/final-review.md   |
 
 ## Error Handling
 
@@ -107,8 +93,7 @@ When Codex finds issues (status: "needs_revision" or "blocked"):
    Task(
      description: "Fix: {issue summary}",
      prompt: "{issue details}",
-     subagent_type: "subagents:task-agent",
-     model: "opus-4.5"
+     subagent_type: "subagents:opus-task-agent"
    )
    ```
 3. After fixes applied, workflow re-dispatches this reviewer

@@ -23,6 +23,7 @@ You are a workflow initialization agent. Your job is to set up the workflow stat
 The dispatch command passes these flags:
 - `task`: The task description (required)
 - `ownerPpid`: The session PID for session scoping (required)
+- `codexMode`: Whether to use Codex agents (`true` from dispatch, `false` from dispatch-claude)
 - `--no-worktree`: Skip worktree creation (optional)
 - `--profile minimal|standard|thorough`: Override pipeline profile (optional)
 - Other flags (`--no-test`, `--stage`, `--plan`) as before
@@ -102,17 +103,18 @@ The dispatch command passes these flags:
   "currentStage": "EXPLORE",
   "pipelineProfile": "standard",
   "supplementaryPolicy": "on-issues",
-  "codexAvailable": true,
+  "codexAvailable": "<true if codexMode, false otherwise>",
   "ownerPpid": "<PPID value passed from dispatch>",
   "worktree": {
     "path": "/absolute/path/to/repo--subagent",
     "branch": "subagents/task-slug",
     "createdAt": "<ISO timestamp>"
   },
-  "reviewer": "subagents:codex-reviewer",
-  "testRunner": "subagents:codex-test-runner",
-  "failureAnalyzer": "subagents:codex-failure-analyzer",
-  "difficultyEstimator": "subagents:codex-difficulty-estimator",
+  "reviewer": "<codexMode: subagents:codex-reviewer | else: subagents:claude-reviewer>",
+  "failureAnalyzer": "<codexMode: subagents:codex-failure-analyzer | else: subagents:failure-analyzer>",
+  "difficultyEstimator": "<codexMode: subagents:codex-difficulty-estimator | else: subagents:difficulty-estimator>",
+  "testDeveloper": "<codexMode: subagents:codex-test-developer | else: subagents:test-developer>",
+  "docUpdater": "<codexMode: subagents:codex-doc-updater | else: subagents:doc-updater>",
   "taskAnalysis": {
     "complexity": "medium",
     "needsTests": true,
@@ -141,14 +143,7 @@ The dispatch command passes these flags:
     "TEST->FINAL": { "required": ["3.1-test-results.json", "3.3-test-dev.json", "3.5-test-review.json"], "phase": "3.5" },
     "FINAL->COMPLETE": { "required": ["4.2-final-review.json"], "phase": "4.2" }
   },
-  "codexTimeout": {
-    "reviewPhases": 300000,
-    "finalReviewPhases": null,
-    "implementPhases": 1800000,
-    "testPhases": 600000,
-    "explorePhases": 600000,
-    "maxRetries": 2
-  },
+  "codexTimeout": "<codexMode only — omit for Claude-only: { reviewPhases: 300000, finalReviewPhases: null, implementPhases: 1800000, testPhases: 600000, explorePhases: 600000, maxRetries: 2 }>",
   "coverageThreshold": 90,
   "webSearch": true,
   "reviewPolicy": {
@@ -167,7 +162,10 @@ The dispatch command passes these flags:
 }
 ```
 
-**Optimistic Codex defaults:** Always set `codexAvailable: true` and configure Codex reviewer agents. If Codex MCP is unavailable at runtime, the fallback mechanism in `hooks/lib/fallback.sh` automatically switches to Claude agents after `maxRetries` (default: 2) timeout attempts.
+**Agent defaults depend on `codexMode`:**
+
+- **Codex mode** (`codexMode: true`, from `dispatch`): Set `codexAvailable: true`, configure Codex agents (codex-reviewer, codex-test-developer, codex-doc-updater, etc.), include `codexTimeout` block. Runtime fallback via `hooks/lib/fallback.sh` switches to Claude agents after `maxRetries` (default: 2) timeout attempts.
+- **Claude-only mode** (`codexMode: false`, from `dispatch-claude`): Set `codexAvailable: false`, configure Claude agents (claude-reviewer, test-developer, doc-updater, etc.), omit `codexTimeout` block.
 
 ## Worktree Field
 

@@ -38,9 +38,10 @@ switch_to_claude() {
   local reason="${1:-unknown}"
   state_update "
     .reviewer = \"subagents:claude-reviewer\" |
-    .testRunner = \"subagents:test-runner\" |
     .failureAnalyzer = \"subagents:failure-analyzer\" |
     .difficultyEstimator = \"subagents:difficulty-estimator\" |
+    .testDeveloper = \"subagents:test-developer\" |
+    .docUpdater = \"subagents:doc-updater\" |
     .codexAvailable = false |
     .codexFallback = {
       \"switchedAt\": (now | todate),
@@ -70,7 +71,7 @@ handle_missing_or_timeout() {
   local next_retry=$((retry_count + 1))
 
   # Check if we should switch to Claude — use the phase's actual agent,
-  # not just .reviewer, to catch non-review Codex agents (testRunner, etc.)
+  # not just .reviewer, to catch non-review Codex agents (testDeveloper, etc.)
   if [[ "$next_retry" -ge "$max_retries" ]]; then
     local phase_agent
     phase_agent="$(get_phase_subagent "$phase" 2>/dev/null || state_get '.reviewer // empty')"

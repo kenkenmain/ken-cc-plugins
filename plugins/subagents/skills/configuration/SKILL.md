@@ -50,9 +50,9 @@ Project overrides global, which overrides defaults.
         "maxParallelAgents": 10,
         "useComplexityScoring": true,
         "complexityModels": {
-          "easy": "sonnet-4.5",
-          "medium": "opus-4.5",
-          "hard": "codex-xhigh"
+          "easy": "sonnet-task-agent",
+          "medium": "opus-task-agent",
+          "hard": "codex-task-agent"
         }
       },
       "review": {
@@ -72,7 +72,7 @@ Project overrides global, which overrides defaults.
     },
     "FINAL": {
       "enabled": true,
-      "review": { "tool": "codex-xhigh", "bugFixer": "codex-high", "maxRetries": 3 },
+      "review": { "tool": "codex-high", "bugFixer": "codex-high", "maxRetries": 3 },
       "git": {
         "workflow": "branch+PR",
         "excludePatterns": [".agents/**"]
@@ -107,7 +107,7 @@ Start with defaults, deep merge global config, deep merge project config, return
 
 ## Merge Logic
 
-Deep recursive merge. Example: defaults provide "easy: sonnet-4.5", global overrides to "easy: haiku-4.5", project adds "medium: opus-4.5".
+Deep recursive merge. Example: defaults provide "easy: codex-high", global overrides to "easy: codex-high", project keeps same.
 
 ## Writing Configuration
 
@@ -131,7 +131,6 @@ For review phases using Codex MCP. Valid values:
 | Short Name    | Full Tool ID              |
 | ------------- | ------------------------- |
 | `codex-high`  | `mcp__codex-high__codex`  |
-| `codex-xhigh` | `mcp__codex-xhigh__codex` |
 
 **Critical:** ModelId and McpToolId are DIFFERENT namespaces. Never mix them.
 
@@ -155,7 +154,7 @@ When an issue meets the threshold:
 
 Tool used to fix issues found by Codex reviews. Default: `codex-high`.
 
-Can be either an MCP tool (codex-high, codex-xhigh) or a model (sonnet-4.5, opus-4.5, haiku-4.5).
+Can be either an MCP tool (codex-high) or a model (sonnet-4.5, opus-4.5, haiku-4.5).
 
 Configured per review phase:
 
