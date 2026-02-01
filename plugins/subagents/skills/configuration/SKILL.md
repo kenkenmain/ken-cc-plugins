@@ -79,6 +79,15 @@ Project overrides global, which overrides defaults.
       }
     }
   },
+  "pipeline": {
+    "defaultProfile": null,
+    "profiles": {
+      "minimal": { "phases": 5, "stages": ["EXPLORE", "IMPLEMENT", "FINAL"] },
+      "standard": { "phases": 13, "stages": ["EXPLORE", "PLAN", "IMPLEMENT", "TEST", "FINAL"] },
+      "thorough": { "phases": 15, "stages": ["EXPLORE", "PLAN", "IMPLEMENT", "TEST", "FINAL"] }
+    }
+  },
+  "supplementaryPolicy": "on-issues",
   "compaction": {
     "betweenStages": true,
     "betweenPhases": false
@@ -156,12 +165,14 @@ Configured per review phase:
 
 ## Validation Rules
 
-| Setting             | Valid Values                  |
-| ------------------- | ----------------------------- |
-| `blockOnSeverity`   | `high`, `medium`, `low`       |
-| `gitWorkflow`       | `none`, `commit`, `branch+PR` |
-| `maxParallelAgents` | 1-10                          |
-| `bugFixer`          | ModelId or McpToolId          |
+| Setting                    | Valid Values                          |
+| -------------------------- | ------------------------------------- |
+| `blockOnSeverity`          | `high`, `medium`, `low`               |
+| `gitWorkflow`              | `none`, `commit`, `branch+PR`         |
+| `maxParallelAgents`        | 1-10                                  |
+| `bugFixer`                 | ModelId or McpToolId                  |
+| `pipeline.defaultProfile`  | `minimal`, `standard`, `thorough`, `null` |
+| `supplementaryPolicy`      | `on-issues`, `always`                 |
 
 ## Error Handling
 

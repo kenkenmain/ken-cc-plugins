@@ -1,0 +1,34 @@
+{
+  "status": "needs_revision",
+  "issues": [
+    {
+      "severity": "HIGH",
+      "location": "src/auth/oauth.ts:42",
+      "issue": "Missing input validation on redirect_uri",
+      "suggestion": "Add URL validation before redirect",
+      "source": "subagents:code-quality-reviewer"
+    },
+    {
+      "severity": "MEDIUM",
+      "location": "src/auth/oauth.ts:67",
+      "issue": "Token expiry not checked",
+      "suggestion": "Add expiry validation",
+      "source": "subagents:error-handling-reviewer"
+    },
+    {
+      "severity": "HIGH",
+      "location": "src/db/connection.ts:15",
+      "issue": "Connection pool leak",
+      "suggestion": "Add connection cleanup in finally block",
+      "source": "subagents:code-quality-reviewer"
+    },
+    {
+      "severity": "LOW",
+      "location": "src/api/handler.ts:88",
+      "issue": "Missing error response type",
+      "suggestion": "Add ErrorResponse type annotation",
+      "source": "subagents:type-reviewer"
+    }
+  ],
+  "summary": "4 issues across 3 files."
+}

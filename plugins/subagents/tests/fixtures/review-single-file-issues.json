@@ -1,0 +1,20 @@
+{
+  "status": "needs_revision",
+  "issues": [
+    {
+      "severity": "HIGH",
+      "location": "src/auth/oauth.ts:42",
+      "issue": "Missing input validation",
+      "suggestion": "Add validation",
+      "source": "subagents:code-quality-reviewer"
+    },
+    {
+      "severity": "MEDIUM",
+      "location": "src/auth/oauth.ts:67",
+      "issue": "Token expiry not checked",
+      "suggestion": "Add expiry check",
+      "source": "subagents:error-handling-reviewer"
+    }
+  ],
+  "summary": "2 issues in 1 file."
+}

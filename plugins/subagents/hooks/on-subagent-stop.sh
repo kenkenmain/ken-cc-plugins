@@ -22,9 +22,9 @@ source "$SCRIPT_DIR/lib/review.sh"
 source "$SCRIPT_DIR/lib/fallback.sh"
 
 # ---------------------------------------------------------------------------
-# 1. Consume stdin (hook input -- ignored for now)
+# 1. Read stdin (hook input -- contains agent metadata)
 # ---------------------------------------------------------------------------
-cat > /dev/null
+HOOK_INPUT="$(cat)"
 
 # ---------------------------------------------------------------------------
 # 2. If workflow not active, exit silently (allow, no output)
@@ -60,7 +60,64 @@ if [[ -z "$CURRENT_PHASE" || -z "$CURRENT_STAGE" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Validate: expected output file for currentPhase exists
+# 4. Review-fix cycle: if a fix agent just completed, clear the cycle
+#    and let the orchestrator re-dispatch the review phase fresh.
+#    For parallel fix groups: decrement pending counter, only clear when
+#    all groups are done.
+#    IMPORTANT: This check MUST come before output file validation (4a/4b)
+#    because complete_fix_cycle deletes the review output file. Concurrent
+#    fix-dispatchers completing after that deletion would hit a missing-file
+#    path if we checked output first.
+# ---------------------------------------------------------------------------
+# Extract agent type from hook input for dispatch-specific logic
+AGENT_TYPE="$(echo "$HOOK_INPUT" | jq -r '.agent_type // .agentName // .subagent_type // .agentType // .type // empty' 2>/dev/null || echo "")"
+
+if is_fix_cycle_active && [[ "$AGENT_TYPE" == "subagents:fix-dispatcher" ]]; then
+  # Only fix-dispatcher completions should decrement/clear the fix cycle.
+  # Other agents (supplementary reviewers, etc.) completing during a fix
+  # cycle are ignored — they don't produce the phase output file.
+  #
+  # Use flock for atomicity — concurrent fix-dispatchers completing at the
+  # same time must not both read the same pendingGroups value.
+  GROUP_COUNT="$(state_get '.reviewFix.groupCount // 1')"
+  if [[ "$GROUP_COUNT" -gt 1 ]]; then
+    LOCK_FILE="$STATE_DIR/state.lock"
+    # Atomic decrement: flock ensures only one process decrements at a time.
+    # Stdout capture keeps the result in-process (no shared temp file).
+    PENDING="$(
+      (
+        flock -x 200
+        PENDING_INNER="$(state_get '.reviewFix.pendingGroups // 0')"
+        PENDING_INNER=$((PENDING_INNER - 1))
+        state_update ".reviewFix.pendingGroups = $PENDING_INNER"
+        echo "$PENDING_INNER"
+      ) 200>"$LOCK_FILE"
+    )"
+    if [[ "$PENDING" -gt 0 ]]; then
+      # More fix groups still running — wait
+      exit 0
+    fi
+  fi
+  complete_fix_cycle
+  # Don't advance — currentPhase stays on the review phase.
+  # Stop hook will re-inject orchestrator → orchestrator sees no reviewFix
+  # → dispatches review again.
+  exit 0
+fi
+
+# If a fix cycle is active but a non-fix agent completed (e.g., late
+# supplementary agent or unknown agent type), ignore it — fixes are
+# still in progress. Note: if AGENT_TYPE extraction fails (empty) for a
+# fix-dispatcher, this path also fires. The workflow recovers because
+# the Stop hook re-injects the orchestrator which sees reviewFix.pendingGroups
+# still > 0 and re-dispatches. This is a fallback — ideally AGENT_TYPE
+# extraction works and the flock path above handles it cleanly.
+if is_fix_cycle_active; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# 4a. Validate: expected output file for currentPhase exists
 # ---------------------------------------------------------------------------
 EXPECTED_OUTPUT="$(get_phase_output "$CURRENT_PHASE")"
 
@@ -70,7 +127,7 @@ if [[ -z "$EXPECTED_OUTPUT" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4a. Check for Codex timeout output or missing output — handle with fallback
+# 4b. Check for Codex timeout output or missing output — handle with fallback
 # ---------------------------------------------------------------------------
 if is_codex_timeout "$CURRENT_PHASE"; then
   handle_missing_or_timeout "$CURRENT_PHASE" "$CURRENT_STAGE"
@@ -78,31 +135,50 @@ if is_codex_timeout "$CURRENT_PHASE"; then
 fi
 
 if ! phase_file_exists "$EXPECTED_OUTPUT"; then
+  # Check if the completing agent is supplementary — supplementary agents
+  # don't produce the phase output file, so a missing file is expected.
+  # AGENT_TYPE was extracted earlier (section 4).
+  if [[ -n "$AGENT_TYPE" ]] && is_supplementary_agent "$AGENT_TYPE"; then
+    exit 0  # Supplementary agent done — ignore, primary will write output
+  fi
   handle_missing_or_timeout "$CURRENT_PHASE" "$CURRENT_STAGE"
   exit 0  # Let Stop hook re-inject → retry
 fi
 
 # ---------------------------------------------------------------------------
-# 4b. Review-fix cycle: if a fix agent just completed, clear the cycle
-#     and let the orchestrator re-dispatch the review phase fresh.
-# ---------------------------------------------------------------------------
-if is_fix_cycle_active; then
-  complete_fix_cycle
-  # Don't advance — currentPhase stays on the review phase.
-  # Stop hook will re-inject orchestrator → orchestrator sees no reviewFix
-  # → dispatches review again.
-  exit 0
-fi
-
-# ---------------------------------------------------------------------------
 # 4c. For review phases: validate review output for blocking issues.
-#     If issues found, start a fix cycle instead of blocking.
+#     Dynamic supplementary: on first failure with "on-issues" policy,
+#     trigger a supplementary run before starting fix cycles.
+#     If issues found after supplementary, start a fix cycle.
 # ---------------------------------------------------------------------------
 if is_review_phase "$CURRENT_PHASE"; then
   REVIEW_RESULT="$(validate_review_output "$CURRENT_PHASE")"
   REVIEW_PASSED="$(echo "$REVIEW_RESULT" | jq -r '.passed')"
 
+  # Clear supplementaryRun for this phase when review passes, so future
+  # re-reviews (after stage restart) start fresh with primary-only again
+  if [[ "$REVIEW_PASSED" == "true" ]]; then
+    state_update "del(.supplementaryRun[\"$CURRENT_PHASE\"])" 2>/dev/null || true
+  fi
+
   if [[ "$REVIEW_PASSED" != "true" ]]; then
+    # Dynamic supplementary: on first failure, trigger supplementary run
+    SUPP_POLICY="$(get_supplementary_policy 2>/dev/null || echo "on-issues")"
+    if [[ "$SUPP_POLICY" == "on-issues" ]]; then
+      SUPP_RUN="$(state_get ".supplementaryRun[\"$CURRENT_PHASE\"] // false")"
+      if [[ "$SUPP_RUN" != "true" ]]; then
+        # Check if this phase has supplementary agents at all
+        SUPP_LIST="$(_raw_supplementary_agents "$CURRENT_PHASE" 2>/dev/null || echo "")"
+        if [[ -n "$SUPP_LIST" ]]; then
+          # First failure: mark for supplementary run, delete output so
+          # review re-dispatches with supplementary included
+          state_update ".supplementaryRun[\"$CURRENT_PHASE\"] = true"
+          rm -f "$PHASES_DIR/$EXPECTED_OUTPUT"
+          exit 0
+        fi
+      fi
+    fi
+
     ISSUE_COUNT="$(echo "$REVIEW_RESULT" | jq -r '.issueCount')"
     MIN_SEV="$(get_min_block_severity)"
     MAX_ATTEMPTS="$(get_max_fix_attempts)"
