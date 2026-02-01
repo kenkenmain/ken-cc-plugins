@@ -90,7 +90,7 @@ Configure plugin settings (models, timeouts, severity thresholds).
 
 | Phase | Name        | Description                              |
 | ----- | ----------- | ---------------------------------------- |
-| 1.1   | Brainstorm  | Inline analysis and approach design      |
+| 1.1   | Brainstorm  | Standalone analysis and approach design   |
 | 1.2   | Plan        | Parallel detailed planning (1-10 agents) |
 | 1.3   | Plan Review | Validate plan via Codex MCP              |
 
@@ -187,8 +187,8 @@ Schedule (5/15 phases):
 ```
 
 Gates:
-- EXPLORE → PLAN: requires `0-explore.md`, `1.1-brainstorm.md`
-- PLAN → IMPLEMENT: requires `1.2-plan.md`, `1.3-plan-review.json`
+- EXPLORE → PLAN: requires `0-explore.md`
+- PLAN → IMPLEMENT: requires `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json`
 - IMPLEMENT → TEST: requires `2.1-tasks.json`, `2.3-impl-review.json`
 - TEST → FINAL: requires `3.1-test-results.json`, `3.3-test-dev.json`, `3.5-test-review.json`
 - FINAL → COMPLETE: requires `4.2-final-review.json`

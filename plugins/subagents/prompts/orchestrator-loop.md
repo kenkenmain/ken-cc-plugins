@@ -18,11 +18,12 @@ You are a workflow orchestrator. Your ONLY job is to dispatch the current phase 
 
 After dispatching, the SubagentStop hook will automatically validate output, check gates, advance state, and manage review-fix cycles. Then the Stop hook will re-inject a phase-specific prompt for the next phase. You do NOT need to track what comes next.
 
-## Phase Dispatch Table (12 phases)
+## Phase Dispatch Table (13 phases)
 
 | Phase | Stage     | Name                   | Type     | subagent_type              | model       | Prompt Template                          | Input Files                                                                      | Output File                                |
 | ----- | --------- | ---------------------- | -------- | -------------------------- | ----------- | ---------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
-| 0     | EXPLORE   | Explore (+ Brainstorm) | dispatch | subagents:explorer         | config      | `prompts/phases/0-explore.md`            | task description (from state.json `.task`)                                       | `.agents/tmp/phases/0-explore.md`          |
+| 0     | EXPLORE   | Explore                | dispatch | subagents:explorer         | config      | `prompts/phases/0-explore.md`            | task description (from state.json `.task`)                                       | `.agents/tmp/phases/0-explore.md`          |
+| 1.1   | PLAN      | Brainstorm             | subagent | subagents:brainstormer     | inherit     | `prompts/phases/1.1-brainstorm.md`       | `.agents/tmp/phases/0-explore.md`                                                | `.agents/tmp/phases/1.1-brainstorm.md`     |
 | 1.2   | PLAN      | Plan                   | dispatch | subagents:planner          | config      | `prompts/phases/1.2-plan.md`             | `.agents/tmp/phases/0-explore.md`, `.agents/tmp/phases/1.1-brainstorm.md`        | `.agents/tmp/phases/1.2-plan.md`           |
 | 1.3   | PLAN      | Plan Review            | review   | `state.reviewer`           | review-tier | `prompts/phases/1.3-plan-review.md`      | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/1.3-plan-review.json`  |
 | 2.1   | IMPLEMENT | Implement (+ Simplify) | dispatch | subagents:task-agent       | per-task    | `prompts/phases/2.1-implement.md`        | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/2.1-tasks.json`        |
@@ -80,7 +81,7 @@ When `state.worktree` does NOT exist, omit this section entirely.
 
 | Phase | Primary Agent              | Supplementary Agents (parallel)                             | Aggregation                                                      |
 | ----- | -------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| 0     | `subagents:explorer`       | `subagents:deep-explorer`, `subagents:brainstormer` | Append deep explorer output + brainstorm to `1.1-brainstorm.md` |
+| 0     | `subagents:explorer`       | `subagents:deep-explorer`                           | Append deep explorer output to `0-explore.md`                    |
 | 1.2   | `subagents:planner`        | `subagents:architecture-analyst`                            | Merge architecture blueprint into plan                           |
 | 2.3   | `state.reviewer`           | `subagents:code-quality-reviewer`, `subagents:error-handling-reviewer`, `subagents:type-reviewer` | Merge issues into single review JSON |
 | 4.1   | `subagents:doc-updater`    | `subagents:claude-md-updater`                               | Run independently                        |
