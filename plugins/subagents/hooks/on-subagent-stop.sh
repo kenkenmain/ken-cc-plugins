@@ -95,15 +95,26 @@ if is_review_phase "$CURRENT_PHASE"; then
     CURRENT_ATTEMPT="$(state_get ".stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].fixAttempts // 0")"
 
     if [[ "$CURRENT_ATTEMPT" -ge "$MAX_ATTEMPTS" ]]; then
-      # Exhausted retries — block and require user intervention
+      # Fix attempts exhausted — try restarting the entire stage
+      RESTART_REASON="Review phase $CURRENT_PHASE exhausted $MAX_ATTEMPTS fix attempts ($ISSUE_COUNT issue(s) remain)"
+
+      if restart_stage "$CURRENT_STAGE" "$CURRENT_PHASE" "$RESTART_REASON"; then
+        # Stage restart succeeded — orchestrator will re-dispatch from first phase
+        echo "on-subagent-stop: stage $CURRENT_STAGE restarted (fix attempts exhausted at phase $CURRENT_PHASE) -- retrying from first phase" >&2
+        exit 0
+      fi
+
+      # Stage restarts also exhausted — truly block
+      MAX_RESTARTS="$(get_max_stage_restarts)"
+      CURRENT_RESTARTS="$(state_get ".stages[\"$CURRENT_STAGE\"].stageRestarts // 0")"
       state_update "
         .status = \"blocked\" |
-        .stages[\"$CURRENT_STAGE\"].blockReason = \"Review phase $CURRENT_PHASE failed after $MAX_ATTEMPTS fix attempts ($ISSUE_COUNT issue(s) remain)\" |
+        .stages[\"$CURRENT_STAGE\"].blockReason = \"Review phase $CURRENT_PHASE failed after $MAX_ATTEMPTS fix attempts x $MAX_RESTARTS stage restarts ($ISSUE_COUNT issue(s) remain)\" |
         .stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].status = \"blocked\" |
         .stages[\"$CURRENT_STAGE\"].phases[\"$CURRENT_PHASE\"].reviewResult = $REVIEW_RESULT |
         del(.reviewFix)
       "
-      echo "on-subagent-stop: review phase $CURRENT_PHASE blocked after $MAX_ATTEMPTS fix attempts -- $ISSUE_COUNT issue(s) remain at severity >= $MIN_SEV" >&2
+      echo "on-subagent-stop: review phase $CURRENT_PHASE blocked after $MAX_ATTEMPTS fix attempts x $CURRENT_RESTARTS stage restarts -- $ISSUE_COUNT issue(s) remain at severity >= $MIN_SEV" >&2
       exit 2
     fi
 

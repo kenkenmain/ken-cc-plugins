@@ -97,6 +97,28 @@ Stage Progress:
   FINAL:     {status}
 ```
 
+### Stage Restarts (when `state.restartHistory` is non-empty)
+
+After the Gates section, display any stage restart events:
+
+```
+Stage Restarts:
+  #1: IMPLEMENT restarted from phase 2.3 → 2.1 (Review phase 2.3 exhausted 10 fix attempts) at 2025-07-15T14:30:00Z
+  #2: IMPLEMENT restarted from phase 2.3 → 2.1 (Review phase 2.3 exhausted 10 fix attempts) at 2025-07-15T15:45:00Z
+```
+
+For each entry in `state.restartHistory`:
+- `#{restart}`: restart number within that stage
+- Stage name and phase transition (`fromPhase` → `toPhase`)
+- Reason text
+- Timestamp
+
+Also show per-stage restart counters inline in the schedule display. For any stage with `stageRestarts > 0`, append the count after the stage name:
+
+```
+  ▶ Phase 2.1 │ IMPLEMENT (restart 2/3) │ Task Execution │ in_progress
+```
+
 ## Step 3: Display Verbose Details (if --verbose)
 
 If `--verbose` flag present, include task-level details:

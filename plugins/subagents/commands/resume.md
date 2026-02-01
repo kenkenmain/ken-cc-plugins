@@ -77,10 +77,20 @@ Nothing to resume. Start a new workflow with: /subagents:dispatch <task>
 Workflow is blocked at {currentStage} Stage → Phase {currentPhase}.
 Reason: {stages[currentStage].blockReason}
 
+Stage Restarts: {stages[currentStage].stageRestarts}/{reviewPolicy.maxStageRestarts} exhausted
+Fix Attempts:   {stages[currentStage].phases[currentPhase].fixAttempts}/{reviewPolicy.maxFixAttempts} per run
+
 Options:
 1. Restart current stage (--restart-stage)
 2. Restart previous stage (--restart-previous)
 3. Abort and start fresh
+```
+
+If `restartHistory` is non-empty, also display:
+
+```
+Restart History:
+  #{n}: {stage} restarted from phase {fromPhase} → {toPhase} ({reason}) at {at}
 ```
 
 Use AskUserQuestion to choose option.

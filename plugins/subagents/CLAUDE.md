@@ -101,6 +101,18 @@ All 15 phases run as subagents. No inline phases.
 
 **Coverage Loop:** Phases 3.3 → 3.4 → 3.5 repeat until `coverage ≥ coverageThreshold` or `maxIterations` (20) reached. The SubagentStop hook manages the loop by resetting `currentPhase` to `"3.3"` when `3.5-test-review.json` reports `coverage.met: false`.
 
+### Stage Restarts (Two-Tier Retry)
+
+When review-fix cycles exhaust their fix attempts (`maxFixAttempts`, default: 10), the workflow automatically restarts the entire stage from its first phase instead of immediately blocking. This gives the workflow a clean slate — all phase outputs for the stage are deleted, fix counters are reset, and the orchestrator re-dispatches from the beginning of the stage.
+
+```
+Tier 1: 10 fix attempts per review phase (within one run of the stage)
+Tier 2: 3 stage restarts (each restart resets fix counters to 0)
+Total:  up to 3 x 10 = 30 fix attempts per review phase before blocking
+```
+
+Only after both tiers are exhausted does the workflow set `status: "blocked"`. Stage restarts are tracked at `stages[stage].stageRestarts` and logged in `restartHistory[]`. Configurable via `reviewPolicy.maxStageRestarts` (default: 3).
+
 ### FINAL Stage (Phases 4.1-4.3)
 
 - 4.1: Documentation via doc-updater + **`claude-md-management:revise-claude-md`** in parallel
@@ -148,6 +160,8 @@ Key state fields:
 - `coverageThreshold`: target test coverage percentage (default: 90)
 - `coverageLoop`: (optional) tracks 3.3→3.5 iteration when coverage below threshold (max 20 iterations)
 - `webSearch`: whether agents can search for libraries online (default: true, disable with `--no-web-search`)
+- `reviewPolicy`: `{ minBlockSeverity, maxFixAttempts, maxStageRestarts }` — controls review-fix behavior
+- `restartHistory`: (optional) audit trail of stage restart events `[{ stage, fromPhase, toPhase, restart, reason, at }]`
 
 State updates are performed by hook scripts via `hooks/lib/state.sh` (atomic writes with jq).
 

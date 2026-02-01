@@ -135,8 +135,10 @@ Also reads env-check output from `.agents/tmp/env-check.json` for dependency sta
   "webSearch": true,
   "reviewPolicy": {
     "minBlockSeverity": "LOW",
-    "maxFixAttempts": 10
+    "maxFixAttempts": 10,
+    "maxStageRestarts": 3
   },
+  "restartHistory": [],
   "stages": {
     "EXPLORE": { "status": "in_progress", "phases": {} },
     "PLAN": { "status": "pending", "phases": {} },
