@@ -1,7 +1,7 @@
 ---
 name: architecture-analyst
 description: "Analyzes existing codebase patterns and conventions, provides architecture blueprint with component designs and data flows."
-model: inherit
+model: opus
 color: magenta
 tools: [Read, Glob, Grep]
 ---
