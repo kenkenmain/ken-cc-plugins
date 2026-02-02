@@ -392,7 +392,9 @@ jobs:
           # Check every schedule.sh phase has a template
           for phase in $output_phases; do
             found=false
-            for f in "$phases_dir"/${phase}-*.md "$phases_dir"/${phase}.md; do
+            # Also check lowercase version for F-prefixed phases (F1 → f1)
+            phase_lower=$(echo "$phase" | tr '[:upper:]' '[:lower:]')
+            for f in "$phases_dir"/${phase}-*.md "$phases_dir"/${phase}.md "$phases_dir"/${phase_lower}-*.md "$phases_dir"/${phase_lower}.md; do
               [ -f "$f" ] && found=true && break
             done
             if [ "$found" = "false" ]; then
