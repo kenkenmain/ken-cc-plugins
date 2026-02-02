@@ -1,6 +1,6 @@
 {
   "name": "kenken",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "description": "4-stage iterative development workflow (PLAN → IMPLEMENT → TEST → FINAL)",
   "author": {
     "name": "Kennard Ng",
