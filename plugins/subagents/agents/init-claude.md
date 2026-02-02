@@ -1,6 +1,6 @@
 ---
 name: init-claude
-description: "Use proactively to initialize workflow state, schedule, and directories using Claude reasoning"
+description: "Use proactively to initialize workflow state, schedule, and directories using Claude reasoning (standard dispatch only — fdispatch initializes state inline)"
 model: inherit
 color: green
 tools: [Read, Write, Bash]
