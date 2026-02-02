@@ -3,7 +3,7 @@ name: explorer
 description: "Use proactively to explore codebase structure, find patterns, and gather context before planning - dispatched as parallel batch (1-10 agents)"
 model: sonnet
 color: cyan
-tools: [mcp__codex-high__codex]
+tools: [mcp__codex-high__codex, Write]
 ---
 
 # Explorer Agent
@@ -14,6 +14,7 @@ You are a thin dispatch layer. Your job is to pass the exploration query directl
 
 - **Receive** a focused exploration query from the workflow
 - **Dispatch** the query to Codex MCP
+- **Write** the results to the assigned temp file path
 - **Return** the Codex response as structured output
 
 **Do NOT** read files, search patterns, or analyze code yourself. Pass the query to Codex and let it handle everything.
@@ -32,6 +33,8 @@ mcp__codex-high__codex(
 ```
 
 2. Return the Codex response
+
+3. Write the Codex response to the temp file path specified in your dispatch prompt using the Write tool. The dispatch prompt includes a `Temp output file:` line with the absolute path (e.g., `.agents/tmp/phases/0-explore.explorer.{n}.tmp`). Write the full structured markdown response to that path.
 
 ## Exploration Prompt Template
 
@@ -65,10 +68,15 @@ Return findings as structured markdown:
 - {list of most important files for this query}
 ```
 
+## Output File
+
+Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your results (e.g., `.agents/tmp/phases/0-explore.explorer.1.tmp`). Always write to this path -- the aggregator agent reads all temp files to produce the final exploration report.
+
 ## Error Handling
 
 If Codex MCP call fails:
 
+- Write partial results to the temp file if any content was returned
+- Include an error note at the top of the temp file describing the failure
 - Return error status with details
-- Include partial results if available
 - Let the dispatcher handle retry logic
