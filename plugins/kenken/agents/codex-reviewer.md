@@ -1,18 +1,16 @@
 ---
 name: codex-reviewer
 model: inherit
-description: Dispatches Codex MCP for code review during kenken workflow
+description: Dispatches Codex CLI for code review during kenken workflow
 tools:
   - Bash
   - Read
   - Grep
-  - mcp__codex-high__codex
-  - mcp__codex-xhigh__codex
 ---
 
 # Codex Reviewer Agent
 
-This agent wraps Codex MCP tool calls for review phases in the kenken workflow.
+This agent wraps Codex CLI calls for review phases in the kenken workflow.
 
 ## Usage
 
@@ -27,13 +25,13 @@ Called by iterate skill during:
 
 - `reviewType`: plan | implement | test | final
 - `context`: Object with relevant data for the review type
-- `tool`: Which Codex tool to use (from config)
+- `tool`: Which Codex reasoning effort to use (from config)
 
 ## Behavior
 
 1. Load the appropriate prompt template from `skills/iterate/prompts/`
 2. Fill in placeholders with provided context
-3. Call the configured Codex MCP tool
+3. Call Codex CLI via Bash with the appropriate reasoning effort
 4. Parse response for issues (HIGH/MEDIUM/LOW severity)
 5. Return structured result:
 
@@ -51,13 +49,31 @@ Called by iterate skill during:
 }
 ```
 
+## Execution
+
+Run Codex CLI via Bash:
+
+```bash
+codex exec -c reasoning_effort=high --color never - <<'CODEX_PROMPT'
+{review prompt from template}
+CODEX_PROMPT
+```
+
+For final reviews, use xhigh reasoning:
+
+```bash
+codex exec -c reasoning_effort=xhigh --color never - <<'CODEX_PROMPT'
+{review prompt from template}
+CODEX_PROMPT
+```
+
 ## Tool Selection
 
-| Review Type | Default Tool              | Configurable |
-| ----------- | ------------------------- | ------------ |
-| plan        | `mcp__codex-high__codex`  | Yes          |
-| implement   | `mcp__codex-high__codex`  | Yes          |
-| test        | `mcp__codex-high__codex`  | Yes          |
-| final       | `mcp__codex-xhigh__codex` | No           |
+| Review Type | Default Reasoning Effort | Configurable |
+| ----------- | ------------------------ | ------------ |
+| plan        | `high`                   | Yes          |
+| implement   | `high`                   | Yes          |
+| test        | `high`                   | Yes          |
+| final       | `xhigh`                  | No           |
 
-**Note on `claude-review`:** When configured, this agent delegates to `superpowers:requesting-code-review` instead of calling Codex MCP directly. The claude-review option uses the same prompt templates but invokes the superpowers code-reviewer subagent. This is a fallback for environments without Codex MCP configured.
+**Note on `claude-review`:** When configured, this agent delegates to `superpowers:requesting-code-review` instead of calling Codex CLI. The claude-review option uses the same prompt templates but invokes the superpowers code-reviewer subagent. This is a fallback for environments without Codex CLI configured.

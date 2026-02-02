@@ -1,12 +1,12 @@
 ---
-description: Start a subagent workflow using Claude agents only (no Codex MCP)
+description: Start a subagent workflow using Claude agents only (no Codex CLI)
 argument-hint: <task description> [--no-test] [--no-worktree] [--no-web-search] [--profile minimal|standard|thorough] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
 # Dispatch Subagent Workflow (Claude-Only)
 
-Start a workflow for complex task execution with parallel subagents and file-based state. Uses Claude agents only — no Codex MCP dependency.
+Start a workflow for complex task execution with parallel subagents and file-based state. Uses Claude agents only — no Codex CLI dependency.
 
 ## Arguments
 

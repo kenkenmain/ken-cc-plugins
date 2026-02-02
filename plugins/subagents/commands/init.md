@@ -11,7 +11,7 @@ Create a git worktree for isolated development, then start a subagent workflow. 
 ## Arguments
 
 - `<task description>`: Required. The task to execute
-- `--claude`: Optional. Use Claude-only mode (no Codex MCP) — dispatches via `dispatch-claude`
+- `--claude`: Optional. Use Claude-only mode (no Codex CLI) — dispatches via `dispatch-claude`
 - `--no-worktree`: Optional. Skip worktree creation, work in current directory
 - All other flags are passed through to dispatch (`--no-test`, `--profile`, `--stage`, `--plan`)
 

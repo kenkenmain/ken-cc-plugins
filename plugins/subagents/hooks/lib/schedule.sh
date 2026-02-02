@@ -803,12 +803,12 @@ COVERAGE
 
 This phase uses a Codex agent. Dispatch with timeout protection:
 
-1. Dispatch via Task tool with \`run_in_background: true\` (MANDATORY — the PreToolUse hook blocks direct MCP calls and non-background Codex dispatches)
+1. Dispatch via Task tool with \`run_in_background: true\` (MANDATORY for timeout protection)
 2. Call \`TaskOutput(task_id, block=true, timeout=${timeout_ms})\` (${timeout_label})
 3. If result received: write to output file normally
 4. If timeout: call \`TaskStop(task_id)\`, then write timeout error JSON to the output file:
    \`\`\`json
-   {"status":"timeout","issues":[],"summary":"Codex MCP timed out after ${timeout_ms}ms. Automatic fallback to Claude reviewer.","codexTimeout":true}
+   {"status":"timeout","issues":[],"summary":"Codex CLI timed out after ${timeout_ms}ms. Automatic fallback to Claude reviewer.","codexTimeout":true}
    \`\`\`
 TIMEOUT
   fi
@@ -828,7 +828,7 @@ Pick `subagent_type` based on each task's complexity score:
 | ------ | ---------------------------- | ------------------------------- |
 | Easy   | `subagents:sonnet-task-agent` | Direct execution (model=sonnet) |
 | Medium | `subagents:opus-task-agent`   | Direct execution (model=opus)   |
-| Hard   | `subagents:codex-task-agent`  | Codex-high MCP wrapper          |
+| Hard   | `subagents:codex-task-agent`  | Codex CLI wrapper          |
 
 For hard tasks using `codex-task-agent`, dispatch with `run_in_background: true` and use TaskOutput with timeout.
 PERTASK

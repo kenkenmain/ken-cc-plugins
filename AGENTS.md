@@ -4,7 +4,7 @@
 
 ```bash
 # Iteration Workflow
-/superpowers-iterate:iterate <task>                    # Full mode (Codex MCP)
+/superpowers-iterate:iterate <task>                    # Full mode (Codex CLI)
 /superpowers-iterate:iterate --lite <task>             # Lite mode (Claude only)
 /superpowers-iterate:iterate --max-iterations 5 <task> # Limit iterations
 /superpowers-iterate:iterate-status                    # Check progress
@@ -17,7 +17,7 @@
 /subagents:init <task> --claude                        # Claude-only mode with worktree
 /subagents:teardown                                    # Commit, push, create PR, remove worktree
 /subagents:preflight                                   # Run pre-flight checks
-/subagents:dispatch <task>                             # Start workflow (Codex MCP defaults)
+/subagents:dispatch <task>                             # Start workflow (Codex CLI defaults)
 /subagents:dispatch-claude <task>                      # Start workflow (Claude-only)
 /subagents:dispatch <task> --no-worktree               # Without git worktree isolation
 /subagents:dispatch <task> --no-test                   # Skip test stage
@@ -75,30 +75,30 @@ This plugin orchestrates a 9-phase development iteration:
 ```
 Phase 1: Brainstorm    -> superpowers:brainstorming + parallel agents
 Phase 2: Plan          -> superpowers:writing-plans + parallel agents
-Phase 3: Plan Review   -> mcp__codex-high__codex (default, configurable via /configure)
+Phase 3: Plan Review   -> Codex CLI reasoning=high (default, configurable via /configure)
 Phase 4: Implement     -> superpowers:subagent-driven-development
 Phase 5: Review        -> superpowers:requesting-code-review
 Phase 6: Test          -> make lint && make test
 Phase 7: Simplify      -> code-simplifier agent
-Phase 8: Final Review  -> mcp__codex-high__codex (default, configurable via /configure)
-Phase 9: Codex Final   -> mcp__codex-xhigh__codex (full mode only)
+Phase 8: Final Review  -> Codex CLI reasoning=high (default, configurable via /configure)
+Phase 9: Codex Final   -> Codex CLI reasoning=xhigh (full mode only)
 ```
 
 **Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or max iterations reached.
 
 ## Model Configuration
 
-| Phase | Activity     | Model     | MCP Tool                  | Rationale                            |
-| ----- | ------------ | --------- | ------------------------- | ------------------------------------ |
-| 1     | Brainstorm   | `inherit` | N/A                       | User controls via /configure         |
-| 2     | Plan         | `inherit` | N/A                       | User controls via /configure         |
-| 3     | Plan Review  | N/A       | `mcp__codex-high__codex`  | Medium reasoning for plan validation |
-| 4     | Implement    | `inherit` | N/A                       | User controls quality                |
-| 5     | Review       | `inherit` | N/A                       | Quick sanity check                   |
-| 6     | Test         | N/A       | N/A                       | Bash commands                        |
-| 7     | Simplify     | `inherit` | N/A                       | Code quality                         |
-| 8     | Final Review | N/A       | `mcp__codex-high__codex`  | Medium reasoning for iteration       |
-| 9     | Codex Final  | N/A       | `mcp__codex-xhigh__codex` | High reasoning for final validation  |
+| Phase | Activity     | Model     | Codex CLI                     | Rationale                            |
+| ----- | ------------ | --------- | ----------------------------- | ------------------------------------ |
+| 1     | Brainstorm   | `inherit` | N/A                           | User controls via /configure         |
+| 2     | Plan         | `inherit` | N/A                           | User controls via /configure         |
+| 3     | Plan Review  | N/A       | `reasoning_effort=high`       | High reasoning for plan validation   |
+| 4     | Implement    | `inherit` | N/A                           | User controls quality                |
+| 5     | Review       | `inherit` | N/A                           | Quick sanity check                   |
+| 6     | Test         | N/A       | N/A                           | Bash commands                        |
+| 7     | Simplify     | `inherit` | N/A                           | Code quality                         |
+| 8     | Final Review | N/A       | `reasoning_effort=high`       | High reasoning for iteration         |
+| 9     | Codex Final  | N/A       | `reasoning_effort=xhigh`     | Extra-high reasoning for validation  |
 
 ## Configuration
 
@@ -119,14 +119,15 @@ Project overrides global. See `plugins/superpowers-iterate/skills/configuration/
 - **Git Commits:** Prefix with `feat|fix|docs|chore|ci`, include co-author line
 - **Git Excludes:** Never commit `.agents/**`, `docs/plans/**`, `*.tmp`, `*.log`
 
-## Model vs MCP Tool Namespaces
+## Model vs Codex CLI Namespaces
 
 **Critical:** These are DIFFERENT namespaces. Never mix them in config.
 
-| Type        | Valid Values                         | Usage                     |
-| ----------- | ------------------------------------ | ------------------------- |
-| `ModelId`   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit` | Task tool `model` param   |
-| `McpToolId` | `codex-high`, `codex-xhigh`          | Review phase `tool` field |
+| Type             | Valid Values                                      | Usage                     |
+| ---------------- | ------------------------------------------------- | ------------------------- |
+| `ModelId`        | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit` | Task tool `model` param   |
+| `CodexToolId`    | `codex-high`, `codex-xhigh`                       | Review phase `tool` field |
+| `ReasoningLevel` | `high`, `xhigh`                                   | Maps to `codex exec -c reasoning_effort=<level>` |
 
 **Actual Anthropic API IDs:**
 
@@ -134,7 +135,7 @@ Project overrides global. See `plugins/superpowers-iterate/skills/configuration/
 - `opus-4.5` → `claude-opus-4-5-20251101`
 - `haiku-4.5` → `claude-haiku-4-5-20251001`
 
-**bugFixer format:** `{ "type": "mcp"|"model", "tool": "<id>" }` - never bare strings
+**bugFixer format:** `{ "type": "codex"|"model", "tool": "<id>" }` - never bare strings
 
 ## State Management
 

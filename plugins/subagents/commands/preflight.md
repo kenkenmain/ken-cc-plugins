@@ -10,7 +10,7 @@ Verify that the environment is ready for a subagent workflow. Run this before `/
 
 ## Arguments
 
-- `--claude`: Optional. Claude-only mode — skip Codex MCP check (use before `dispatch-claude`)
+- `--claude`: Optional. Claude-only mode — skip Codex CLI check (use before `dispatch-claude`)
 - `--fix`: Optional. Attempt to fix issues automatically (install missing tools, plugins)
 
 Parse from $ARGUMENTS to extract flags.
@@ -56,18 +56,18 @@ make -n test 2>/dev/null || npm run test --if-present 2>/dev/null || echo "WARN:
 
 Warnings are informational — workflows can still run without lint/test targets.
 
-### 4. Codex MCP
+### 4. Codex CLI
 
 **Skip this check if `--claude` is set.**
 
 ```bash
-# Check if codex-high MCP is available (for dispatch Codex mode)
-echo '{"prompt":"ping","approval-policy":"never"}' | timeout 10 claude mcp call codex-high codex 2>/dev/null || echo "WARN:no-codex"
+# Check if codex CLI is available (for dispatch Codex mode)
+codex --version 2>/dev/null || echo "WARN:no-codex"
 ```
 
 If missing:
 ```
-WARN: Codex MCP not available. Use /subagents:dispatch-claude for Claude-only mode,
+WARN: Codex CLI not available. Use /subagents:dispatch-claude for Claude-only mode,
       or /subagents:dispatch with automatic Codex fallback.
 ```
 
@@ -83,7 +83,7 @@ Pre-flight Results
  ✓ build tools    make / npm available
  ⚠ lint           no lint target found
  ⚠ test           no test target found
- ⚠ codex MCP      not available (use dispatch-claude)
+ ⚠ codex CLI      not available (use dispatch-claude)
 
 Ready: Yes (2 warnings)
 ```
@@ -97,7 +97,7 @@ Pre-flight Results (Claude-only)
  ✓ superpowers    brainstorming skill found
  ✓ build tools    make / npm available
  ⚠ lint           no lint target found
- - codex MCP      skipped (Claude-only mode)
+ - codex CLI      skipped (Claude-only mode)
 
 Ready: Yes (1 warning)
 ```

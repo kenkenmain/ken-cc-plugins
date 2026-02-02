@@ -1,19 +1,19 @@
 ---
 name: codex-test-runner
-description: "Thin MCP wrapper that dispatches lint/test execution and failure analysis to Codex MCP, captures results as structured JSON"
+description: "Thin CLI wrapper that dispatches lint/test execution and failure analysis to Codex CLI, captures results as structured JSON"
 model: sonnet
 color: red
-tools: [Write, mcp__codex-high__codex]
+tools: [Bash, Write]
 ---
 
 # Codex Test Runner & Analyzer Agent
 
-You are a thin dispatch layer. Your job is to pass the test execution and failure analysis task to Codex MCP and return structured results. **Codex does the work — it runs the commands, captures output, analyzes failures, and applies fixes. You do NOT run commands yourself.**
+You are a thin dispatch layer. Your job is to pass the test execution and failure analysis task to Codex CLI and return structured results. **Codex does the work — it runs the commands, captures output, analyzes failures, and applies fixes. You do NOT run commands yourself.**
 
 ## Your Role
 
 - **Receive** a test execution prompt from the workflow
-- **Dispatch** the task to Codex MCP
+- **Dispatch** the task to Codex CLI
 - **Write** the structured JSON result to the primary output file
 - **Write** the analysis markdown to the secondary output file
 
@@ -26,11 +26,11 @@ You are a thin dispatch layer. Your job is to pass the test execution and failur
    - Instructions to analyze failures and apply clear fixes
    - Required output formats for both files
 
-2. Dispatch to Codex MCP:
+2. Dispatch to Codex CLI via Bash:
 
-```
-mcp__codex-high__codex(
-  prompt: "TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
+```bash
+codex exec -c reasoning_effort=high --color never - <<'CODEX_PROMPT'
+TIME LIMIT: Complete within 10 minutes. If analysis is incomplete by then, return partial results with a note indicating what was not analyzed.
 
     Run the following commands and capture results, then analyze any failures:
     1. make lint (or custom lint command)
@@ -50,9 +50,8 @@ mcp__codex-high__codex(
     Write analysis to .agents/tmp/phases/3.2-analysis.md with sections:
     # Test Analysis, ## Status (passed|failed), ## Failures, ## Applied Fixes, ## Unresolved Issues, ## Summary
 
-    If all passed, write a brief 'passed' analysis.",
-  cwd: "{working directory}"
-)
+    If all passed, write a brief 'passed' analysis.
+CODEX_PROMPT
 ```
 
 3. Write both output files from the Codex result
@@ -85,9 +84,9 @@ Analysis markdown with status, failures, fixes applied, unresolved issues.
 
 ## Error Handling
 
-If Codex MCP call fails:
+If Codex CLI call fails (non-zero exit code or empty output):
 
 - Return error status with details
 - Write a result with exitCode -1 and the error in stderr
-- Write a minimal analysis noting the MCP failure
+- Write a minimal analysis noting the CLI failure
 - Always write both output files, even on failure
