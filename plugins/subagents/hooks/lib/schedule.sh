@@ -25,6 +25,10 @@ get_phase_output() {
     4.1) echo "4.1-docs.md" ;;
     4.2) echo "4.2-final-review.json" ;;
     4.3) echo "4.3-completion.json" ;;
+    F1)   echo "f1-plan.md" ;;
+    F2)   echo "f2-tasks.json" ;;
+    F3)   echo "f3-review.json" ;;
+    F4)   echo "f4-completion.json" ;;
     *)   echo "" ;;
   esac
 }
@@ -226,6 +230,19 @@ get_phase_input_files() {
     4.3)
       echo "- \`.agents/tmp/phases/4.2-final-review.json\`"
       ;;
+    F1)
+      echo "- None (use task description from state.json \`.task\` field)"
+      ;;
+    F2)
+      echo "- \`.agents/tmp/phases/f1-plan.md\`"
+      ;;
+    F3)
+      echo "- \`.agents/tmp/phases/f2-tasks.json\`"
+      echo "- Run \`git diff\` for current changes"
+      ;;
+    F4)
+      echo "- \`.agents/tmp/phases/f3-review.json\`"
+      ;;
     *)
       echo "- None"
       ;;
@@ -255,6 +272,10 @@ get_phase_template() {
     4.1) echo "4.1-documentation.md" ;;
     4.2) echo "4.2-final-review.md" ;;
     4.3) echo "4.3-completion.md" ;;
+    F1)   echo "f1-fast-plan.md" ;;
+    F2)   echo "f2-implement-test.md" ;;
+    F3)   echo "f3-parallel-review.md" ;;
+    F4)   echo "f4-completion.md" ;;
     *)   echo "" ;;
   esac
 }
@@ -323,6 +344,18 @@ get_phase_subagent() {
     3.3) state_get '.testDeveloper // "subagents:test-developer"' ;;
     4.1) state_get '.docUpdater // "subagents:doc-updater"' ;;
     4.3) echo "subagents:completion-handler" ;;
+    F1)  echo "subagents:fast-planner" ;;
+    F2)  echo "subagents:sonnet-task-agent" ;;
+    F3)
+      local codex_avail
+      codex_avail="$(state_get '.codexAvailable // false')"
+      if [[ "$codex_avail" == "true" ]]; then
+        echo "subagents:codex-code-quality-reviewer"
+      else
+        echo "subagents:code-quality-reviewer"
+      fi
+      ;;
+    F4)  echo "subagents:completion-handler" ;;
     *)   echo "" ;;
   esac
 }
@@ -351,6 +384,18 @@ get_phase_model() {
     0|1.1|1.2) echo "inherit" ;;   # EXPLORE + PLAN: inherit from parent
     2.1)   echo "per-task" ;;  # IMPLEMENT: complexity-based
     2.2)   echo "sonnet" ;;    # Simplify: sonnet
+    F1)    echo "opus" ;;
+    F2)    echo "per-task" ;;
+    F3)
+      local codex_avail_model
+      codex_avail_model="$(state_get '.codexAvailable // false')"
+      if [[ "$codex_avail_model" == "true" ]]; then
+        echo "sonnet"
+      else
+        echo "opus"
+      fi
+      ;;
+    F4)    echo "inherit" ;;
     *)     echo "sonnet" ;;    # TEST + FINAL: sonnet
   esac
 }
@@ -401,6 +446,21 @@ _raw_supplementary_agents() {
       ;;
     4.3)
       echo "subagents:retrospective-analyst"
+      ;;
+    F3)
+      local codex_avail_supp
+      codex_avail_supp="$(state_get '.codexAvailable // false')"
+      if [[ "$codex_avail_supp" == "true" ]]; then
+        echo "subagents:codex-error-handling-reviewer"
+        echo "subagents:codex-type-reviewer"
+        echo "subagents:codex-test-coverage-reviewer"
+        echo "subagents:codex-comment-reviewer"
+      else
+        echo "subagents:error-handling-reviewer"
+        echo "subagents:type-reviewer"
+        echo "subagents:test-coverage-reviewer"
+        echo "subagents:comment-reviewer"
+      fi
       ;;
     *)
       # No supplementary agents
@@ -458,6 +518,11 @@ is_supplementary_agent() {
     subagents:type-reviewer|\
     subagents:test-coverage-reviewer|\
     subagents:comment-reviewer|\
+    subagents:codex-code-quality-reviewer|\
+    subagents:codex-error-handling-reviewer|\
+    subagents:codex-type-reviewer|\
+    subagents:codex-test-coverage-reviewer|\
+    subagents:codex-comment-reviewer|\
     subagents:claude-md-updater|\
     subagents:retrospective-analyst)
       return 0
@@ -766,8 +831,8 @@ AGG_TIMEOUT
     fi
   fi
 
-  # Review-fix cycle rules (for review phases)
-  if [[ "$phase_type" == "review" ]]; then
+  # Review-fix cycle rules (for review phases and F3 dispatch-as-review)
+  if [[ "$phase_type" == "review" ]] || [[ "$phase" == "F3" ]]; then
     cat <<'REVIEW'
 
 ## Review-Fix Cycle

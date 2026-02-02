@@ -440,6 +440,34 @@ Per-agent `.tmp` files in `.agents/tmp/phases/` persist through the workflow run
 - `/subagents:status` - Show progress
 - `/subagents:configure` - Configure settings
 - `/subagents:debug <task>` - Multi-phase debugging workflow with parallel exploration and solution ranking
+- `/subagents:fdispatch <task>` - Fast dispatch (Codex MCP defaults, 4 phases)
+- `/subagents:fdispatch-claude <task>` - Fast dispatch (Claude-only, 4 phases)
+
+## Fast Dispatch Pipeline (fdispatch)
+
+Streamlined 4-phase variant of the standard dispatch workflow. Collapses 13 phases into 4:
+
+```
+Phase F1   │ PLAN      │ Explore + Brainstorm + Write Plan  │ single opus agent (fast-planner)
+Phase F2   │ IMPLEMENT │ Parallel Implement + Test           │ complexity-routed task agents
+Phase F3   │ REVIEW    │ Parallel Specialized Review         │ 5 Codex or Claude reviewers in parallel
+           │           │ (fix cycle runs within F3 if needed)│
+Phase F4   │ COMPLETE  │ Git Commit + PR                     │ completion-handler
+```
+
+**Commands:**
+- `/subagents:fdispatch <task>` — Codex MCP defaults
+- `/subagents:fdispatch-claude <task>` — Claude-only mode
+- Flags: `--no-worktree`, `--no-web-search`
+
+**Fix cycle:** Max 3 iterations (vs 10 for standard dispatch). Max 1 stage restart (vs 3).
+
+**Key differences from standard dispatch:**
+- No separate explore phase — combined into F1
+- No plan review — single opus agent plans directly
+- No separate test stage — tests written inline by task agents
+- No documentation phase — skipped for speed
+- All reviewers run in parallel at end (not per-stage)
 
 ## Skills
 
@@ -474,6 +502,7 @@ Dispatched by the orchestrator loop during workflow execution:
 | `explore-aggregator.md`     | 0 (aggregator)      | Aggregates explorer temp files into final report (Claude) |
 | `codex-explore-aggregator.md` | 0 (aggregator)    | Thin Codex MCP wrapper for explore aggregation |
 | `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
+| `fast-planner.md`      | F1                  | Combined explore+brainstorm+plan (opus, fdispatch only) |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
 | `architecture-analyst.md` | 1.2 (supplement) | Architecture blueprint                  |
 | `plan-aggregator.md`        | 1.2 (aggregator)    | Aggregates planner temp files into unified plan (Claude) |
@@ -501,6 +530,11 @@ Dispatched by the orchestrator loop during workflow execution:
 | `claude-md-updater.md` | 4.1 (supplement)    | CLAUDE.md updates                       |
 | `test-coverage-reviewer.md` | 4.2 (supplement) | Test coverage analysis                |
 | `comment-reviewer.md`  | 4.2 (supplement)    | Comment accuracy review                 |
+| `codex-code-quality-reviewer.md` | F3 (Codex primary) | Thin Codex MCP wrapper for code quality review |
+| `codex-error-handling-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for error handling review |
+| `codex-type-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for type design review |
+| `codex-test-coverage-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for test coverage review |
+| `codex-comment-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for comment review |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
 | `retrospective-analyst.md` | 4.3 (supplement) | Workflow metrics analysis, CLAUDE.md learnings |
 
