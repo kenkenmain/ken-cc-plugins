@@ -124,15 +124,15 @@ For Task tool dispatch. Valid values:
 | `haiku-4.5`  | `claude-haiku-4-5-20251001`  |
 | `inherit`    | Use session's current model  |
 
-## Codex CLI Namespace (CodexToolId)
+## MCP Tool Namespace (McpToolId)
 
-For review phases using Codex CLI. Valid values:
+For review phases using Codex MCP. Valid values:
 
-| Short Name    | Reasoning Effort          |
+| Short Name    | Full Tool ID              |
 | ------------- | ------------------------- |
-| `codex-high`  | `reasoning_effort=high`   |
+| `codex-high`  | `mcp__codex-high__codex`  |
 
-**Critical:** ModelId and CodexToolId are DIFFERENT namespaces. Never mix them.
+**Critical:** ModelId and McpToolId are DIFFERENT namespaces. Never mix them.
 
 ## blockOnSeverity
 
@@ -154,7 +154,7 @@ When an issue meets the threshold:
 
 Tool used to fix issues found by Codex reviews. Default: `codex-high`.
 
-Can be either a Codex CLI tool (codex-high) or a model (sonnet-4.5, opus-4.5, haiku-4.5).
+Can be either an MCP tool (codex-high) or a model (sonnet-4.5, opus-4.5, haiku-4.5).
 
 Configured per review phase:
 
@@ -169,7 +169,7 @@ Configured per review phase:
 | `blockOnSeverity`          | `high`, `medium`, `low`               |
 | `gitWorkflow`              | `none`, `commit`, `branch+PR`         |
 | `maxParallelAgents`        | 1-10                                  |
-| `bugFixer`                 | ModelId or CodexToolId                  |
+| `bugFixer`                 | ModelId or McpToolId                  |
 | `pipeline.defaultProfile`  | `minimal`, `standard`, `thorough`, `null` |
 | `supplementaryPolicy`      | `on-issues`, `always`                 |
 

@@ -22,7 +22,7 @@ This skill activates when:
 
 **Modes:**
 
-- **Full (default):** Defaults to `codex-high` for Phases 3, 8 and `codex-xhigh` for Phase 9 (configurable via `/configure`)
+- **Full (default):** Defaults to `mcp__codex-high__codex` for Phases 3, 8 and `mcp__codex-xhigh__codex` for Phase 9 (configurable via `/configure`)
 - **Lite (`--lite`):** Uses Claude reviews, skips Phase 9
 
 See AGENTS.md for model configuration and state schema details.
@@ -157,8 +157,8 @@ Run `/superpowers-iterate:configure --show` to see current config.
 
 **Required Tool (from config `phases.3.tool`):**
 
-- `codex-high` (default): Codex with high reasoning
-- `codex-xhigh`: Codex with extra-high reasoning
+- `mcp__codex-high__codex` (default): Codex with medium reasoning
+- `mcp__codex-xhigh__codex`: Codex with high reasoning
 - `claude-review`: Use `superpowers:requesting-code-review`
 - Lite mode always uses `superpowers:requesting-code-review`
 
@@ -167,9 +167,9 @@ Run `/superpowers-iterate:configure --show` to see current config.
 1. Mark Phase 3 as `in_progress` in state file
 2. Run review based on configured tool:
 
-### Codex Mode (codex-high or codex-xhigh)
+### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
 
-Invoke Codex CLI with plan review prompt:
+Invoke `mcp__codex-high__codex` with plan review prompt:
 
 ```
 Review the implementation plan at docs/plans/YYYY-MM-DD-<feature-name>.md
@@ -221,8 +221,8 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review` to revi
 **Implementer (from config `phases.4.implementer`):**
 
 - `claude` (default): Use Claude subagents via `superpowers:subagent-driven-development`
-- `codex-high`: Use `codex-high` for implementation
-- `codex-xhigh`: Use `codex-xhigh` for implementation
+- `codex-high`: Use `mcp__codex-high__codex` for implementation
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` for implementation
 
 **Required Skill (claude mode):** `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
 
@@ -316,8 +316,8 @@ If tests fail, fix issues and re-run until passing.
 **Bug Fixer (from config `phases.5.bugFixer`):**
 
 - `claude`: Use Claude subagents to fix issues
-- `codex-high` (default): Use `codex-high` to fix issues
-- `codex-xhigh`: Use `codex-xhigh` to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
 
 **Actions:**
 
@@ -405,16 +405,16 @@ If tests fail, fix issues and re-run until passing.
 
 **Required Tool (from config `phases.8.tool`):**
 
-- `codex-high` (default): Codex with high reasoning
-- `codex-xhigh`: Codex with extra-high reasoning
+- `mcp__codex-high__codex` (default): Codex with high reasoning
+- `mcp__codex-xhigh__codex`: Codex with extra-high reasoning
 - `claude-review`: Use `superpowers:requesting-code-review`
 - Lite mode always uses `superpowers:requesting-code-review`
 
 **Bug Fixer (from config `phases.8.bugFixer`):**
 
 - `claude`: Use Claude subagents to fix issues
-- `codex-high` (default): Use `codex-high` to fix issues
-- `codex-xhigh`: Use `codex-xhigh` to fix issues
+- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
+- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
 
 **Actions:**
 
@@ -422,9 +422,9 @@ If tests fail, fix issues and re-run until passing.
 2. Check current iteration count against `maxIterations`
 3. Run review based on configured tool:
 
-### Codex Mode (codex-high or codex-xhigh)
+### Codex Mode (mcp\_\_codex\_\_codex or mcp\_\_codex-high\_\_codex)
 
-Invoke Codex CLI with review prompt:
+Invoke `mcp__codex-high__codex` with review prompt:
 
 ```
 Iteration {N}/{max} final review for merge readiness. Run these commands first:
@@ -488,14 +488,14 @@ Dispatch code-reviewer subagent via `superpowers:requesting-code-review`:
 
 **Purpose:** Final validation with OpenAI Codex high reasoning
 
-**Required Tool:** Codex CLI with `reasoning_effort=xhigh`
+**Required Tool:** `mcp__codex-xhigh__codex`
 
 **Note:** This phase is skipped in lite mode.
 
 **Actions:**
 
 1. Mark Phase 9 as `in_progress`
-2. Invoke Codex CLI (`reasoning_effort=xhigh`) with final validation prompt:
+2. Invoke `mcp__codex-xhigh__codex` with final validation prompt:
 
    ```
    Final validation review. Run these commands first:

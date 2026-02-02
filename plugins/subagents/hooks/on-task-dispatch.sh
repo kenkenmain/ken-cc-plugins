@@ -4,7 +4,7 @@
 # tag is missing but does NOT block execution (lenient enforcement).
 #
 # Also enforces run_in_background: true for Codex agent dispatches to prevent
-# synchronous CLI calls that can hang indefinitely without timeout protection.
+# synchronous MCP calls that can hang indefinitely without timeout protection.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -66,7 +66,7 @@ RUN_IN_BG="$(echo "$INPUT" | jq -r '.tool_input.run_in_background // false')"
 if [[ "$SUBAGENT_TYPE" == *"codex"* && "$RUN_IN_BG" != "true" ]]; then
   jq -n --arg agent "$SUBAGENT_TYPE" '{
     "decision": "block",
-    "reason": ("Codex agent \"" + $agent + "\" must use run_in_background: true for timeout protection. Re-dispatch with:\n  Task(subagent_type=\"" + $agent + "\", run_in_background=true, prompt=\"...\")\nThen poll:\n  TaskOutput(task_id, block=true, timeout=300000)\nThis prevents indefinite hangs when the Codex CLI is unresponsive.")
+    "reason": ("Codex agent \"" + $agent + "\" must use run_in_background: true for timeout protection. Re-dispatch with:\n  Task(subagent_type=\"" + $agent + "\", run_in_background=true, prompt=\"...\")\nThen poll:\n  TaskOutput(task_id, block=true, timeout=300000)\nThis prevents indefinite hangs when the Codex MCP server is unresponsive.")
   }'
   exit 0
 fi

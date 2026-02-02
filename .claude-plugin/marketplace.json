@@ -14,7 +14,7 @@
       "name": "superpowers-iterate",
       "source": "./plugins/superpowers-iterate",
       "description": "Orchestrates iterative 9-phase workflow with configurable models and full/lite modes.",
-      "version": "1.9.0",
+      "version": "1.9.1",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -29,7 +29,7 @@
       "name": "kenken",
       "source": "./plugins/kenken",
       "description": "4-stage iterative development workflow (PLAN → IMPLEMENT → TEST → FINAL)",
-      "version": "2.6.0",
+      "version": "2.6.1",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -44,7 +44,7 @@
       "name": "subagents",
       "source": "./plugins/subagents",
       "description": "Hook-driven subagent architecture with auto-chaining, gate enforcement, and full context isolation",
-      "version": "0.14.0",
+      "version": "0.15.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

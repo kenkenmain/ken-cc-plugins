@@ -28,13 +28,13 @@ Current Configuration (merged from defaults + global + project):
 
 Phase 1 (Brainstorm):   model=inherit, parallel=true, parallelModel=inherit
 Phase 2 (Plan):         model=inherit, parallel=true, parallelModel=inherit
-Phase 3 (Plan Review):  tool=codex-high
+Phase 3 (Plan Review):  tool=mcp__codex-high__codex
 Phase 4 (Implement):    model=inherit
 Phase 5 (Review):       model=inherit
 Phase 6 (Test):         [bash - no model config]
 Phase 7 (Simplify):     model=inherit
-Phase 8 (Final Review): tool=codex-high
-Phase 9 (Codex Final):  tool=codex-xhigh [fixed]
+Phase 8 (Final Review): tool=mcp__codex-high__codex
+Phase 9 (Codex Final):  tool=mcp__codex-xhigh__codex [fixed]
 
 Config files:
 - Global: ~/.claude/iterate-config.json [exists/not found]
@@ -73,7 +73,7 @@ Use AskUserQuestion with multiSelect:
     description: "Configure model and parallel agents"
   - label: "Phase 2: Plan (model=inherit, parallel=true)"
     description: "Configure model and parallel agents"
-  - label: "Phase 3: Plan Review (tool=codex-high)"
+  - label: "Phase 3: Plan Review (tool=codex)"
     description: "Configure review tool"
   - label: "Phase 4: Implement (model=inherit)"
     description: "Configure model"
@@ -81,10 +81,10 @@ Use AskUserQuestion with multiSelect:
     description: "Configure model"
   - label: "Phase 7: Simplify (model=inherit)"
     description: "Configure model"
-  - label: "Phase 8: Final Review (tool=codex-high)"
+  - label: "Phase 8: Final Review (tool=codex)"
     description: "Configure review tool"
 
-Note: Phase 6 (Test) is bash-only. Phase 9 (Codex Final) is fixed to `codex-xhigh`.
+Note: Phase 6 (Test) is bash-only. Phase 9 (Codex Final) is fixed to `mcp__codex-xhigh__codex`.
 
 ## Step 5: Configure Each Selected Phase
 
@@ -100,17 +100,17 @@ Ask three questions:
 
 Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-4`, `sonnet-3.5`
 
-### For Phases 3, 8 (Codex CLI review phases)
+### For Phases 3, 8 (MCP review phases)
 
-Ask which tool: codex-high (recommended), codex-xhigh, or claude-review
+Ask which tool: codex (recommended), codex-high, or claude-review
 
 **Tool name mapping when saving:**
 
-| UI Label      | Config Value    |
-| ------------- | --------------- |
-| codex-high    | `codex-high`    |
-| codex-xhigh   | `codex-xhigh`  |
-| claude-review | `claude-review` |
+| UI Label      | Config Value              |
+| ------------- | ------------------------- |
+| codex         | `mcp__codex-high__codex`  |
+| codex-high    | `mcp__codex-xhigh__codex` |
+| claude-review | `claude-review`           |
 
 ### For Phases 4, 5, 7 (Sequential phases)
 
@@ -146,7 +146,7 @@ Backup created: [file path].backup (if applicable)
 
 Changes:
 - Phase 1: model=sonnet (was: inherit)
-- Phase 3: tool=claude-review (was: codex-high)
+- Phase 3: tool=claude-review (was: mcp__codex-high__codex)
 
 Run `/superpowers-iterate:configure --show` to see full config.
 ```

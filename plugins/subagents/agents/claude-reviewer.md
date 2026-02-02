@@ -1,6 +1,6 @@
 ---
 name: claude-reviewer
-description: "Use proactively to review plans, implementation, tests, and final output using Claude reasoning (no Codex CLI)"
+description: "Use proactively to review plans, implementation, tests, and final output using Claude reasoning (no Codex MCP)"
 model: inherit
 color: blue
 tools: [Read, Glob, Grep]

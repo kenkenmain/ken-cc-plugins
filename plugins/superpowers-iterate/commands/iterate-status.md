@@ -32,10 +32,10 @@ Check the current iteration state from `.agents/iteration-state.json`.
 | ----- | ------------ | -------------------------------------------------- |
 | 1     | Brainstorm   | `superpowers:brainstorming` + N parallel subagents |
 | 2     | Plan         | `superpowers:writing-plans` + N parallel subagents |
-| 3     | Plan Review  | `codex-high` (validates plan)          |
+| 3     | Plan Review  | `mcp__codex-high__codex` (validates plan)          |
 | 4     | Implement    | `superpowers:subagent-driven-development` + LSP    |
 | 5     | Review       | `superpowers:requesting-code-review` (1 round)     |
 | 6     | Test         | `make lint && make test`                           |
 | 7     | Simplify     | `code-simplifier:code-simplifier` plugin           |
-| 8     | Final Review | `codex-high` (decision point)          |
-| 9     | Codex Final  | `codex-xhigh` (full mode only)         |
+| 8     | Final Review | `mcp__codex-high__codex` (decision point)          |
+| 9     | Codex Final  | `mcp__codex-xhigh__codex` (full mode only)         |
