@@ -1,5 +1,5 @@
 {
-  "description": "Subagents workflow enforcement: auto-chaining via SubagentStop, completion guard via Stop, dispatch validation via PreToolUse, orchestrator edit guard via PreToolUse",
+  "description": "Subagents workflow enforcement: auto-chaining via SubagentStop, completion guard via Stop, dispatch validation via PreToolUse, Codex MCP guard via PreToolUse, orchestrator edit guard via PreToolUse",
   "hooks": {
     "SubagentStop": [
       {
@@ -50,6 +50,26 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-orchestrator-guard.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__codex-xhigh__codex",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-codex-guard.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__codex-high__codex",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-codex-guard.sh",
             "timeout": 5
           }
         ]

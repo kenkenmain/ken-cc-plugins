@@ -53,7 +53,7 @@ Main entry point. Creates a git worktree for isolated development, then starts a
 /subagents:init --claude --no-test Refactor module
 ```
 
-Use `--claude` for Claude-only mode (no Codex CLI). All other flags pass through to dispatch.
+Use `--claude` for Claude-only mode (no Codex MCP). All other flags pass through to dispatch.
 
 ### `/subagents:teardown`
 
@@ -67,7 +67,7 @@ Commit, push to GitHub, create PR, and remove worktree.
 
 ### `/subagents:preflight`
 
-Run pre-flight checks and environment setup. Verifies git, superpowers plugin, build tools, and Codex CLI availability.
+Run pre-flight checks and environment setup. Verifies git, superpowers plugin, build tools, and Codex MCP availability.
 
 ```
 /subagents:preflight
@@ -76,7 +76,7 @@ Run pre-flight checks and environment setup. Verifies git, superpowers plugin, b
 
 ### `/subagents:dispatch <task>`
 
-Start a new workflow with Codex CLI defaults (Codex reviewers configured by default, runtime fallback if unavailable).
+Start a new workflow with Codex MCP defaults (Codex reviewers configured by default, runtime fallback if unavailable).
 
 **Options:**
 
@@ -97,7 +97,7 @@ Start a new workflow with Codex CLI defaults (Codex reviewers configured by defa
 
 ### `/subagents:dispatch-claude <task>`
 
-Start a new workflow using Claude agents only (no Codex CLI dependency). Same stages, schedule, and gates as `dispatch` — only the agent defaults differ.
+Start a new workflow using Claude agents only (no Codex MCP dependency). Same stages, schedule, and gates as `dispatch` — only the agent defaults differ.
 
 **Options:** Same as `dispatch`.
 
@@ -149,7 +149,7 @@ Configure plugin settings (models, timeouts, severity thresholds).
 | ----- | ----------- | ---------------------------------------- |
 | 1.1   | Brainstorm  | Standalone analysis and approach design   |
 | 1.2   | Plan        | Parallel detailed planning (1-10 agents) |
-| 1.3   | Plan Review | Validate plan (Codex CLI or Claude reviewer) |
+| 1.3   | Plan Review | Validate plan (Codex MCP or Claude reviewer) |
 
 ### IMPLEMENT Stage
 
@@ -157,7 +157,7 @@ Configure plugin settings (models, timeouts, severity thresholds).
 | ----- | --------------------- | ---------------------------------------------------------------- |
 | 2.1   | Tasks (+ Tests)       | Wave-based parallel task execution with hybrid test writing      |
 | 2.2   | Simplify              | Code simplification pass (thorough profile only)                 |
-| 2.3   | Implementation Review | Review implementation + test quality (Codex CLI or Claude)       |
+| 2.3   | Implementation Review | Review implementation + test quality (Codex MCP or Claude)       |
 
 Note: Phase 2.2 only included in thorough pipeline profile.
 
@@ -178,7 +178,7 @@ Notes: Phase 3.1 produces both test results and failure analysis. Phase 3.2 only
 | Phase | Name         | Description                      |
 | ----- | ------------ | -------------------------------- |
 | 4.1   | Docs         | Update documentation             |
-| 4.2   | Final Review | Final validation (Codex CLI or Claude) |
+| 4.2   | Final Review | Final validation (Codex MCP or Claude) |
 | 4.3   | Completion   | Git branch and PR creation       |
 
 ## Complexity Scoring
@@ -287,12 +287,12 @@ Workflow state tracked in `.agents/tmp/state.json`:
 
 ## Model Namespaces
 
-**Critical:** Model IDs and Codex Tool IDs are separate namespaces.
+**Critical:** Model IDs and MCP Tool IDs are separate namespaces.
 
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
 | ModelId   | `sonnet-4.5`, `opus-4.5`, `haiku-4.5`, `inherit`    | Task tool `model` parameter |
-| CodexToolId | `codex-high`                                      | Review phase `tool` field   |
+| McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## License
 

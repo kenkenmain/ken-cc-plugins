@@ -8,7 +8,7 @@ You are classifying tasks for appropriate model assignment. Analyze each task an
 | ------ | ------------------- | ------------------------------- | ------------------------------------------------- |
 | Easy   | sonnet-task-agent   | direct (model=sonnet)           | Single file, <50 LOC changes, well-defined scope  |
 | Medium | opus-task-agent     | direct (model=opus)             | 2-3 files, 50-200 LOC, moderate dependencies      |
-| Hard   | codex-task-agent    | Codex CLI                       | 4+ files, >200 LOC, security/concurrency concerns |
+| Hard   | codex-task-agent    | codex-high MCP                  | 4+ files, >200 LOC, security/concurrency concerns |
 
 ## Task Analysis Checklist
 
@@ -32,7 +32,7 @@ For each task, return:
   "taskId": "<id>",
   "complexity": "easy" | "medium" | "hard",
   "reasoning": "<one line explanation>",
-  "execution": "direct" | "codex-cli",
+  "execution": "direct" | "codex-mcp",
   "model": "sonnet" | "opus" | null,
   "agent": "sonnet-task-agent" | "opus-task-agent" | "codex-task-agent"
 }
@@ -41,7 +41,7 @@ For each task, return:
 Mapping (Codex mode — `codexAvailable: true`):
 - Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`
 - Medium → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
-- Hard → `"execution": "codex-cli", "model": null, "agent": "codex-task-agent"`
+- Hard → `"execution": "codex-mcp", "model": null, "agent": "codex-task-agent"`
 
 Mapping (Claude mode — `codexAvailable: false`):
 - Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`

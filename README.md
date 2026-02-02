@@ -21,7 +21,7 @@ Hook-driven subagent architecture for complex task execution with parallel agent
 ```bash
 claude plugin install subagents@ken-cc-plugins
 
-/subagents:dispatch <task>           # Codex CLI defaults
+/subagents:dispatch <task>           # Codex MCP defaults
 /subagents:dispatch-claude <task>    # Claude-only mode
 /subagents:init <task>               # With git worktree isolation
 /subagents:status                    # Check progress
@@ -40,14 +40,14 @@ See [plugins/subagents/README.md](plugins/subagents/README.md) for full document
 ```bash
 claude plugin install superpowers-iterate@ken-cc-plugins
 
-/superpowers-iterate:iterate <task>         # Full mode (requires Codex CLI)
+/superpowers-iterate:iterate <task>         # Full mode (requires Codex MCP)
 /superpowers-iterate:iterate --lite <task>  # Lite mode (no Codex required)
 /superpowers-iterate:iterate-status         # Check progress
 ```
 
 **Phases:** Brainstorm -> Plan -> Plan Review -> Implement -> Review -> Test -> Simplify -> Final Review -> Codex Final
 
-**Prerequisites:** superpowers plugin, code-simplifier plugin, Codex CLI (full mode only)
+**Prerequisites:** superpowers plugin, code-simplifier plugin, Codex MCP (full mode only)
 
 See [AGENTS.md](AGENTS.md) for workflow architecture, modes, and state management details.
 

@@ -25,7 +25,7 @@ Start the iterative workflow:
 
 **Options:**
 
-- `--lite`: Use lite mode (no Codex CLI required)
+- `--lite`: Use lite mode (no Codex MCP required)
 - `--max-iterations N`: Maximum iterations before stopping (default: 10)
 
 ### `/superpowers-iterate:iterate-status`
@@ -57,7 +57,7 @@ Project config overrides global config.
 
 ## Modes
 
-- **Full (default):** Defaults to Codex CLI for reviews (Phases 3, 8, 9), configurable via `/configure`
+- **Full (default):** Defaults to Codex MCP for reviews (Phases 3, 8, 9), configurable via `/configure`
 - **Lite (`--lite`):** Uses Claude reviews, skips Phase 9
 
 ## Prerequisites
@@ -65,7 +65,7 @@ Project config overrides global config.
 - **superpowers plugin** - brainstorming, writing-plans, subagent-driven-development, requesting-code-review
 - **code-simplifier plugin** - Phase 7
 - **LSP plugins** (optional) - typescript-lsp, pyright-lsp, gopls-lsp
-- **Codex CLI** (full mode only) - `codex exec` with `reasoning_effort=high` or `reasoning_effort=xhigh`
+- **Codex MCP servers** (full mode only) - `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`
 
 ## The 9 Phases
 
@@ -79,7 +79,7 @@ Project config overrides global config.
 | 6     | Test         | make lint && make test               |
 | 7     | Simplify     | code-simplifier                      |
 | 8     | Final Review | Codex (full) or Claude review (lite) |
-| 9     | Codex Final  | Codex CLI reasoning=xhigh (full only) |
+| 9     | Codex Final  | `mcp__codex-xhigh__codex` (full only) |
 
 **Iteration Loop:** Phases 1-8 repeat until Phase 8 finds zero issues or max iterations reached.
 

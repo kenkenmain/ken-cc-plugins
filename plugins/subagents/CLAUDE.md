@@ -45,16 +45,15 @@ Use `--no-worktree` to skip worktree creation and work directly in the project d
 
 ## Hooks
 
-Four shell hooks enforce the workflow:
+Five shell hooks enforce the workflow:
 
 | Hook                      | Event        | Purpose                                                          |
 | ------------------------- | ------------ | ---------------------------------------------------------------- |
 | `on-subagent-stop.sh`     | SubagentStop | Validate output, check gates, advance state, Codex fallback      |
 | `on-stop.sh`              | Stop         | Generate phase-specific prompt (Ralph-style loop driver)          |
 | `on-task-dispatch.sh`     | PreToolUse   | Validate Task dispatches match expected phase + enforce background dispatch for Codex agents |
+| `on-codex-guard.sh`       | PreToolUse   | Block direct Codex MCP calls, force background dispatch          |
 | `on-orchestrator-guard.sh`| PreToolUse   | Block direct Edit/Write to code files, force subagent dispatch   |
-
-`on-codex-guard.sh` is retained as a legacy safety net but no longer registered in `hooks.json`.
 
 Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh).
 
@@ -82,15 +81,12 @@ Phase count depends on pipeline profile: minimal (5), standard (13), thorough (1
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
 - **Supplementary:** `subagents:deep-explorer` for deep architecture tracing
-- **Aggregator:** `state.exploreAggregator` (Codex: `codex-explore-aggregator`, Claude: `explore-aggregator`)
-- Primary agents write to per-agent `.tmp` files; aggregator merges into final output
 - Output: `.agents/tmp/phases/0-explore.md`
 
 ### PLAN Stage (Phases 1.1-1.3)
 
 - 1.1: Standalone brainstormer subagent — reads finalized `0-explore.md` and synthesizes 2-3 implementation approaches
 - 1.2: Parallel planner agents + **`subagents:architecture-analyst`** for architecture blueprint
-- **Aggregator:** `state.planAggregator` (Codex: `codex-plan-aggregator`, Claude: `plan-aggregator`)
 - 1.3: Plan review via state.reviewer (all reviews use `codex-high` when Codex available)
 - Input: both `0-explore.md` and `1.1-brainstorm.md`
 - Output: `.agents/tmp/phases/1.1-brainstorm.md`, `.agents/tmp/phases/1.2-plan.md`
@@ -143,19 +139,20 @@ Only after both tiers are exhausted does the workflow set `status: "blocked"`. S
 
 ## Codex Availability: Dispatch Mode Determines Defaults
 
-- **`dispatch` (Codex mode):** State initializes with `codexAvailable: true` and Codex agents configured. No pre-workflow Codex probe — if Codex CLI is unavailable, the first review phase timeout triggers automatic fallback to Claude agents via `fallback.sh`.
-- **`dispatch-claude` (Claude mode):** State initializes with `codexAvailable: false` and Claude agents configured. No Codex CLI dependency, no fallback needed.
+- **`dispatch` (Codex mode):** State initializes with `codexAvailable: true` and Codex agents configured. No pre-workflow Codex probe — if Codex MCP is unavailable, the first review phase timeout triggers automatic fallback to Claude agents via `fallback.sh`.
+- **`dispatch-claude` (Claude mode):** State initializes with `codexAvailable: false` and Claude agents configured. No Codex MCP dependency, no fallback needed.
 
 ## Codex Timeout & Fallback
 
-Four-layer defense against Codex CLI hangs:
+Four-layer defense against Codex MCP hangs:
 
 ### Layer 0: Hook-Enforced Background Dispatch (Mechanical Guard)
 
-PreToolUse hook (`on-task-dispatch.sh`) mechanically blocks:
+PreToolUse hooks (`on-codex-guard.sh` + `on-task-dispatch.sh`) mechanically block:
+- Direct `mcp__codex-high__codex` calls during active workflow
 - Codex agent Task dispatches without `run_in_background: true`
 
-This is the **only layer that doesn't depend on Claude following prompt instructions**. It forces all Codex CLI usage through background-dispatched Task agents, making Layer 2 timeout mechanically enforceable.
+This is the **only layer that doesn't depend on Claude following prompt instructions**. It forces all Codex MCP usage through background-dispatched Task agents, making Layer 2 timeout mechanically enforceable.
 
 ### Layer 1: Prompt-Level Time Limit
 
@@ -190,7 +187,7 @@ Final review timeout is determined by `_git_loc_changed()` which checks `git dif
 
 ```
 Codex phase dispatch:
-  Layer 0: Hook blocks non-background dispatches for Codex agents
+  Layer 0: Hook blocks direct MCP calls + non-background dispatches
   Layer 1: Prompt says "complete within 10 min"
   Layer 2: Background dispatch with phase-aware timeout (5-30 min)
            → Success: proceed normally
@@ -224,43 +221,6 @@ prompts/phases/
 
 Templates include `[PHASE X.Y]` tags for PreToolUse hook validation.
 
-## Per-Agent Temp File Convention
-
-Dispatch phases (0, 1.2) use per-agent temp files to avoid orchestrator context bloat. Each parallel agent writes its output to a unique temp file, and an aggregator agent reads all temp files to produce the final phase output.
-
-### Naming Pattern
-
-`{phase_output_basename}.{agent-name}.{n}.tmp`
-
-Where:
-- `{phase_output_basename}` is the phase output file without extension (e.g., `0-explore`, `1.2-plan`)
-- `{agent-name}` is the agent type without `subagents:` prefix (e.g., `explorer`, `planner`, `deep-explorer`, `architecture-analyst`)
-- `{n}` is a 1-based index for parallel batch agents; omitted for single-instance agents
-- All temp files live in `.agents/tmp/phases/`
-
-### Examples
-
-**Phase 0 (Explore):**
-```
-.agents/tmp/phases/0-explore.explorer.1.tmp     (explorer agent 1)
-.agents/tmp/phases/0-explore.explorer.2.tmp     (explorer agent 2)
-.agents/tmp/phases/0-explore.explorer.3.tmp     (explorer agent 3)
-.agents/tmp/phases/0-explore.deep-explorer.tmp  (single deep-explorer, no index)
-```
-
-**Phase 1.2 (Plan):**
-```
-.agents/tmp/phases/1.2-plan.planner.1.tmp              (planner agent 1 — area 1)
-.agents/tmp/phases/1.2-plan.planner.2.tmp              (planner agent 2 — area 2)
-.agents/tmp/phases/1.2-plan.architecture-analyst.tmp   (single architecture-analyst, no index)
-```
-
-### Cleanup
-
-Temp files are NOT deleted by aggregators. They are cleaned up when:
-- A new workflow starts (`init-claude` creates a fresh `.agents/tmp/phases/` directory)
-- The user runs `/subagents:teardown`
-
 ## State Management
 
 State file: `.agents/tmp/state.json`
@@ -280,8 +240,6 @@ Key state fields:
 - `coverageThreshold`: target test coverage percentage (default: 90)
 - `coverageLoop`: (optional) tracks 3.3→3.5 iteration when coverage below threshold (max 20 iterations)
 - `webSearch`: whether agents can search for libraries online (default: true, disable with `--no-web-search`)
-- `exploreAggregator`: Agent type for explore aggregation (Codex: `subagents:codex-explore-aggregator`, Claude: `subagents:explore-aggregator`)
-- `planAggregator`: Agent type for plan aggregation (Codex: `subagents:codex-plan-aggregator`, Claude: `subagents:plan-aggregator`)
 - `reviewPolicy`: `{ minBlockSeverity, maxFixAttempts, maxStageRestarts }` — controls review-fix behavior
 - `restartHistory`: (optional) audit trail of stage restart events `[{ stage, fromPhase, toPhase, restart, reason, at }]`
 
@@ -337,14 +295,14 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 | TEST->FINAL     | `3.1-test-results.json`, `3.3-test-dev.json`, `3.5-test-review.json` | FINAL     |
 | FINAL->COMPLETE | `4.2-final-review.json`                         | Completion           |
 
-## Model vs Codex CLI Namespaces
+## Model vs MCP Tool Namespaces
 
 **These are SEPARATE namespaces. Never mix them.**
 
-| Type        | Valid Values                                        | Usage                       |
-| ----------- | --------------------------------------------------- | --------------------------- |
-| ModelId     | `sonnet`, `opus`, `haiku`, `inherit`                | Task tool `model` parameter (aliases for sonnet-4.5, opus-4.5, haiku-4.5) |
-| CodexToolId | `codex-high`                                        | Review phase `tool` field   |
+| Type      | Valid Values                                        | Usage                       |
+| --------- | --------------------------------------------------- | --------------------------- |
+| ModelId   | `sonnet`, `opus`, `haiku`, `inherit`                | Task tool `model` parameter (aliases for sonnet-4.5, opus-4.5, haiku-4.5) |
+| McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## Review Model Selection
 
@@ -411,21 +369,6 @@ Review finds 4 issues: auth.ts (2), db.ts (1), api.ts (1)
 
 `group_issues_by_file()` in `review.sh` groups blocking issues by file path. `start_fix_cycle()` stores groups in `state.reviewFix.groups[]` with `pendingGroups` counter. SubagentStop decrements `pendingGroups` on each fix-dispatcher completion, only clearing the fix cycle when all groups finish.
 
-### Aggregator Agents
-
-Aggregator agents run as a second step in dispatch phases, reading per-agent temp files and producing the final phase output:
-
-| Agent                              | Codex Variant                        | Phase | Purpose                                  |
-| ---------------------------------- | ------------------------------------ | ----- | ---------------------------------------- |
-| `subagents:explore-aggregator`     | `subagents:codex-explore-aggregator` | 0     | Merge explorer + deep-explorer temp files |
-| `subagents:plan-aggregator`        | `subagents:codex-plan-aggregator`    | 1.2   | Merge planner + architecture-analyst temp files, renumber tasks |
-
-Routing is determined by state fields (`exploreAggregator`, `planAggregator`), set by `init-claude` based on dispatch mode. Fallback switches Codex variants to Claude variants via `fallback.sh`.
-
-### Temp File Lifecycle
-
-Per-agent `.tmp` files in `.agents/tmp/phases/` persist through the workflow run for debugging and reference. Cleanup occurs when `init-claude` starts a new workflow (creates fresh `.agents/tmp/phases/` directory) or when the user runs `/subagents:teardown`.
-
 **External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer agent in Phase 1.1).
 
 ## Commands
@@ -433,13 +376,12 @@ Per-agent `.tmp` files in `.agents/tmp/phases/` persist through the workflow run
 - `/subagents:init <task>` - Create worktree + start workflow (main entry point, persists across restarts)
 - `/subagents:teardown` - Commit, push to GitHub, create PR, remove worktree
 - `/subagents:preflight` - Run pre-flight checks and environment setup
-- `/subagents:dispatch <task>` - Start workflow (Codex CLI defaults)
-- `/subagents:dispatch-claude <task>` - Start workflow (Claude-only, no Codex CLI)
+- `/subagents:dispatch <task>` - Start workflow (Codex MCP defaults)
+- `/subagents:dispatch-claude <task>` - Start workflow (Claude-only, no Codex MCP)
 - `/subagents:stop` - Stop gracefully with checkpoint
 - `/subagents:resume` - Resume from checkpoint
 - `/subagents:status` - Show progress
 - `/subagents:configure` - Configure settings
-- `/subagents:debug <task>` - Multi-phase debugging workflow with parallel exploration and solution ranking
 
 ## Skills
 
@@ -471,21 +413,17 @@ Dispatched by the orchestrator loop during workflow execution:
 | ---------------------- | ------------------- | --------------------------------------- |
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
 | `deep-explorer.md`     | 0 (supplement)      | Deep architecture tracing               |
-| `explore-aggregator.md`     | 0 (aggregator)      | Aggregates explorer temp files into final report (Claude) |
-| `codex-explore-aggregator.md` | 0 (aggregator)    | Thin Codex CLI wrapper for explore aggregation |
 | `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
 | `architecture-analyst.md` | 1.2 (supplement) | Architecture blueprint                  |
-| `plan-aggregator.md`        | 1.2 (aggregator)    | Aggregates planner temp files into unified plan (Claude) |
-| `codex-plan-aggregator.md`  | 1.2 (aggregator)    | Thin Codex CLI wrapper for plan aggregation |
-| `codex-reviewer.md`    | 1.3, 2.3, 3.4, 3.5, 4.2 | Codex CLI review dispatch (when Codex available) |
+| `codex-reviewer.md`    | 1.3, 2.3, 3.4, 3.5, 4.2 | Codex MCP review dispatch (when Codex available) |
 | `claude-reviewer.md`   | 1.3, 2.3, 3.4, 3.5, 4.2 | Claude reasoning review (Codex fallback) |
 | `fix-dispatcher.md`    | review-fix          | Reads review issues and applies fixes directly |
 | `difficulty-estimator.md` | 2.1              | Task complexity scoring (Claude)        |
-| `codex-difficulty-estimator.md` | 2.1        | Task complexity scoring (Codex CLI)     |
+| `codex-difficulty-estimator.md` | 2.1        | Task complexity scoring (Codex MCP)     |
 | `sonnet-task-agent.md` | 2.1 (easy)          | Direct task execution (model=sonnet) — wave-based parallel |
 | `opus-task-agent.md`   | 2.1 (medium)        | Direct task execution (model=opus) — wave-based parallel |
-| `codex-task-agent.md`  | 2.1 (hard)          | Codex CLI task wrapper — wave-based parallel |
+| `codex-task-agent.md`  | 2.1 (hard)          | Codex-high MCP task wrapper — wave-based parallel |
 | `code-quality-reviewer.md` | 2.3, 4.2        | Code quality and conventions (supplementary) |
 | `error-handling-reviewer.md` | 2.3           | Silent failure hunting (supplementary)  |
 | `type-reviewer.md`     | 2.3                 | Type design analysis (supplementary)    |
@@ -495,27 +433,14 @@ Dispatched by the orchestrator loop during workflow execution:
 | `codex-failure-analyzer.md` | (reference)    | Kept for reference — merged into codex-test-developer |
 | `simplifier.md`        | (reference)         | Kept for reference — merged into task agents |
 | `test-developer.md`    | 3.1, 3.3            | Run tests, analyze failures, write tests until coverage met (Claude) |
-| `codex-test-developer.md` | 3.1, 3.3         | Thin Codex CLI wrapper for test execution and development |
+| `codex-test-developer.md` | 3.1, 3.3         | Thin codex-high MCP wrapper for test execution and development |
 | `doc-updater.md`       | 4.1                 | Documentation updates (Claude)          |
-| `codex-doc-updater.md` | 4.1                 | Thin Codex CLI wrapper for documentation |
+| `codex-doc-updater.md` | 4.1                 | Thin codex-high MCP wrapper for documentation |
 | `claude-md-updater.md` | 4.1 (supplement)    | CLAUDE.md updates                       |
 | `test-coverage-reviewer.md` | 4.2 (supplement) | Test coverage analysis                |
 | `comment-reviewer.md`  | 4.2 (supplement)    | Comment accuracy review                 |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
 | `retrospective-analyst.md` | 4.3 (supplement) | Workflow metrics analysis, CLAUDE.md learnings |
-
-### Debug Workflow Agents
-
-Dispatched by the `/subagents:debug` command for multi-phase debugging:
-
-| Agent File              | Phase           | Purpose                                      |
-| ----------------------- | --------------- | -------------------------------------------- |
-| `debug-explorer.md`     | 1 (parallel)    | Codebase exploration focused on bug context  |
-| `solution-proposer.md`  | 2 (parallel)    | Proposes a specific fix approach             |
-| `solution-aggregator.md`| 3               | Aggregates and ranks proposals               |
-| `debug-implementer.md`  | 4               | Implements the selected solution             |
-| `debug-reviewer.md`     | 5               | Reviews fix for correctness and risk         |
-| `debug-doc-updater.md`  | 6               | Updates documentation after fix              |
 
 ### Hook Libraries
 

@@ -35,7 +35,7 @@ You are a task complexity scorer. Your job is to analyze implementation tasks fr
 | ------ | ------------------------------------------------- | ------------------- | ------------------- | ------------ |
 | Easy   | Single file, <50 LOC changes, well-defined scope  | sonnet-task-agent   | sonnet-task-agent   | direct       |
 | Medium | 2-3 files, 50-200 LOC, moderate dependencies      | opus-task-agent     | opus-task-agent     | direct       |
-| Hard   | 4+ files, >200 LOC, security/concurrency concerns | codex-task-agent    | opus-task-agent     | codex-cli / direct |
+| Hard   | 4+ files, >200 LOC, security/concurrency concerns | codex-task-agent    | opus-task-agent     | codex-mcp / direct |
 
 **Check `codexAvailable` in state.json** to determine agent routing for hard tasks. If `codexAvailable: false`, route hard tasks to `opus-task-agent` instead of `codex-task-agent`.
 
@@ -59,7 +59,7 @@ Write JSON to the output file:
       "taskId": "<id>",
       "complexity": "easy | medium | hard",
       "reasoning": "<one line explanation>",
-      "execution": "direct | codex-cli",
+      "execution": "direct | codex-mcp",
       "model": "sonnet | opus | null",
       "agent": "sonnet-task-agent | opus-task-agent | codex-task-agent",
       "fileCount": 1,
@@ -79,7 +79,7 @@ Write JSON to the output file:
 Mapping (Codex mode — `codexAvailable: true`):
 - Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`
 - Medium → `"execution": "direct", "model": "opus", "agent": "opus-task-agent"`
-- Hard → `"execution": "codex-cli", "model": null, "agent": "codex-task-agent"`
+- Hard → `"execution": "codex-mcp", "model": null, "agent": "codex-task-agent"`
 
 Mapping (Claude mode — `codexAvailable: false`):
 - Easy → `"execution": "direct", "model": "sonnet", "agent": "sonnet-task-agent"`

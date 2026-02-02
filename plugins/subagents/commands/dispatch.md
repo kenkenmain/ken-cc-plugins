@@ -1,5 +1,5 @@
 ---
-description: Start a subagent workflow with Codex CLI defaults (use dispatch-claude for Claude-only)
+description: Start a subagent workflow with Codex MCP defaults (use dispatch-claude for Claude-only)
 argument-hint: <task description> [--no-test] [--no-worktree] [--no-web-search] [--profile minimal|standard|thorough] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
