@@ -52,7 +52,7 @@ Five shell hooks enforce the workflow:
 | `on-subagent-stop.sh`     | SubagentStop | Validate output, check gates, advance state, Codex fallback      |
 | `on-stop.sh`              | Stop         | Generate phase-specific prompt (Ralph-style loop driver)          |
 | `on-task-dispatch.sh`     | PreToolUse   | Validate Task dispatches match expected phase + enforce background dispatch for Codex agents |
-| `on-codex-guard.sh`       | PreToolUse   | Block direct Codex MCP calls, force background dispatch pattern  |
+| `on-codex-guard.sh`       | PreToolUse   | Block direct Codex MCP calls, force background dispatch          |
 | `on-orchestrator-guard.sh`| PreToolUse   | Block direct Edit/Write to code files, force subagent dispatch   |
 
 Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh).
@@ -80,7 +80,7 @@ Phase count depends on pipeline profile: minimal (5), standard (13), thorough (1
 ### EXPLORE Stage (Phase 0)
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
-- **Supplementary:** `subagents:deep-explorer` for deep architecture tracing (always Claude — avoids Codex timeout risk on supplementary agents)
+- **Supplementary:** `subagents:deep-explorer` for deep architecture tracing
 - Output: `.agents/tmp/phases/0-explore.md`
 
 ### PLAN Stage (Phases 1.1-1.3)
@@ -126,7 +126,7 @@ Tier 2: 3 stage restarts (each restart resets fix counters to 0)
 Total:  up to 3 x 10 = 30 fix attempts per review phase before blocking
 ```
 
-Only after both tiers are exhausted does the workflow set `status: "blocked"`. Stage restarts are tracked at `stages[stage].stageRestarts` and logged in `restartHistory[]`. Configurable via `reviewPolicy.maxStageRestarts` (default: 3).
+Only after both tiers are exhausted does the workflow set `status: "blocked"`. Stage restarts are tracked at `stages[stage].restartCount` and logged in `restartHistory[]`. Configurable via `reviewPolicy.maxStageRestarts` (default: 3).
 
 ### FINAL Stage (Phases 4.1-4.3)
 
@@ -301,7 +301,7 @@ Gates are checked by `on-subagent-stop.sh` at stage boundaries:
 
 | Type      | Valid Values                                        | Usage                       |
 | --------- | --------------------------------------------------- | --------------------------- |
-| ModelId   | `sonnet`, `opus`, `haiku`, `inherit`                | Task tool `model` parameter |
+| ModelId   | `sonnet`, `opus`, `haiku`, `inherit`                | Task tool `model` parameter (aliases for sonnet-4.5, opus-4.5, haiku-4.5) |
 | McpToolId | `codex-high`                                        | Review phase `tool` field   |
 
 ## Review Model Selection
@@ -401,7 +401,7 @@ Dispatched by the dispatch command before the orchestrator loop starts:
 | ---------------------- | -------------------------------------------------------------- |
 | `init-claude.md`       | Workflow init with Claude reasoning, worktree creation, Codex/Claude defaults |
 
-Flow: dispatch runs inline git+plugin checks → `init-claude` (always) → orchestrator loop. Pre-flight checks are inline bash in the dispatch command. For `dispatch` (Codex mode), agents are configured optimistically; `fallback.sh` handles runtime unavailability. For `dispatch-claude`, Claude agents are configured directly.
+Flow: dispatch command → `init-claude` (always) → orchestrator loop. Pre-flight checks available via `/subagents:preflight` command. For `dispatch` (Codex mode), agents are configured optimistically; `fallback.sh` handles runtime unavailability. For `dispatch-claude`, Claude agents are configured directly.
 
 The init agent creates a git worktree (unless `--no-worktree`) and records `state.worktree` and `state.ownerPpid` in state.json.
 

@@ -9,7 +9,7 @@ Dispatch each phase as a subagent. Hooks enforce output validation, gate checks,
 
 ## Execution Flow (Ralph-Style)
 
-The orchestrator uses the Ralph Loop pattern: the Stop hook re-injects the **full orchestrator prompt** (`prompts/orchestrator-loop.md`) every time Claude tries to stop. Claude reads state from disk and dispatches the current phase — no conversation memory required.
+The orchestrator uses the Ralph Loop pattern: the Stop hook generates a **phase-specific orchestrator prompt** (~40-70 lines) via `generate_phase_prompt()` in `schedule.sh` every time Claude tries to stop. Claude reads state from disk and dispatches the current phase — no conversation memory required.
 
 ```
 Claude dispatches phase N as a subagent (Task tool)
@@ -26,11 +26,11 @@ SubagentStop hook fires:
 Claude tries to stop (subagent done, nothing left to do)
   ↓
 Stop hook fires:
-  - Reads prompts/orchestrator-loop.md
+  - Generates phase-specific prompt via generate_phase_prompt() in schedule.sh
   - Increments loopIteration in state
-  - Returns {"decision":"block","reason":"<full orchestrator prompt>"}
+  - Returns {"decision":"block","reason":"<phase-specific orchestrator prompt>"}
   ↓
-Claude receives complete orchestrator prompt
+Claude receives phase-specific orchestrator prompt
   - Reads .agents/tmp/state.json (now pointing to phase N+1)
   - Dispatches phase N+1 as a subagent
   ↓
@@ -40,8 +40,8 @@ Repeat until SubagentStop marks workflow "completed" → Stop hook allows exit
 ### Key Design: Separation of Concerns
 
 - **SubagentStop hook** = pure side-effects (validate, advance state, exit silently)
-- **Stop hook** = prompt re-injection (reads orchestrator-loop.md, blocks with full prompt)
-- **Orchestrator prompt** = static, self-contained instructions (reads state, dispatches current phase)
+- **Stop hook** = prompt re-injection (generates phase-specific prompt via schedule.sh, ~40-70 lines)
+- **Orchestrator prompt** = phase-specific, generated per-iteration (reads state, dispatches current phase). `prompts/orchestrator-loop.md` kept as reference only.
 
 ## Phase Dispatch Mapping
 

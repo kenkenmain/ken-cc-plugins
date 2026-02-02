@@ -119,7 +119,7 @@ Manage subagents workflow state with file-based persistence.
   "gates": {
     "EXPLORE->PLAN": { "required": ["0-explore.md"], "phase": "0" },
     "PLAN->IMPLEMENT": {
-      "required": ["1.2-plan.md", "1.3-plan-review.json"],
+      "required": ["1.1-brainstorm.md", "1.2-plan.md", "1.3-plan-review.json"],
       "phase": "1.3"
     },
     "IMPLEMENT->TEST": {
@@ -180,6 +180,10 @@ Manage subagents workflow state with file-based persistence.
 }
 ```
 
+> **Note:** `taskAnalysis.complexity` uses `simple|medium|complex` for pipeline profile selection. Phase 2.1 complexity scoring uses `easy|medium|hard` for agent routing — these are separate concepts.
+
+> **Note:** Phases 2.2 (Simplify) and 3.2 (Analyze Failures) are only included in the `thorough` pipeline profile. The `standard` profile (13 phases) omits them. The `minimal` profile further omits PLAN and TEST stages.
+
 ## Operations
 
 ### Initialize State
@@ -209,7 +213,7 @@ Create new state file with task and default values:
 1. Write output to `.agents/tmp/phases/{phase}-{name}.{ext}` using descriptive names:
    - `0-explore.md`, `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json`
    - `2.1-tasks.json`, `2.3-impl-review.json`
-   - `3.1-test-results.json`, `3.3-test-dev.json`, `3.4-test-dev-review.json`, `3.5-test-review.json`
+   - `3.1-test-results.json`, `3.2-analysis.md`, `3.3-test-dev.json`, `3.4-test-dev-review.json`, `3.5-test-review.json`
 2. Update `state.files` with path
 3. Save state
 
