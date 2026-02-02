@@ -441,7 +441,7 @@ jobs:
             expected_phase=$(echo "$expected_phase" | sed 's/^f/F/')
 
             # Extract actual phase tag from file content (numeric or F-prefixed)
-            actual_tag=$(grep -oP '\[PHASE [0-9A-Z.]+\]' "$template" | head -1 | grep -oP '[0-9A-Z.]+')
+            actual_tag=$(grep -oP '\[PHASE \K[0-9A-Z.]+(?=\])' "$template" | head -1)
 
             if [ -z "$actual_tag" ]; then
               echo "ERROR: $fname has no [PHASE X.Y] tag"
