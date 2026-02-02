@@ -322,8 +322,10 @@ jobs:
               for template in "$phases_dir"/*.md; do
                 if [ -f "$template" ]; then
                   filename=$(basename "$template")
-                  # Extract expected phase ID from filename (e.g., "1.2-plan.md" → "1.2")
+                  # Extract expected phase ID from filename (e.g., "1.2-plan.md" → "1.2", "f1-fast-plan.md" → "F1")
                   phase_id=$(echo "$filename" | sed 's/-.*//')
+                  # Uppercase F-prefixed phase IDs to match [PHASE F1] tags
+                  phase_id=$(echo "$phase_id" | sed 's/^f/F/')
 
                   if ! grep -q "\[PHASE $phase_id\]" "$template"; then
                     echo "ERROR: $template missing [PHASE $phase_id] tag"
@@ -362,15 +364,19 @@ jobs:
             exit 0
           fi
 
-          # Extract phase IDs from get_phase_output() case statement
+          # Extract phase IDs from get_phase_output() case statement (numeric: 0, 1.1; F-prefixed: F1, F2)
           output_phases=$(grep -oP '^\s+[\d.]+\)' "$schedule_sh" | head -20 | tr -d ' )' | sort -u)
+          f_phases=$(grep -oP '^\s+F[\d.]+\)' "$schedule_sh" | head -10 | tr -d ' )' | sort -u)
+          output_phases=$(printf '%s\n%s' "$output_phases" "$f_phases" | sort -u | grep -v '^$')
 
           # Extract phase IDs from template filenames (e.g., "1.2-plan.md" → "1.2")
           template_phases=""
           for f in "$phases_dir"/*.md; do
             [ -f "$f" ] || continue
             fname=$(basename "$f")
-            phase_id=$(echo "$fname" | sed -E 's/^([0-9]+(\.[0-9]+)?).*/\1/')
+            # Extract phase ID: numeric (1.2-plan.md → 1.2) or F-prefixed (f1-fast-plan.md → F1)
+            phase_id=$(echo "$fname" | sed -E 's/^([0-9]+(\.[0-9]+)?|[fF][0-9]+(\.[0-9]+)?).*/\1/')
+            phase_id=$(echo "$phase_id" | sed 's/^f/F/')
             template_phases="$template_phases $phase_id"
           done
           template_phases=$(echo "$template_phases" | tr ' ' '\n' | sort -u | grep -v '^$')
@@ -399,7 +405,7 @@ jobs:
           output_count=$(grep -c '^\s\+[0-9]' "$schedule_sh" | head -1 || true)
           funcs=("get_phase_output" "get_phase_template" "get_phase_input_files")
           for func in "${funcs[@]}"; do
-            func_phases=$(awk "/^${func}\(\)/,/^}/" "$schedule_sh" | grep -oP '^\s+[\d.]+\)' | tr -d ' )' | sort -u)
+            func_phases=$(awk "/^${func}\(\)/,/^}/" "$schedule_sh" | grep -oP '^\s+([\d.]+|F[\d.]+)\)' | tr -d ' )' | sort -u)
             for phase in $output_phases; do
               if ! echo "$func_phases" | grep -qx "$phase"; then
                 echo "ERROR: Phase $phase missing from $func() in schedule.sh"
@@ -428,10 +434,12 @@ jobs:
           for template in "$phases_dir"/*.md; do
             [ -f "$template" ] || continue
             fname=$(basename "$template")
-            expected_phase=$(echo "$fname" | sed -E 's/^([0-9]+(\.[0-9]+)?).*/\1/')
+            # Extract phase ID: numeric (1.2-plan.md → 1.2) or F-prefixed (f1-fast-plan.md → F1)
+            expected_phase=$(echo "$fname" | sed -E 's/^([0-9]+(\.[0-9]+)?|[fF][0-9]+(\.[0-9]+)?).*/\1/')
+            expected_phase=$(echo "$expected_phase" | sed 's/^f/F/')
 
-            # Extract actual phase tag from file content
-            actual_tag=$(grep -oP '\[PHASE [0-9.]+\]' "$template" | head -1 | grep -oP '[0-9.]+')
+            # Extract actual phase tag from file content (numeric or F-prefixed)
+            actual_tag=$(grep -oP '\[PHASE [0-9A-Z.]+\]' "$template" | head -1 | grep -oP '[0-9A-Z.]+')
 
             if [ -z "$actual_tag" ]; then
               echo "ERROR: $fname has no [PHASE X.Y] tag"
@@ -518,7 +526,7 @@ jobs:
           # Build map of phase → output file from get_phase_output()
           declare -A phase_outputs
           while IFS= read -r line; do
-            phase=$(echo "$line" | grep -oP '^\s+[\d.]+' | tr -d ' ')
+            phase=$(echo "$line" | grep -oP '^\s+([\d.]+|F[\d.]+)' | tr -d ' ')
             output=$(echo "$line" | grep -oP '"[^"]*"' | tr -d '"')
             if [ -n "$phase" ] && [ -n "$output" ]; then
               phase_outputs[$phase]="$output"
@@ -527,7 +535,7 @@ jobs:
 
           # Extract gate required files from state-manager SKILL.md and dispatch.md
           # Check dispatch.md (has the canonical gate definitions used at runtime)
-          for gate_file in plugins/subagents/commands/dispatch.md plugins/subagents/skills/state-manager/SKILL.md; do
+          for gate_file in plugins/subagents/commands/dispatch.md plugins/subagents/commands/fdispatch.md plugins/subagents/skills/state-manager/SKILL.md; do
             if [ ! -f "$gate_file" ]; then continue; fi
 
             # Extract files from "required": ["file1", "file2"] patterns
