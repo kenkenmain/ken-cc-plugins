@@ -13,10 +13,22 @@
 /superpowers-iterate:configure --reset                 # Reset to defaults
 
 # Subagents Workflow
-/subagents:dispatch <task>                             # Start workflow
+/subagents:init <task>                                 # Create worktree + start workflow
+/subagents:init <task> --claude                        # Claude-only mode with worktree
+/subagents:teardown                                    # Commit, push, create PR, remove worktree
+/subagents:preflight                                   # Run pre-flight checks
+/subagents:dispatch <task>                             # Start workflow (Codex MCP defaults)
+/subagents:dispatch-claude <task>                      # Start workflow (Claude-only)
 /subagents:dispatch <task> --no-worktree               # Without git worktree isolation
 /subagents:dispatch <task> --no-test                   # Skip test stage
 /subagents:dispatch <task> --no-web-search             # Disable library search
+/subagents:dispatch <task> --profile minimal           # Override pipeline profile
+/subagents:dispatch <task> --stage IMPLEMENT           # Start from specific stage
+/subagents:dispatch <task> --plan docs/plan.md         # Use external plan file
+/subagents:stop                                        # Stop workflow gracefully
+/subagents:resume                                      # Resume from checkpoint
+/subagents:status                                      # Show progress
+/subagents:configure                                   # Configure settings
 
 # Plugin Development
 claude plugin install ./plugins/superpowers-iterate    # Install locally
@@ -30,21 +42,26 @@ ken-cc-plugins/
 ├── plugins/
 │   ├── subagents/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest
-│   │   ├── commands/                      # Slash commands (dispatch, resume, status, stop)
+│   │   ├── commands/                      # Slash commands (init, dispatch, dispatch-claude, resume, status, stop, etc.)
 │   │   ├── agents/                        # Agent definitions (init-claude, codex-reviewer, etc.)
-│   │   ├── hooks/                         # Shell hooks (on-subagent-stop, on-stop, on-task-dispatch)
+│   │   ├── hooks/                         # Shell hooks (5 hooks: subagent-stop, stop, task-dispatch, codex-guard, orchestrator-guard)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh)
 │   │   ├── prompts/                       # Orchestrator + phase prompt templates
 │   │   ├── skills/                        # workflow, state-manager, configuration
 │   │   └── CLAUDE.md                      # Subagents-specific architecture docs
-│   └── superpowers-iterate/
-│       ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-│       ├── commands/                      # Slash commands (iterate.md, iterate-status.md)
-│       ├── skills/iteration-workflow/     # Main skill (SKILL.md)
-│       ├── skills/configuration/          # Config management (SKILL.md)
-│       └── agents/                        # Agent definitions (codex-reviewer.md)
-├── docs/plans/                            # Design docs and implementation plans
-├── .agents/                               # Runtime state (iteration-state.json)
+│   ├── superpowers-iterate/
+│   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
+│   │   ├── commands/                      # Slash commands (iterate.md, iterate-status.md)
+│   │   ├── skills/iteration-workflow/     # Main skill (SKILL.md)
+│   │   ├── skills/configuration/          # Config management (SKILL.md)
+│   │   └── agents/                        # Agent definitions (codex-reviewer.md)
+│   └── kenken/
+│       ├── .claude-plugin/plugin.json
+│       ├── commands/
+│       ├── skills/
+│       ├── prompts/
+│       └── README.md
+├── .agents/                               # Runtime state (gitignored)
 ├── .github/workflows/                     # CI validation
 ├── AGENTS.md                              # This file - agent instructions
 ├── CLAUDE.md                              # Symlink to AGENTS.md

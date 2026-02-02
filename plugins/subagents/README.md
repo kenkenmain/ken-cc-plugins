@@ -81,12 +81,17 @@ Start a new workflow with Codex MCP defaults (Codex reviewers configured by defa
 **Options:**
 
 - `--no-test` - Skip TEST stage
+- `--no-worktree` - Skip git worktree creation (work directly in project directory)
+- `--no-web-search` - Disable web search for libraries
+- `--profile minimal|standard|thorough` - Override pipeline profile selection
 - `--stage <name>` - Start from specific stage (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
 - `--plan <path>` - Use external plan file (for starting at IMPLEMENT)
 
 ```
 /subagents:dispatch Add user authentication with OAuth support
 /subagents:dispatch --no-test Refactor the payment module
+/subagents:dispatch --no-worktree Quick config fix
+/subagents:dispatch --no-web-search --profile minimal Fix typo in README
 /subagents:dispatch --stage IMPLEMENT --plan docs/plans/my-plan.md Continue from plan
 ```
 
@@ -144,32 +149,36 @@ Configure plugin settings (models, timeouts, severity thresholds).
 | ----- | ----------- | ---------------------------------------- |
 | 1.1   | Brainstorm  | Standalone analysis and approach design   |
 | 1.2   | Plan        | Parallel detailed planning (1-10 agents) |
-| 1.3   | Plan Review | Validate plan via Codex MCP              |
+| 1.3   | Plan Review | Validate plan (Codex MCP or Claude reviewer) |
 
 ### IMPLEMENT Stage
 
-| Phase | Name                  | Description                         |
-| ----- | --------------------- | ----------------------------------- |
-| 2.1   | Tasks                 | Wave-based parallel task execution  |
-| 2.2   | Simplify              | Code simplification pass            |
-| 2.3   | Implementation Review | Review implementation via Codex MCP |
+| Phase | Name                  | Description                                                      |
+| ----- | --------------------- | ---------------------------------------------------------------- |
+| 2.1   | Tasks (+ Tests)       | Wave-based parallel task execution with hybrid test writing      |
+| 2.2   | Simplify              | Code simplification pass (thorough profile only)                 |
+| 2.3   | Implementation Review | Review implementation + test quality (Codex MCP or Claude)       |
+
+Note: Phase 2.2 only included in thorough pipeline profile.
 
 ### TEST Stage
 
-| Phase | Name            | Description                               |
-| ----- | --------------- | ----------------------------------------- |
-| 3.1   | Run Tests       | Execute lint and tests                    |
-| 3.2   | Analyze         | Analyze failures and fix                  |
-| 3.3   | Develop Tests   | Write tests until coverage threshold met  |
-| 3.4   | Test Dev Review | Review test development quality           |
-| 3.5   | Test Review     | Final test stage review + coverage check  |
+| Phase | Name            | Description                                            |
+| ----- | --------------- | ------------------------------------------------------ |
+| 3.1   | Run Tests       | Execute lint/tests AND analyze failures (merged phase)  |
+| 3.2   | Analyze         | Deep failure analysis (thorough profile only)          |
+| 3.3   | Develop Tests   | Gap-filler: fill coverage gaps from hybrid test output  |
+| 3.4   | Test Dev Review | Review test development quality                        |
+| 3.5   | Test Review     | Final test stage review + coverage threshold check     |
+
+Notes: Phase 3.1 produces both test results and failure analysis. Phase 3.2 only in thorough profile. Phase 3.3 reads testsWritten from Phase 2.1 to avoid duplicating tests already written by task agents.
 
 ### FINAL Stage
 
 | Phase | Name         | Description                      |
 | ----- | ------------ | -------------------------------- |
 | 4.1   | Docs         | Update documentation             |
-| 4.2   | Final Review | Final validation via codex-high |
+| 4.2   | Final Review | Final validation (Codex MCP or Claude) |
 | 4.3   | Completion   | Git branch and PR creation       |
 
 ## Complexity Scoring
@@ -181,6 +190,28 @@ Tasks classified at runtime for agent routing:
 | Easy   | sonnet-task-agent   | sonnet-task-agent   | Single file, <50 LOC                     |
 | Medium | opus-task-agent     | opus-task-agent     | 2-3 files, 50-200 LOC                    |
 | Hard   | codex-task-agent    | opus-task-agent     | 4+ files, >200 LOC, security/concurrency |
+
+## Hybrid Test-Alongside-Code
+
+Task agents in Phase 2.1 write unit tests alongside their implementation code. Phase 3.3 then acts as a gap-filler — reading the `testsWritten` arrays from `2.1-tasks.json` and only writing tests for uncovered functionality.
+
+Skip conditions for test writing in Phase 2.1:
+- Config-only changes
+- Generated code
+- Documentation-only changes
+- Test-file-only changes
+
+## Pipeline Profiles
+
+Profile auto-selected based on task complexity (or `--profile` override):
+
+| Profile    | Phases | Stages                                    | When Used                              |
+| ---------- | ------ | ----------------------------------------- | -------------------------------------- |
+| `minimal`  | 5      | EXPLORE, IMPLEMENT, FINAL                 | Simple: typo, rename, config, single file |
+| `standard` | 13     | EXPLORE, PLAN, IMPLEMENT, TEST, FINAL     | Medium: feature, bugfix, 2-5 files     |
+| `thorough` | 15     | EXPLORE, PLAN, IMPLEMENT, TEST, FINAL     | Complex: architecture, security, 6+ files |
+
+`thorough` adds Phase 2.2 (Simplify) and Phase 3.2 (Analyze Failures) over `standard`.
 
 ## Configuration
 
