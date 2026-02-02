@@ -33,6 +33,7 @@ The dispatch command passes these flags:
 1. Create directory structure:
    ```bash
    mkdir -p .agents/tmp/phases
+   rm -f .agents/tmp/phases/*.tmp   # Clean stale per-agent temp files from previous runs
    ```
 
 2. Create git worktree (unless `--no-worktree` flag is set):
@@ -115,6 +116,8 @@ The dispatch command passes these flags:
   "difficultyEstimator": "<codexMode: subagents:codex-difficulty-estimator | else: subagents:difficulty-estimator>",
   "testDeveloper": "<codexMode: subagents:codex-test-developer | else: subagents:test-developer>",
   "docUpdater": "<codexMode: subagents:codex-doc-updater | else: subagents:doc-updater>",
+  "exploreAggregator": "<codexMode: subagents:codex-explore-aggregator | else: subagents:explore-aggregator>",
+  "planAggregator": "<codexMode: subagents:codex-plan-aggregator | else: subagents:plan-aggregator>",
   "taskAnalysis": {
     "complexity": "medium",
     "needsTests": true,
@@ -164,8 +167,8 @@ The dispatch command passes these flags:
 
 **Agent defaults depend on `codexMode`:**
 
-- **Codex mode** (`codexMode: true`, from `dispatch`): Set `codexAvailable: true`, configure Codex agents (codex-reviewer, codex-test-developer, codex-doc-updater, etc.), include `codexTimeout` block. Runtime fallback via `hooks/lib/fallback.sh` switches to Claude agents after `maxRetries` (default: 2) timeout attempts.
-- **Claude-only mode** (`codexMode: false`, from `dispatch-claude`): Set `codexAvailable: false`, configure Claude agents (claude-reviewer, test-developer, doc-updater, etc.), omit `codexTimeout` block.
+- **Codex mode** (`codexMode: true`, from `dispatch`): Set `codexAvailable: true`, configure Codex agents (codex-reviewer, codex-test-developer, codex-doc-updater, codex-explore-aggregator, codex-plan-aggregator, etc.), include `codexTimeout` block. Runtime fallback via `hooks/lib/fallback.sh` switches to Claude agents after `maxRetries` (default: 2) timeout attempts.
+- **Claude-only mode** (`codexMode: false`, from `dispatch-claude`): Set `codexAvailable: false`, configure Claude agents (claude-reviewer, test-developer, doc-updater, explore-aggregator, plan-aggregator, etc.), omit `codexTimeout` block.
 
 ## Worktree Field
 

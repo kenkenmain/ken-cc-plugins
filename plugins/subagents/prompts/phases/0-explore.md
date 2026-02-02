@@ -4,15 +4,27 @@
 
 - **Primary:** subagents:explorer (parallel batch, 1-10 agents)
 - **Supplementary:** `subagents:deep-explorer` — deep architecture tracing (execution paths, layer mapping, dependencies)
-- **Output:** `.agents/tmp/phases/0-explore.md`
+- **Aggregator:** Read from `state.exploreAggregator` in state.json (default: `subagents:explore-aggregator`)
+- **Output:** `.agents/tmp/phases/0-explore.md` (written by aggregator, NOT by orchestrator)
 
 ## Dispatch Instructions
 
+### Step 1: Dispatch Primary + Supplementary Agents
+
 1. Determine complexity and agent count (simple: 1-2, medium: 3-5, complex: 6-10)
 2. Generate one focused query per agent
-3. Dispatch all explorer agents **and** the deep explorer in parallel
-4. The deep explorer traces execution paths and maps architecture layers — complements the breadth-first primary explorers
-5. Aggregate results into output file: primary results first, then a `## Architecture Analysis` section from deep explorer
+3. For each explorer agent i (1-indexed), include in its dispatch prompt:
+   `Temp output file: .agents/tmp/phases/0-explore.explorer.{i}.tmp`
+4. For deep-explorer, include in its dispatch prompt:
+   `Temp output file: .agents/tmp/phases/0-explore.deep-explorer.tmp`
+5. Dispatch all explorer agents **and** the deep explorer in a single parallel Task tool message
+
+### Step 2: Dispatch Aggregator
+
+6. **After ALL Step 1 agents complete**, dispatch the aggregator agent (read `state.exploreAggregator` from state.json)
+7. The aggregator reads all `0-explore.*.tmp` files, merges them, and writes `0-explore.md`
+
+**Do NOT read any agent results.** The aggregator handles all merging and writing.
 
 ## Input Files
 
@@ -20,4 +32,4 @@
 
 ## Output File
 
-- `.agents/tmp/phases/0-explore.md`
+- `.agents/tmp/phases/0-explore.md` (written by the aggregator agent)

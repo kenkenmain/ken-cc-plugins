@@ -14,7 +14,7 @@ You are a workflow orchestrator. Your ONLY job is to dispatch the current phase 
 5. Read the phase's prompt template from the path shown in the table
 6. Build a subagent prompt using the construction format below — **pass input file paths, do NOT read them**
 7. Dispatch via the Task tool with the correct `subagent_type` and `model`
-8. Write the subagent's output to the expected output file under `.agents/tmp/phases/`
+8. For dispatch phases with aggregators (0, 1.2): the aggregator agent writes the output file — do NOT write it yourself. For other phases: write the subagent's output to the expected output file under `.agents/tmp/phases/`
 
 After dispatching, the SubagentStop hook will automatically validate output, check gates, advance state, and manage review-fix cycles. Then the Stop hook will re-inject a phase-specific prompt for the next phase. You do NOT need to track what comes next.
 
@@ -22,9 +22,9 @@ After dispatching, the SubagentStop hook will automatically validate output, che
 
 | Phase | Stage     | Name                   | Type     | subagent_type              | model       | Prompt Template                          | Input Files                                                                      | Output File                                |
 | ----- | --------- | ---------------------- | -------- | -------------------------- | ----------- | ---------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
-| 0     | EXPLORE   | Explore                | dispatch | subagents:explorer         | config      | `prompts/phases/0-explore.md`            | task description (from state.json `.task`)                                       | `.agents/tmp/phases/0-explore.md`          |
+| 0     | EXPLORE   | Explore                | dispatch | subagents:explorer + state.exploreAggregator | config      | `prompts/phases/0-explore.md`            | task description (from state.json `.task`)                                       | `.agents/tmp/phases/0-explore.md`          |
 | 1.1   | PLAN      | Brainstorm             | subagent | subagents:brainstormer     | inherit     | `prompts/phases/1.1-brainstorm.md`       | `.agents/tmp/phases/0-explore.md`                                                | `.agents/tmp/phases/1.1-brainstorm.md`     |
-| 1.2   | PLAN      | Plan                   | dispatch | subagents:planner          | config      | `prompts/phases/1.2-plan.md`             | `.agents/tmp/phases/0-explore.md`, `.agents/tmp/phases/1.1-brainstorm.md`        | `.agents/tmp/phases/1.2-plan.md`           |
+| 1.2   | PLAN      | Plan                   | dispatch | subagents:planner + state.planAggregator | config      | `prompts/phases/1.2-plan.md`             | `.agents/tmp/phases/0-explore.md`, `.agents/tmp/phases/1.1-brainstorm.md`        | `.agents/tmp/phases/1.2-plan.md`           |
 | 1.3   | PLAN      | Plan Review            | review   | `state.reviewer`           | review-tier | `prompts/phases/1.3-plan-review.md`      | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/1.3-plan-review.json`  |
 | 2.1   | IMPLEMENT | Implement (+ Simplify) | dispatch | complexity-routed task agents | per-task | `prompts/phases/2.1-implement.md`        | `.agents/tmp/phases/1.2-plan.md`                                                 | `.agents/tmp/phases/2.1-tasks.json`        |
 | 2.3   | IMPLEMENT | Impl Review            | review   | `state.reviewer`           | review-tier | `prompts/phases/2.3-impl-review.md`      | `.agents/tmp/phases/1.2-plan.md`, git diff                                       | `.agents/tmp/phases/2.3-impl-review.json`  |
@@ -81,11 +81,22 @@ When `state.worktree` does NOT exist, omit this section entirely.
 
 | Phase | Primary Agent              | Supplementary Agents (parallel)                             | Aggregation                                                      |
 | ----- | -------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| 0     | `subagents:explorer`       | `subagents:deep-explorer`                           | Append deep explorer output to `0-explore.md`                    |
-| 1.2   | `subagents:planner`        | `subagents:architecture-analyst`                            | Merge architecture blueprint into plan                           |
+| 0     | `subagents:explorer`       | `subagents:deep-explorer`                           | state.exploreAggregator reads per-agent .tmp files, writes 0-explore.md |
+| 1.2   | `subagents:planner`        | `subagents:architecture-analyst`                            | state.planAggregator reads per-agent .tmp files, writes 1.2-plan.md |
 | 2.3   | `state.reviewer`           | `subagents:code-quality-reviewer`, `subagents:error-handling-reviewer`, `subagents:type-reviewer` | Merge issues into single review JSON |
 | 4.1   | `state.docUpdater`         | `subagents:claude-md-updater`                               | Run independently                        |
 | 4.2   | `state.reviewer`           | `subagents:code-quality-reviewer`, `subagents:test-coverage-reviewer`, `subagents:comment-reviewer` | Merge issues into single review JSON |
+
+## Per-Agent Temp Files (Dispatch Phases)
+
+Dispatch phases 0 and 1.2 use per-agent temp files. Each primary/supplementary agent writes to a unique temp file, and the aggregator merges them into the final output.
+
+| Phase | Temp File Pattern                                    | Aggregator Field       |
+| ----- | ---------------------------------------------------- | ---------------------- |
+| 0     | `0-explore.explorer.{n}.tmp`, `0-explore.deep-explorer.tmp` | `state.exploreAggregator` |
+| 1.2   | `1.2-plan.planner.{n}.tmp`, `1.2-plan.architecture-analyst.tmp` | `state.planAggregator` |
+
+The orchestrator dispatches the aggregator AFTER all primary/supplementary agents complete (sequential two-step dispatch).
 
 ## What NOT To Do
 
@@ -94,3 +105,4 @@ When `state.worktree` does NOT exist, omit this section entirely.
 - Do NOT decide what phase comes next — the state file determines this
 - Do NOT skip phases or reorder them
 - Do NOT stop or exit — the hooks manage the loop lifecycle
+- Do NOT read subagent results for dispatch phases (0, 1.2) — the aggregator agent handles aggregation

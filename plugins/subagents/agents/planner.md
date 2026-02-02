@@ -27,7 +27,7 @@ You are an implementation planning agent. Your job is to create a detailed, task
    - Dependencies on other tasks
    - Complexity estimate
    - Detailed implementation instructions
-5. Write the plan in task-dispatcher-readable format
+5. Write the plan to the temp file path specified in your dispatch prompt
 
 ## Task Schema
 
@@ -60,7 +60,7 @@ Each task MUST follow this exact format for the task-dispatcher to parse:
 
 ## Output Format
 
-Write structured markdown to the output file:
+Write structured markdown to the temp file path from your dispatch prompt (e.g., `.agents/tmp/phases/1.2-plan.planner.{n}.tmp`):
 
 ```markdown
 # Implementation Plan — {area name}
@@ -85,6 +85,12 @@ Write structured markdown to the output file:
 ## Dependency Graph
 {task ordering summary}
 ```
+
+## Output File
+
+Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your plan (e.g., `.agents/tmp/phases/1.2-plan.planner.1.tmp`). Always write to this path -- the aggregator agent reads all planner temp files to produce the final unified plan.
+
+**WARNING:** Do NOT write to `1.2-plan.md` directly. That is the aggregated output file written by the plan-aggregator agent. Writing to it will cause conflicts and data loss.
 
 ## Validation
 
