@@ -33,12 +33,12 @@ Block on severity: low
 PLAN Stage:
   brainstorm: model=inherit, parallel=true
   writePlan: model=inherit, parallel=true
-  planReview: tool=mcp__codex-high__codex
+  planReview: tool=codex-high
 
 IMPLEMENT Stage:
   implementation: model=inherit, implementer=claude, bugFixer=codex-high, enforceLogging=true
   simplify: model=inherit, bugFixer=codex-high
-  implementReview: tool=mcp__codex-high__codex, bugFixer=codex-high
+  implementReview: tool=codex-high, bugFixer=codex-high
 
 TEST Stage: [disabled]
   instructions: (not configured)
@@ -46,10 +46,10 @@ TEST Stage: [disabled]
   coverageThreshold: 80%
   testPlan: model=inherit
   testImplementation: model=inherit
-  testReview: tool=mcp__codex-high__codex
+  testReview: tool=codex-high
 
 FINAL Stage:
-  codexFinal: tool=mcp__codex-xhigh__codex (fixed)
+  codexFinal: tool=codex-xhigh (fixed)
   suggestExtensions: enabled=true, maxSuggestions=3
 
 Config files:
@@ -90,7 +90,7 @@ Ask for each phase:
 
 - brainstorm: model (see Model Names section), parallel (true/false)
 - writePlan: model, parallel
-- planReview: tool (mcp**codex**codex/mcp**codex-high**codex/claude-review)
+- planReview: tool (codex-high/codex-xhigh/claude-review)
 
 Common model options: `inherit`, `sonnet`, `opus`, `haiku`, `opus-4.5`, `sonnet-4`, `sonnet-3.5`
 
@@ -142,7 +142,7 @@ Ask: "Where to save?"
     "plan": {
       "brainstorm": { "model": "inherit", "parallel": true },
       "writePlan": { "model": "inherit", "parallel": true },
-      "planReview": { "tool": "mcp__codex-high__codex", "maxRetries": 3 }
+      "planReview": { "tool": "codex-high", "maxRetries": 3 }
     },
     "implement": {
       "implementation": {
@@ -153,7 +153,7 @@ Ask: "Where to save?"
       },
       "simplify": { "model": "inherit", "bugFixer": "codex-high" },
       "implementReview": {
-        "tool": "mcp__codex-high__codex",
+        "tool": "codex-high",
         "bugFixer": "codex-high",
         "maxRetries": 3
       }
@@ -172,14 +172,14 @@ Ask: "Where to save?"
       "testImplementation": { "model": "inherit", "bugFixer": "codex-high" },
       "runTests": { "timeout": 300 },
       "testReview": {
-        "tool": "mcp__codex-high__codex",
+        "tool": "codex-high",
         "bugFixer": "codex-high",
         "maxRetries": 3
       }
     },
     "final": {
       "codexFinal": {
-        "tool": "mcp__codex-xhigh__codex",
+        "tool": "codex-xhigh",
         "bugFixer": "codex-high"
       },
       "suggestExtensions": { "enabled": true, "maxSuggestions": 3 }
@@ -206,8 +206,8 @@ Ask: "Where to save?"
 | All models         | `inherit`                 |
 | Implementer        | `claude`                  |
 | Bug fixer          | `codex-high`              |
-| Review tools       | `mcp__codex-high__codex`  |
-| Final tool         | `mcp__codex-xhigh__codex` |
+| Review tools       | `codex-high`  |
+| Final tool         | `codex-xhigh` |
 | Test stage         | disabled                  |
 | Coverage threshold | 80%                       |
 | Max retries        | 3                         |
@@ -225,8 +225,8 @@ Ask: "Where to save?"
 | model           | `inherit`, or any valid model name (see Model Names below)                      |
 | implementer     | `claude`, `codex-high`, `codex-xhigh` (who writes initial code)                 |
 | bugFixer        | `claude`, `codex-high`, `codex-xhigh` (who fixes issues found by reviews)       |
-| tool (review)   | `mcp__codex-high__codex`, `mcp__codex-xhigh__codex`, `claude-review` (see note) |
-| tool (final)    | `mcp__codex-xhigh__codex` only (fixed)                                          |
+| tool (review)   | `codex-high`, `codex-xhigh`, `claude-review` (see note) |
+| tool (final)    | `codex-xhigh` only (fixed)                                          |
 | threshold       | 0-100                                                                           |
 | maxRetries      | 1-10                                                                            |
 | timeout         | 60-3600 (seconds)                                                               |
@@ -238,7 +238,7 @@ Ask: "Where to save?"
 | defaultType     | `feat`, `fix`, `chore`, `refactor`, `docs`, `test`                              |
 | mainBranch      | `auto`, `main`, `master`, or custom branch name                                 |
 
-**Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex MCP. It's available as a fallback when Codex MCP is not configured, or for users who prefer Claude-native reviews. No additional dependencies required.
+**Note on `claude-review`:** This option uses the `superpowers:requesting-code-review` skill instead of Codex CLI. It's available as a fallback when Codex CLI is not available, or for users who prefer Claude-native reviews. No additional dependencies required.
 
 ## Model Names
 

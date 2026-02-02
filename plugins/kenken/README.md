@@ -127,10 +127,10 @@ Project config overrides global.
 - superpowers
 - code-simplifier
 
-**Required MCP servers (full mode):**
+**Required Codex CLI (full mode):**
 
-- codex (`mcp__codex-high__codex`)
-- codex-high (`mcp__codex-xhigh__codex`)
+- `codex exec -c reasoning_effort=high` (codex-high)
+- `codex exec -c reasoning_effort=xhigh` (codex-xhigh)
 
 ## State Management
 

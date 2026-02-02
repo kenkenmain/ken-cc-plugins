@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# on-codex-guard.sh -- PreToolUse hook that blocks direct Codex MCP calls
-# during an active subagents workflow.
+# on-codex-guard.sh -- PreToolUse hook (LEGACY — retained for safety).
 #
-# Problem: When the orchestrator calls mcp__codex-xhigh__codex or
-# mcp__codex-high__codex synchronously, the call blocks the entire
-# conversation with no timeout enforcement. If the MCP server hangs,
-# the workflow is stuck indefinitely — Layer 2 (TaskOutput timeout)
-# never fires because the call was never backgrounded.
-#
-# Solution: Block direct MCP calls and force all Codex usage through
-# background-dispatched Task agents, which support TaskOutput timeout.
+# Originally blocked direct Codex MCP calls (mcp__codex-high__codex,
+# mcp__codex-xhigh__codex) during active workflows. Since all Codex
+# agents now use `codex exec` CLI directly, this hook will not trigger
+# under normal operation. Kept as a safety net in case MCP tools are
+# re-introduced or called manually.
 #
 # Exit 0 with no output = allow
 # Exit 0 with {"decision":"block","reason":"..."} = block with guidance
@@ -50,7 +46,7 @@ if ! check_session_owner; then
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Block direct MCP call — must go through background Task dispatch
+# 5. Block direct Codex call — must go through background Task dispatch
 # ---------------------------------------------------------------------------
 CURRENT_PHASE="$(state_get '.currentPhase // "unknown"')"
 TOOL_NAME="$(echo "$INPUT" | jq -r '.tool_name // ""')"
@@ -64,7 +60,7 @@ jq -n \
   --arg timeout "$local_timeout" \
   '{
     "decision": "block",
-    "reason": ("Direct " + $tool + " calls are blocked during active workflow (phase " + $phase + "). Codex MCP must be dispatched through a background Task agent for timeout protection.\n\nCorrect pattern:\n1. Task(subagent_type=\"subagents:codex-reviewer\", run_in_background=true, prompt=\"...\")\n2. TaskOutput(task_id, block=true, timeout=" + $timeout + ")\n3. If timeout: TaskStop(task_id), then write {\"status\":\"timeout\",\"issues\":[],\"codexTimeout\":true}\n\nThis prevents indefinite hangs when the MCP server is unresponsive.")
+    "reason": ("Direct " + $tool + " calls are blocked during active workflow (phase " + $phase + "). Codex CLI must be dispatched through a background Task agent for timeout protection.\n\nCorrect pattern:\n1. Task(subagent_type=\"subagents:codex-reviewer\", run_in_background=true, prompt=\"...\")\n2. TaskOutput(task_id, block=true, timeout=" + $timeout + ")\n3. If timeout: TaskStop(task_id), then write {\"status\":\"timeout\",\"issues\":[],\"codexTimeout\":true}\n\nThis prevents indefinite hangs when the Codex CLI process is unresponsive.")
   }'
 
 exit 0

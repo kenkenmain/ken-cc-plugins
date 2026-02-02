@@ -158,7 +158,7 @@ tasks:
 
 **Goal:** Validate plan quality before implementation.
 
-**Tool:** Configured tool (default: `mcp__codex-high__codex`)
+**Tool:** Configured tool (default: `codex-high`)
 
 **Prompt:** See `prompts/plan-review.md`
 
@@ -183,8 +183,8 @@ Complete all phases before advancing to TEST or FINAL.
 **Implementer (from config `stages.implement.implementation.implementer`):**
 
 - `claude` (default): Use Claude subagents via `superpowers:subagent-driven-development`
-- `codex-high`: Use `mcp__codex-high__codex` for implementation
-- `codex-xhigh`: Use `mcp__codex-xhigh__codex` for implementation
+- `codex-high`: Use `codex-high` for implementation
+- `codex-xhigh`: Use `codex-xhigh` for implementation
 
 **Actions:**
 
@@ -269,13 +269,13 @@ Commit after implementation is complete.
 
 **Goal:** Validate implementation quality.
 
-**Tool:** Configured tool (default: `mcp__codex-high__codex`)
+**Tool:** Configured tool (default: `codex-high`)
 
 **Bug Fixer (from config `stages.implement.implementReview.bugFixer`):**
 
 - `claude`: Use Claude subagents to fix issues
-- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
-- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+- `codex-high` (default): Use `codex-high` to fix issues
+- `codex-xhigh`: Use `codex-xhigh` to fix issues
 
 **Prompt:** See `prompts/implement-review.md`
 
@@ -391,7 +391,7 @@ If test configuration is not set, auto-detect and verify with user:
 
 **Goal:** Validate test quality.
 
-**Tool:** Configured tool (default: `mcp__codex-high__codex`)
+**Tool:** Configured tool (default: `codex-high`)
 
 **Prompt:** See `prompts/test-review.md`
 
@@ -409,13 +409,13 @@ If test configuration is not set, auto-detect and verify with user:
 
 **Goal:** Final validation with high reasoning.
 
-**Tool:** Always uses `mcp__codex-xhigh__codex`
+**Tool:** Always uses `codex-xhigh`
 
 **Bug Fixer (from config `stages.final.codexFinal.bugFixer`):**
 
 - `claude`: Use Claude subagents to fix issues
-- `codex-high` (default): Use `mcp__codex-high__codex` to fix issues
-- `codex-xhigh`: Use `mcp__codex-xhigh__codex` to fix issues
+- `codex-high` (default): Use `codex-high` to fix issues
+- `codex-xhigh`: Use `codex-xhigh` to fix issues
 
 **Prompt:** See `prompts/final-review.md`
 
@@ -633,7 +633,7 @@ mkdir -p .agents/logs/errors
 
 - `code-simplifier:code-simplifier` - Phase 2.2
 
-### Required MCP Tools
+### Required Codex CLI
 
-- `mcp__codex-high__codex` - Plan Review, Implement Review, Test Review (configurable)
-- `mcp__codex-xhigh__codex` - Final Review (fixed)
+- `codex exec -c reasoning_effort=high` - Plan Review, Implement Review, Test Review (configurable)
+- `codex exec -c reasoning_effort=xhigh` - Final Review (fixed)
