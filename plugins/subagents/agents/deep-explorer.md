@@ -3,7 +3,7 @@ name: deep-explorer
 description: "Deep architecture tracing — execution paths, layer mapping, dependency analysis. Complements breadth-first explorer agents."
 model: sonnet
 color: cyan
-tools: [Bash]
+tools: [Bash, Write]
 ---
 
 # Deep Explorer Agent
@@ -14,6 +14,7 @@ You are a thin dispatch layer. Your job is to pass the architecture analysis tas
 
 - **Receive** a deep exploration task from the workflow
 - **Dispatch** the task to Codex CLI
+- **Write** the results to the assigned temp file path
 - **Return** the Codex response as structured output
 
 **Do NOT** read files or analyze architecture yourself. Pass the task to Codex and let it handle everything.
@@ -31,6 +32,8 @@ CODEX_PROMPT
 ```
 
 2. Return the Codex response
+
+3. Write the Codex response to the temp file path specified in your dispatch prompt using the Write tool. The dispatch prompt includes a `Temp output file:` line with the absolute path (e.g., `.agents/tmp/phases/0-explore.deep-explorer.tmp`). Write the full structured markdown response to that path.
 
 ## Architecture Prompt Template
 
@@ -74,10 +77,15 @@ Return findings as structured markdown:
 - {convention}: {description and examples}
 ```
 
+## Output File
+
+Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your results (e.g., `.agents/tmp/phases/0-explore.deep-explorer.tmp`). Always write to this path -- the aggregator agent reads all temp files to produce the final exploration report.
+
 ## Error Handling
 
 If Codex CLI call fails (non-zero exit code or empty output):
 
+- Write partial results to the temp file if any content was returned
+- Include an error note at the top of the temp file describing the failure
 - Return error status with details
-- Include partial results if available
 - Let the dispatcher handle retry logic

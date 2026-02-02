@@ -82,12 +82,15 @@ Phase count depends on pipeline profile: minimal (5), standard (13), thorough (1
 
 - Dispatches 1-10 parallel explorer agents based on task complexity
 - **Supplementary:** `subagents:deep-explorer` for deep architecture tracing
+- **Aggregator:** `state.exploreAggregator` (Codex: `codex-explore-aggregator`, Claude: `explore-aggregator`)
+- Primary agents write to per-agent `.tmp` files; aggregator merges into final output
 - Output: `.agents/tmp/phases/0-explore.md`
 
 ### PLAN Stage (Phases 1.1-1.3)
 
 - 1.1: Standalone brainstormer subagent — reads finalized `0-explore.md` and synthesizes 2-3 implementation approaches
 - 1.2: Parallel planner agents + **`subagents:architecture-analyst`** for architecture blueprint
+- **Aggregator:** `state.planAggregator` (Codex: `codex-plan-aggregator`, Claude: `plan-aggregator`)
 - 1.3: Plan review via state.reviewer (all reviews use `codex-high` when Codex available)
 - Input: both `0-explore.md` and `1.1-brainstorm.md`
 - Output: `.agents/tmp/phases/1.1-brainstorm.md`, `.agents/tmp/phases/1.2-plan.md`
@@ -221,6 +224,43 @@ prompts/phases/
 
 Templates include `[PHASE X.Y]` tags for PreToolUse hook validation.
 
+## Per-Agent Temp File Convention
+
+Dispatch phases (0, 1.2) use per-agent temp files to avoid orchestrator context bloat. Each parallel agent writes its output to a unique temp file, and an aggregator agent reads all temp files to produce the final phase output.
+
+### Naming Pattern
+
+`{phase_output_basename}.{agent-name}.{n}.tmp`
+
+Where:
+- `{phase_output_basename}` is the phase output file without extension (e.g., `0-explore`, `1.2-plan`)
+- `{agent-name}` is the agent type without `subagents:` prefix (e.g., `explorer`, `planner`, `deep-explorer`, `architecture-analyst`)
+- `{n}` is a 1-based index for parallel batch agents; omitted for single-instance agents
+- All temp files live in `.agents/tmp/phases/`
+
+### Examples
+
+**Phase 0 (Explore):**
+```
+.agents/tmp/phases/0-explore.explorer.1.tmp     (explorer agent 1)
+.agents/tmp/phases/0-explore.explorer.2.tmp     (explorer agent 2)
+.agents/tmp/phases/0-explore.explorer.3.tmp     (explorer agent 3)
+.agents/tmp/phases/0-explore.deep-explorer.tmp  (single deep-explorer, no index)
+```
+
+**Phase 1.2 (Plan):**
+```
+.agents/tmp/phases/1.2-plan.planner.1.tmp              (planner agent 1 — area 1)
+.agents/tmp/phases/1.2-plan.planner.2.tmp              (planner agent 2 — area 2)
+.agents/tmp/phases/1.2-plan.architecture-analyst.tmp   (single architecture-analyst, no index)
+```
+
+### Cleanup
+
+Temp files are NOT deleted by aggregators. They are cleaned up when:
+- A new workflow starts (`init-claude` creates a fresh `.agents/tmp/phases/` directory)
+- The user runs `/subagents:teardown`
+
 ## State Management
 
 State file: `.agents/tmp/state.json`
@@ -240,6 +280,8 @@ Key state fields:
 - `coverageThreshold`: target test coverage percentage (default: 90)
 - `coverageLoop`: (optional) tracks 3.3→3.5 iteration when coverage below threshold (max 20 iterations)
 - `webSearch`: whether agents can search for libraries online (default: true, disable with `--no-web-search`)
+- `exploreAggregator`: Agent type for explore aggregation (Codex: `subagents:codex-explore-aggregator`, Claude: `subagents:explore-aggregator`)
+- `planAggregator`: Agent type for plan aggregation (Codex: `subagents:codex-plan-aggregator`, Claude: `subagents:plan-aggregator`)
 - `reviewPolicy`: `{ minBlockSeverity, maxFixAttempts, maxStageRestarts }` — controls review-fix behavior
 - `restartHistory`: (optional) audit trail of stage restart events `[{ stage, fromPhase, toPhase, restart, reason, at }]`
 
@@ -369,6 +411,21 @@ Review finds 4 issues: auth.ts (2), db.ts (1), api.ts (1)
 
 `group_issues_by_file()` in `review.sh` groups blocking issues by file path. `start_fix_cycle()` stores groups in `state.reviewFix.groups[]` with `pendingGroups` counter. SubagentStop decrements `pendingGroups` on each fix-dispatcher completion, only clearing the fix cycle when all groups finish.
 
+### Aggregator Agents
+
+Aggregator agents run as a second step in dispatch phases, reading per-agent temp files and producing the final phase output:
+
+| Agent                              | Codex Variant                        | Phase | Purpose                                  |
+| ---------------------------------- | ------------------------------------ | ----- | ---------------------------------------- |
+| `subagents:explore-aggregator`     | `subagents:codex-explore-aggregator` | 0     | Merge explorer + deep-explorer temp files |
+| `subagents:plan-aggregator`        | `subagents:codex-plan-aggregator`    | 1.2   | Merge planner + architecture-analyst temp files, renumber tasks |
+
+Routing is determined by state fields (`exploreAggregator`, `planAggregator`), set by `init-claude` based on dispatch mode. Fallback switches Codex variants to Claude variants via `fallback.sh`.
+
+### Temp File Lifecycle
+
+Per-agent `.tmp` files in `.agents/tmp/phases/` persist through the workflow run for debugging and reference. Cleanup occurs when `init-claude` starts a new workflow (creates fresh `.agents/tmp/phases/` directory) or when the user runs `/subagents:teardown`.
+
 **External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer agent in Phase 1.1).
 
 ## Commands
@@ -413,9 +470,13 @@ Dispatched by the orchestrator loop during workflow execution:
 | ---------------------- | ------------------- | --------------------------------------- |
 | `explorer.md`          | 0                   | Codebase exploration (parallel batch)   |
 | `deep-explorer.md`     | 0 (supplement)      | Deep architecture tracing               |
+| `explore-aggregator.md`     | 0 (aggregator)      | Aggregates explorer temp files into final report (Claude) |
+| `codex-explore-aggregator.md` | 0 (aggregator)    | Thin Codex CLI wrapper for explore aggregation |
 | `brainstormer.md`      | 1.1                 | Implementation strategy analysis        |
 | `planner.md`           | 1.2                 | Detailed planning (parallel batch)      |
 | `architecture-analyst.md` | 1.2 (supplement) | Architecture blueprint                  |
+| `plan-aggregator.md`        | 1.2 (aggregator)    | Aggregates planner temp files into unified plan (Claude) |
+| `codex-plan-aggregator.md`  | 1.2 (aggregator)    | Thin Codex CLI wrapper for plan aggregation |
 | `codex-reviewer.md`    | 1.3, 2.3, 3.4, 3.5, 4.2 | Codex CLI review dispatch (when Codex available) |
 | `claude-reviewer.md`   | 1.3, 2.3, 3.4, 3.5, 4.2 | Claude reasoning review (Codex fallback) |
 | `fix-dispatcher.md`    | review-fix          | Reads review issues and applies fixes directly |

@@ -135,6 +135,13 @@ if is_codex_timeout "$CURRENT_PHASE"; then
 fi
 
 if ! phase_file_exists "$EXPECTED_OUTPUT"; then
+  # For dispatch phases with aggregators: skip output validation for
+  # non-aggregator agents (they write temp files, not the output file)
+  if phase_has_aggregator "$CURRENT_PHASE"; then
+    if [[ -n "$AGENT_TYPE" ]] && ! is_aggregator_agent "$AGENT_TYPE"; then
+      exit 0  # Primary/supplementary agent done — aggregator will write output
+    fi
+  fi
   # Check if the completing agent is supplementary — supplementary agents
   # don't produce the phase output file, so a missing file is expected.
   # AGENT_TYPE was extracted earlier (section 4).
