@@ -469,6 +469,45 @@ is_supplementary_agent() {
 }
 
 # ---------------------------------------------------------------------------
+# is_aggregator_agent <agent_type>
+# ---------------------------------------------------------------------------
+is_aggregator_agent() {
+  local agent_type="${1:-}"
+  [[ -z "$agent_type" ]] && return 1
+  case "$agent_type" in
+    subagents:explore-aggregator|\
+    subagents:codex-explore-aggregator|\
+    subagents:plan-aggregator|\
+    subagents:codex-plan-aggregator)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# phase_has_aggregator <phase>
+# ---------------------------------------------------------------------------
+phase_has_aggregator() {
+  local phase="${1:-}"
+  case "$phase" in
+    0|1.2) return 0 ;;
+    *)     return 1 ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# get_phase_aggregator <phase>
+# ---------------------------------------------------------------------------
+get_phase_aggregator() {
+  local phase="${1:?get_phase_aggregator requires a phase ID}"
+  case "$phase" in
+    0)   state_get '.exploreAggregator // "subagents:explore-aggregator"' ;;
+    1.2) state_get '.planAggregator // "subagents:plan-aggregator"' ;;
+    *)   echo "" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # _git_loc_changed -- Estimate total lines changed (insertions + deletions)
 #   in the working tree. Tries merge-base against main/master first (captures
 #   full branch changes), falls back to uncommitted diff against HEAD.
@@ -561,7 +600,7 @@ get_dispatch_rules() {
   case "$phase_type" in
     dispatch)
       cat <<'RULES'
-Read the prompt template for batch instructions. Dispatch multiple parallel subagents as specified. Aggregate results into the output file. If supplementary agents are listed, dispatch them in the same Task tool message.
+Read the prompt template for batch instructions. Dispatch multiple parallel subagents as specified. If supplementary agents are listed, dispatch them in the same Task tool message. If an Aggregator Agent section appears below, do NOT read subagent results or write the output file yourself — after all primary and supplementary agents complete, dispatch the aggregator agent. The aggregator reads per-agent temp files and writes the final output file. You must dispatch the aggregator — without it, the phase output file will not be created and the workflow cannot advance.
 RULES
       ;;
     subagent)
@@ -690,6 +729,41 @@ MERGE
 
 None for this phase.
 NONE
+  fi
+
+  # Aggregator agent section (for dispatch phases with aggregators: 0, 1.2)
+  if phase_has_aggregator "$phase"; then
+    local aggregator
+    aggregator="$(get_phase_aggregator "$phase")"
+    local agg_glob
+    case "$phase" in
+      0)   agg_glob="0-explore.*.tmp" ;;
+      1.2) agg_glob="1.2-plan.*.tmp" ;;
+      *)   agg_glob="*.tmp" ;;
+    esac
+    cat <<AGG
+
+## Aggregator Agent
+
+After ALL primary and supplementary agents complete, dispatch the aggregator:
+
+- **subagent_type:** \`${aggregator}\`
+- **Temp file pattern:** \`.agents/tmp/phases/${agg_glob}\`
+- **Output file:** \`.agents/tmp/phases/${output_file}\`
+
+Include \`[PHASE ${phase}]\` tag in the aggregator's dispatch prompt.
+
+AGG
+    # Codex aggregator timeout handling
+    if [[ "$aggregator" == *"codex"* ]]; then
+      local agg_timeout
+      agg_timeout="$(get_phase_timeout "$phase")"
+      local agg_timeout_label
+      agg_timeout_label="$(( agg_timeout / 60000 )) min"
+      cat <<AGG_TIMEOUT
+Dispatch aggregator with \`run_in_background: true\` and poll with \`TaskOutput(task_id, block=true, timeout=${agg_timeout})\` (${agg_timeout_label}).
+AGG_TIMEOUT
+    fi
   fi
 
   # Review-fix cycle rules (for review phases)

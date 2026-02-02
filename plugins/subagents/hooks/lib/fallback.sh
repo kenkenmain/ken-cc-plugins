@@ -42,6 +42,8 @@ switch_to_claude() {
     .difficultyEstimator = \"subagents:difficulty-estimator\" |
     .testDeveloper = \"subagents:test-developer\" |
     .docUpdater = \"subagents:doc-updater\" |
+    .exploreAggregator = \"subagents:explore-aggregator\" |
+    .planAggregator = \"subagents:plan-aggregator\" |
     .codexAvailable = false |
     .codexFallback = {
       \"switchedAt\": (now | todate),
