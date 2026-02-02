@@ -158,7 +158,7 @@ fi
 #     trigger a supplementary run before starting fix cycles.
 #     If issues found after supplementary, start a fix cycle.
 # ---------------------------------------------------------------------------
-if is_review_phase "$CURRENT_PHASE"; then
+if is_review_phase "$CURRENT_PHASE" || [[ "$CURRENT_PHASE" == "F3" ]]; then
   REVIEW_RESULT="$(validate_review_output "$CURRENT_PHASE")"
   REVIEW_PASSED="$(echo "$REVIEW_RESULT" | jq -r '.passed')"
 
