@@ -439,6 +439,7 @@ Per-agent `.tmp` files in `.agents/tmp/phases/` persist through the workflow run
 - `/subagents:resume` - Resume from checkpoint
 - `/subagents:status` - Show progress
 - `/subagents:configure` - Configure settings
+- `/subagents:debug <task>` - Multi-phase debugging workflow with parallel exploration and solution ranking
 
 ## Skills
 
@@ -502,6 +503,19 @@ Dispatched by the orchestrator loop during workflow execution:
 | `comment-reviewer.md`  | 4.2 (supplement)    | Comment accuracy review                 |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
 | `retrospective-analyst.md` | 4.3 (supplement) | Workflow metrics analysis, CLAUDE.md learnings |
+
+### Debug Workflow Agents
+
+Dispatched by the `/subagents:debug` command for multi-phase debugging:
+
+| Agent File              | Phase           | Purpose                                      |
+| ----------------------- | --------------- | -------------------------------------------- |
+| `debug-explorer.md`     | 1 (parallel)    | Codebase exploration focused on bug context  |
+| `solution-proposer.md`  | 2 (parallel)    | Proposes a specific fix approach             |
+| `solution-aggregator.md`| 3               | Aggregates and ranks proposals               |
+| `debug-implementer.md`  | 4               | Implements the selected solution             |
+| `debug-reviewer.md`     | 5               | Reviews fix for correctness and risk         |
+| `debug-doc-updater.md`  | 6               | Updates documentation after fix              |
 
 ### Hook Libraries
 
