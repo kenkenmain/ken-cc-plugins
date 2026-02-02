@@ -462,12 +462,16 @@ Phase F4   │ COMPLETE  │ Git Commit + PR                     │ completion-
 
 **Fix cycle:** Max 3 iterations (vs 10 for standard dispatch). Max 1 stage restart (vs 3).
 
+**Initialization:** fdispatch does **not** use `subagents:init-claude`. State is initialized inline by the fdispatch command itself (directory creation, worktree setup, state.json write). This avoids dispatching an opus-level agent for work fdispatch immediately overwrites. The state contains no named agent routing fields (`reviewer`, `failureAnalyzer`, etc.) — F-phases route agents via `codexAvailable` in `schedule.sh`.
+
 **Key differences from standard dispatch:**
+- No init-claude agent — state initialized inline
 - No separate explore phase — combined into F1
 - No plan review — single opus agent plans directly
 - No separate test stage — tests written inline by task agents
 - No documentation phase — skipped for speed
 - All reviewers run in parallel at end (not per-stage)
+- No named agent routing fields — uses `codexAvailable` for Codex/Claude selection
 
 ## Skills
 
@@ -485,9 +489,11 @@ Dispatched by the dispatch command before the orchestrator loop starts:
 
 | Agent File             | Purpose                                                        |
 | ---------------------- | -------------------------------------------------------------- |
-| `init-claude.md`       | Workflow init with Claude reasoning, worktree creation, Codex/Claude defaults |
+| `init-claude.md`       | Workflow init with Claude reasoning, worktree creation, Codex/Claude defaults (standard dispatch only) |
 
-Flow: dispatch command → `init-claude` (always) → orchestrator loop. Pre-flight checks available via `/subagents:preflight` command. For `dispatch` (Codex mode), agents are configured optimistically; `fallback.sh` handles runtime unavailability. For `dispatch-claude`, Claude agents are configured directly.
+Flow: dispatch/dispatch-claude → `init-claude` → orchestrator loop. Pre-flight checks available via `/subagents:preflight` command. For `dispatch` (Codex mode), agents are configured optimistically; `fallback.sh` handles runtime unavailability. For `dispatch-claude`, Claude agents are configured directly.
+
+**Note:** fdispatch/fdispatch-claude do NOT use `init-claude`. They initialize state inline (directory creation, worktree, state.json) to avoid an unnecessary opus-level dispatch.
 
 The init agent creates a git worktree (unless `--no-worktree`) and records `state.worktree` and `state.ownerPpid` in state.json.
 

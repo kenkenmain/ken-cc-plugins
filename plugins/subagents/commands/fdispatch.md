@@ -20,29 +20,57 @@ Parse from $ARGUMENTS to extract task description and flags.
 
 Use the `configuration` skill to load merged config (defaults → global → project).
 
-## Step 1.5: Capture Session PID
+## Step 2: Initialize State Inline
+
+fdispatch does NOT use `subagents:init-claude`. All initialization is done inline to avoid wasting an opus-level dispatch on work that gets immediately overwritten.
+
+### 2a. Create directories
+
+```bash
+mkdir -p .agents/tmp/phases
+rm -f .agents/tmp/phases/*.tmp   # Clean stale temp files from previous runs
+```
+
+### 2b. Capture session PID
 
 ```bash
 echo $PPID
 ```
 
-Pass this value as `ownerPpid` to the init agent.
+Store the output as `ownerPpid`.
 
-## Step 2: Initialize State
+### 2c. Create git worktree (unless `--no-worktree`)
 
-Use `state-manager` skill to create `.agents/tmp/state.json`.
+```bash
+# Slugify task: lowercase, strip non-alphanum, spaces→hyphens, truncate 50 chars
+SLUG=$(echo "<task>" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 -]//g' | tr ' ' '-' | cut -c1-50)
+BRANCH="subagents/${SLUG}"
+REPO_NAME=$(basename "$(pwd)")
+WORKTREE_PATH="../${REPO_NAME}--subagent"
+git worktree add -b "$BRANCH" "$WORKTREE_PATH"
+```
 
-Dispatch `subagents:init-claude` with task description, ownerPpid, `codexMode: true`, and parsed flags (including `--no-worktree` if set). Additionally pass `pipeline: "fdispatch"` so the init agent knows to use the fast pipeline.
+If creation fails (branch exists, path occupied), log a warning and continue without worktree. Store the absolute worktree path if successful.
 
-**IMPORTANT:** After the init agent writes state, **overwrite** the schedule, gates, and stages with the fdispatch-specific values below. The init agent creates the worktree and analyzes the task, but the fdispatch command controls the pipeline structure.
+### 2d. Write `state.json` directly
 
-Update `.agents/tmp/state.json` with these values:
+Write `.agents/tmp/state.json` with **only** the fields F-phases and hooks actually read. Use Bash with jq for atomic write (write to `.agents/tmp/state.json.tmp`, then `mv` into place).
 
 ```json
 {
+  "version": 2,
+  "plugin": "subagents",
   "pipeline": "fdispatch",
+  "status": "in_progress",
+  "task": "<task description>",
+  "startedAt": "<ISO timestamp>",
+  "updatedAt": "<ISO timestamp>",
+  "stoppedAt": null,
+  "currentPhase": "F1",
+  "currentStage": "PLAN",
+  "ownerPpid": "<PPID value>",
   "codexAvailable": true,
-  "reviewer": "subagents:code-quality-reviewer",
+  "worktree": "<{ path, branch, createdAt } if created, omit if --no-worktree or failed>",
   "schedule": [
     { "phase": "F1", "stage": "PLAN", "name": "Fast Plan", "type": "subagent" },
     { "phase": "F2", "stage": "IMPLEMENT", "name": "Implement + Test", "type": "dispatch" },
@@ -55,20 +83,27 @@ Update `.agents/tmp/state.json` with these values:
     "REVIEW->COMPLETE": { "required": ["f3-review.json"], "phase": "F3" },
     "COMPLETE->DONE": { "required": ["f4-completion.json"], "phase": "F4" }
   },
-  "currentPhase": "F1",
-  "currentStage": "PLAN",
   "stages": {
     "PLAN": { "status": "pending" },
     "IMPLEMENT": { "status": "pending" },
     "REVIEW": { "status": "pending" },
     "COMPLETE": { "status": "pending" }
   },
+  "webSearch": true,
+  "supplementaryPolicy": "on-issues",
+  "coverageThreshold": 90,
   "reviewPolicy": {
     "maxFixAttempts": 3,
     "maxStageRestarts": 1
-  }
+  },
+  "restartHistory": [],
+  "files": [],
+  "failure": null,
+  "compaction": null
 }
 ```
+
+If `--no-web-search` flag is set, set `"webSearch": false`.
 
 ## Step 2.5: Display Schedule
 
