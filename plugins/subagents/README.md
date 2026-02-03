@@ -84,7 +84,8 @@ Start a new workflow with Codex MCP defaults (Codex reviewers configured by defa
 **Options:**
 
 - `--no-test` - Skip TEST stage
-- `--no-worktree` - Skip git worktree creation (work directly in project directory)
+- `--worktree` - Create a git worktree for isolated development
+- `--no-worktree` - Accepted for backward compatibility (no-op)
 - `--no-web-search` - Disable web search for libraries
 - `--profile minimal|standard|thorough` - Override pipeline profile selection
 - `--stage <name>` - Start from specific stage (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
@@ -93,7 +94,7 @@ Start a new workflow with Codex MCP defaults (Codex reviewers configured by defa
 ```
 /subagents:dispatch Add user authentication with OAuth support
 /subagents:dispatch --no-test Refactor the payment module
-/subagents:dispatch --no-worktree Quick config fix
+/subagents:dispatch --worktree Add isolated feature
 /subagents:dispatch --no-web-search --profile minimal Fix typo in README
 /subagents:dispatch --stage IMPLEMENT --plan docs/plans/my-plan.md Continue from plan
 ```
@@ -144,12 +145,13 @@ Fast dispatch -- streamlined 4-phase workflow that collapses 13 standard phases 
 
 **Options:**
 
-- `--no-worktree` - Skip git worktree creation
+- `--worktree` - Create a git worktree for isolated development
+- `--no-worktree` - Accepted for backward compatibility (no-op)
 - `--no-web-search` - Disable web search for libraries
 
 ```
 /subagents:fdispatch Add user authentication
-/subagents:fdispatch --no-worktree Quick config fix
+/subagents:fdispatch --worktree Add isolated feature
 /subagents:fdispatch --no-web-search Refactor module
 ```
 
@@ -161,7 +163,7 @@ Fast dispatch using Claude agents only. Same 4-phase pipeline, no Codex MCP depe
 
 ```
 /subagents:fdispatch-claude Add user authentication
-/subagents:fdispatch-claude --no-worktree Quick config fix
+/subagents:fdispatch-claude --worktree Add isolated feature
 ```
 
 ### `/subagents:debug <task>`

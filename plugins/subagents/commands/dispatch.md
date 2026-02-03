@@ -1,6 +1,6 @@
 ---
 description: Start a subagent workflow with Codex MCP defaults (use dispatch-claude for Claude-only)
-argument-hint: <task description> [--no-test] [--no-worktree] [--no-web-search] [--profile minimal|standard|thorough] [--stage STAGE] [--plan PATH]
+argument-hint: <task description> [--no-test] [--worktree] [--no-web-search] [--profile minimal|standard|thorough] [--stage STAGE] [--plan PATH]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
@@ -12,7 +12,8 @@ Start a workflow for complex task execution with parallel subagents and file-bas
 
 - `<task description>`: Required. The task to execute
 - `--no-test`: Optional. Skip the TEST stage
-- `--no-worktree`: Optional. Skip git worktree creation — all work happens in the current directory
+- `--worktree`: Optional. Create a git worktree for isolated development
+- `--no-worktree`: Accepted for backward compatibility (no-op — no worktree is the default)
 - `--no-web-search`: Optional. Disable web search for libraries — agents implement everything locally
 - `--profile minimal|standard|thorough`: Optional. Override pipeline profile selection (default: auto-detect from task complexity)
 - `--stage STAGE`: Optional. Start from specific stage (EXPLORE, PLAN, IMPLEMENT, TEST, FINAL)
@@ -36,7 +37,7 @@ Pass this value as `ownerPpid` to the init agent. This enables session scoping �
 
 Use `state-manager` skill to create `.agents/tmp/state.json`.
 
-Dispatch `subagents:init-claude` with task description, ownerPpid, `codexMode: true`, and parsed flags (including `--no-worktree` if set). The init agent creates the worktree (unless `--no-worktree`), analyzes the task, and writes initial state with **optimistic Codex defaults** (Codex agents configured by default — runtime fallback handles unavailability):
+Dispatch `subagents:init-claude` with task description, ownerPpid, `codexMode: true`, and parsed flags (including `--worktree` if set). The init agent creates the worktree (only if `--worktree`), analyzes the task, and writes initial state with **optimistic Codex defaults** (Codex agents configured by default — runtime fallback handles unavailability):
 
 - `codexAvailable: true`
 - `reviewer: "subagents:codex-reviewer"`

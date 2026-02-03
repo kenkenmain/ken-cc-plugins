@@ -1,4 +1,4 @@
-# Superpowers Iterate Plugin - Agent Instructions
+# ken-cc-plugins - Agent Instructions
 
 ## Commands
 
@@ -19,12 +19,17 @@
 /subagents:preflight                                   # Run pre-flight checks
 /subagents:dispatch <task>                             # Start workflow (Codex MCP defaults)
 /subagents:dispatch-claude <task>                      # Start workflow (Claude-only)
-/subagents:dispatch <task> --no-worktree               # Without git worktree isolation
+/subagents:dispatch <task> --worktree                  # With git worktree isolation
 /subagents:dispatch <task> --no-test                   # Skip test stage
 /subagents:dispatch <task> --no-web-search             # Disable library search
 /subagents:dispatch <task> --profile minimal           # Override pipeline profile
 /subagents:dispatch <task> --stage IMPLEMENT           # Start from specific stage
-/subagents:dispatch <task> --plan docs/plan.md         # Use external plan file
+/subagents:dispatch <task> --plan docs/plans/my-plan.md # Use external plan file
+/subagents:fdispatch <task>                             # Fast 4-phase workflow (Codex MCP)
+/subagents:fdispatch-claude <task>                      # Fast 4-phase workflow (Claude-only)
+/subagents:fdispatch <task> --worktree                  # With git worktree isolation
+/subagents:fdispatch <task> --no-web-search             # Disable library search
+/subagents:debug <task>                                 # Multi-phase debugging workflow
 /subagents:stop                                        # Stop workflow gracefully
 /subagents:resume                                      # Resume from checkpoint
 /subagents:status                                      # Show progress
@@ -42,12 +47,13 @@ ken-cc-plugins/
 ├── plugins/
 │   ├── subagents/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest
-│   │   ├── commands/                      # Slash commands (init, dispatch, dispatch-claude, resume, status, stop, etc.)
-│   │   ├── agents/                        # Agent definitions (init-claude, codex-reviewer, etc.)
-│   │   ├── hooks/                         # Shell hooks (5 hooks: subagent-stop, stop, task-dispatch, codex-guard, orchestrator-guard)
+│   │   ├── commands/                      # Slash commands (12 commands: init, dispatch, fdispatch, debug, etc.)
+│   │   ├── agents/                        # Agent definitions (49 agents)
+│   │   ├── hooks/                         # Shell hooks (6 hooks: fdispatch-init, subagent-stop, stop, task-dispatch, codex-guard, orchestrator-guard)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh)
-│   │   ├── prompts/                       # Orchestrator + phase prompt templates
+│   │   ├── prompts/                       # Orchestrator + phase prompt templates (19 templates)
 │   │   ├── skills/                        # workflow, state-manager, configuration
+│   │   ├── README.md                      # User-facing documentation
 │   │   └── CLAUDE.md                      # Subagents-specific architecture docs
 │   ├── superpowers-iterate/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
@@ -57,9 +63,8 @@ ken-cc-plugins/
 │   │   └── agents/                        # Agent definitions (codex-reviewer.md)
 │   └── kenken/
 │       ├── .claude-plugin/plugin.json
-│       ├── commands/
-│       ├── skills/
-│       ├── prompts/
+│       ├── agents/                        # Agent definitions (codex-reviewer)
+│       ├── skills/                        # iterate, iterate-status, iterate-resume, iterate-configure, gh-repo-setup
 │       └── README.md
 ├── .agents/                               # Runtime state (gitignored)
 ├── .github/workflows/                     # CI validation
