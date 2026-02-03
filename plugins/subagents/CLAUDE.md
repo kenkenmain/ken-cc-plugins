@@ -451,7 +451,7 @@ Streamlined 4-phase variant of the standard dispatch workflow. Collapses 13 phas
 ```
 Phase F1   │ PLAN      │ Explore + Brainstorm + Write Plan  │ single opus agent (fast-planner)
 Phase F2   │ IMPLEMENT │ Parallel Implement + Test           │ opus-task-agent for all tasks
-Phase F3   │ REVIEW    │ Parallel Specialized Review         │ 5 Codex or Claude reviewers in parallel
+Phase F3   │ REVIEW    │ Unified Codex Review (or 5 Claude)  │ 1 unified Codex reviewer or 5 Claude reviewers
            │           │ (fix cycle runs within F3 if needed)│
 Phase F4   │ COMPLETE  │ Git Commit + PR                     │ completion-handler
 ```
@@ -537,11 +537,12 @@ Dispatched by the orchestrator loop during workflow execution:
 | `claude-md-updater.md` | 4.1 (supplement)    | CLAUDE.md updates                       |
 | `test-coverage-reviewer.md` | 4.2 (supplement) | Test coverage analysis                |
 | `comment-reviewer.md`  | 4.2 (supplement)    | Comment accuracy review                 |
-| `codex-code-quality-reviewer.md` | F3 (Codex primary) | Thin Codex MCP wrapper for code quality review |
-| `codex-error-handling-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for error handling review |
-| `codex-type-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for type design review |
-| `codex-test-coverage-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for test coverage review |
-| `codex-comment-reviewer.md` | F3 (Codex supplement) | Thin Codex MCP wrapper for comment review |
+| `codex-unified-reviewer.md` | F3 (Codex) | Unified Codex MCP review — all review areas in single call |
+| `codex-code-quality-reviewer.md` | F3 (deprecated) | Replaced by codex-unified-reviewer — kept for backward compat |
+| `codex-error-handling-reviewer.md` | F3 (deprecated) | Replaced by codex-unified-reviewer — kept for backward compat |
+| `codex-type-reviewer.md` | F3 (deprecated) | Replaced by codex-unified-reviewer — kept for backward compat |
+| `codex-test-coverage-reviewer.md` | F3 (deprecated) | Replaced by codex-unified-reviewer — kept for backward compat |
+| `codex-comment-reviewer.md` | F3 (deprecated) | Replaced by codex-unified-reviewer — kept for backward compat |
 | `completion-handler.md`| 4.3                 | Git commit, PR creation, worktree teardown |
 | `retrospective-analyst.md` | 4.3 (supplement) | Workflow metrics analysis, CLAUDE.md learnings |
 

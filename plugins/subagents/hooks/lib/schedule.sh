@@ -346,7 +346,7 @@ get_phase_subagent() {
     4.3) echo "subagents:completion-handler" ;;
     F1)  state_get '(.agents.f1 // null) as $a | if ($a | type) == "string" then $a else "subagents:fast-planner" end' ;;
     F2)  echo "subagents:opus-task-agent" ;;
-    F3)  state_get '(.agents.f3Primary // null) as $a | if ($a | type) == "string" then $a elif .codexAvailable then "subagents:codex-code-quality-reviewer" else "subagents:code-quality-reviewer" end' ;;
+    F3)  state_get '(.agents.f3Primary // null) as $a | if ($a | type) == "string" then $a elif .codexAvailable then "subagents:codex-unified-reviewer" else "subagents:code-quality-reviewer" end' ;;
     F4)  state_get '(.agents.f4 // null) as $a | if ($a | type) == "string" then $a else "subagents:completion-handler" end' ;;
     *)   echo "" ;;
   esac
@@ -449,10 +449,8 @@ _raw_supplementary_agents() {
         local codex_avail_supp
         codex_avail_supp="$(state_get '.codexAvailable // false')"
         if [[ "$codex_avail_supp" == "true" ]]; then
-          echo "subagents:codex-error-handling-reviewer"
-          echo "subagents:codex-type-reviewer"
-          echo "subagents:codex-test-coverage-reviewer"
-          echo "subagents:codex-comment-reviewer"
+          # Unified codex reviewer covers all areas; no supplementary agents needed
+          :
         else
           echo "subagents:error-handling-reviewer"
           echo "subagents:type-reviewer"
@@ -542,7 +540,8 @@ is_aggregator_agent() {
     subagents:explore-aggregator|\
     subagents:codex-explore-aggregator|\
     subagents:plan-aggregator|\
-    subagents:codex-plan-aggregator)
+    subagents:codex-plan-aggregator|\
+    subagents:review-aggregator)
       return 0 ;;
     *) return 1 ;;
   esac
@@ -555,6 +554,13 @@ phase_has_aggregator() {
   local phase="${1:-}"
   case "$phase" in
     0|1.2) return 0 ;;
+    F3)
+      # F3 needs aggregator only in Claude-only mode (5 parallel reviewers).
+      # Codex mode uses a single unified reviewer that writes directly.
+      local codex_avail_agg
+      codex_avail_agg="$(state_get '.codexAvailable // false')"
+      [[ "$codex_avail_agg" != "true" ]]
+      ;;
     *)     return 1 ;;
   esac
 }
@@ -567,6 +573,7 @@ get_phase_aggregator() {
   case "$phase" in
     0)   state_get '.exploreAggregator // "subagents:explore-aggregator"' ;;
     1.2) state_get '.planAggregator // "subagents:plan-aggregator"' ;;
+    F3)  echo "subagents:review-aggregator" ;;
     *)   echo "" ;;
   esac
 }
@@ -795,7 +802,7 @@ None for this phase.
 NONE
   fi
 
-  # Aggregator agent section (for dispatch phases with aggregators: 0, 1.2)
+  # Aggregator agent section (for dispatch phases with aggregators: 0, 1.2, F3 when Claude-only)
   if phase_has_aggregator "$phase"; then
     local aggregator
     aggregator="$(get_phase_aggregator "$phase")"
@@ -803,6 +810,7 @@ NONE
     case "$phase" in
       0)   agg_glob="0-explore.*.tmp" ;;
       1.2) agg_glob="1.2-plan.*.tmp" ;;
+      F3)  agg_glob="f3-review.*.tmp" ;;
       *)   agg_glob="*.tmp" ;;
     esac
     cat <<AGG

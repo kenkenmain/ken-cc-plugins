@@ -138,8 +138,8 @@ Fast Dispatch Schedule (4 phases) [Claude-only mode]
 ======================================================
 Phase F1   │ PLAN      │ Fast Plan (explore+brainstorm+plan)  │ subagent   ← GATE: PLAN→IMPLEMENT
 Phase F2   │ IMPLEMENT │ Implement + Test                     │ dispatch   ← GATE: IMPLEMENT→REVIEW
-Phase F3   │ REVIEW    │ Parallel Review (5 reviewers)        │ dispatch   ← GATE: REVIEW→COMPLETE
-           │           │ (fix cycle runs within F3 if needed) │
+Phase F3   │ REVIEW    │ Parallel Review (5 reviewers + aggregator) │ dispatch   ← GATE: REVIEW→COMPLETE
+           │           │ (fix cycle runs within F3 if needed)      │
 Phase F4   │ COMPLETE  │ Completion (commit + PR)             │ subagent
 
 Stage Gates:

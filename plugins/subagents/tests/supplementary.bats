@@ -113,6 +113,59 @@ teardown() {
 }
 
 # ===========================================================================
+# Unified Codex Reviewer (F3)
+# ===========================================================================
+
+@test "_raw_supplementary_agents: F3 with codexAvailable=true returns empty (unified reviewer)" {
+  write_state '.codexAvailable = true'
+  local agents
+  agents="$(_raw_supplementary_agents "F3")"
+  [ -z "$agents" ]
+}
+
+@test "_raw_supplementary_agents: F3 with codexAvailable=false returns 4 Claude agents" {
+  write_state '.codexAvailable = false'
+  local agents
+  agents="$(_raw_supplementary_agents "F3")"
+  local count
+  count="$(echo "$agents" | grep -c .)"
+  [ "$count" -eq 4 ]
+  [[ "$agents" == *"error-handling-reviewer"* ]]
+  [[ "$agents" == *"type-reviewer"* ]]
+  [[ "$agents" == *"test-coverage-reviewer"* ]]
+  [[ "$agents" == *"comment-reviewer"* ]]
+}
+
+@test "_raw_supplementary_agents: F3 respects explicit empty f3Supplementary from state" {
+  write_state '.agents = { f3Supplementary: [] }'
+  local agents
+  agents="$(_raw_supplementary_agents "F3")"
+  [ -z "$agents" ]
+}
+
+@test "is_supplementary_agent: old codex reviewer names still recognized" {
+  is_supplementary_agent "subagents:codex-code-quality-reviewer"
+  is_supplementary_agent "subagents:codex-error-handling-reviewer"
+  is_supplementary_agent "subagents:codex-type-reviewer"
+  is_supplementary_agent "subagents:codex-test-coverage-reviewer"
+  is_supplementary_agent "subagents:codex-comment-reviewer"
+}
+
+@test "get_phase_subagent: F3 returns codex-unified-reviewer when codexAvailable" {
+  write_state '.codexAvailable = true'
+  local agent
+  agent="$(get_phase_subagent "F3")"
+  [ "$agent" = "subagents:codex-unified-reviewer" ]
+}
+
+@test "get_phase_subagent: F3 returns code-quality-reviewer when not codexAvailable" {
+  write_state '.codexAvailable = false'
+  local agent
+  agent="$(get_phase_subagent "F3")"
+  [ "$agent" = "subagents:code-quality-reviewer" ]
+}
+
+# ===========================================================================
 # Supplementary Run State
 # ===========================================================================
 

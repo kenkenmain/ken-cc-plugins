@@ -86,8 +86,8 @@ rm -f "$PHASES_DIR"/*.tmp
 
 # ── Determine agents based on mode ───────────────────────────────────────────
 if [[ "$CODEX_MODE" == "true" ]]; then
-  F3_PRIMARY="subagents:codex-code-quality-reviewer"
-  F3_SUPP='["subagents:codex-error-handling-reviewer","subagents:codex-type-reviewer","subagents:codex-test-coverage-reviewer","subagents:codex-comment-reviewer"]'
+  F3_PRIMARY="subagents:codex-unified-reviewer"
+  F3_SUPP='[]'
   CODEX_AVAILABLE=true
 else
   F3_PRIMARY="subagents:code-quality-reviewer"
