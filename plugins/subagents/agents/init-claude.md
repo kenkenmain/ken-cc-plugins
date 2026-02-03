@@ -24,7 +24,7 @@ The dispatch command passes these flags:
 - `task`: The task description (required)
 - `ownerPpid`: The session PID for session scoping (required)
 - `codexMode`: Whether to use Codex agents (`true` from dispatch, `false` from dispatch-claude)
-- `--no-worktree`: Skip worktree creation (optional)
+- `--worktree`: Create a git worktree for isolated development (optional)
 - `--profile minimal|standard|thorough`: Override pipeline profile (optional)
 - Other flags (`--no-test`, `--stage`, `--plan`) as before
 
@@ -36,7 +36,7 @@ The dispatch command passes these flags:
    rm -f .agents/tmp/phases/*.tmp   # Clean stale per-agent temp files from previous runs
    ```
 
-2. Create git worktree (unless `--no-worktree` flag is set):
+2. Create git worktree (only if `--worktree` flag is set):
    a. Slugify the task description for branch name:
       ```bash
       # Convert task to slug: lowercase, spaces→hyphens, strip non-alphanum, truncate to 50 chars
@@ -172,7 +172,7 @@ The dispatch command passes these flags:
 
 ## Worktree Field
 
-The `worktree` field is only present when a worktree was successfully created (i.e., `--no-worktree` was NOT set and creation succeeded). When absent, all work happens in the original project directory.
+The `worktree` field is only present when a worktree was successfully created (i.e., `--worktree` was set and creation succeeded). When absent, all work happens in the original project directory.
 
 - `path`: Absolute path to the worktree directory
 - `branch`: The git branch created for the worktree

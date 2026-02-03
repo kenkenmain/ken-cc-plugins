@@ -1,6 +1,6 @@
 ---
 description: Fast dispatch - streamlined 4-phase workflow with combined plan+implement+review (Codex MCP defaults)
-argument-hint: <task description> [--no-worktree] [--no-web-search]
+argument-hint: <task description> [--worktree] [--no-web-search]
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Task, Skill, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 ---
 
@@ -11,10 +11,21 @@ Streamlined workflow that collapses 13 phases into 4 for faster execution.
 ## Arguments
 
 - `<task description>`: Required. The task to execute
-- `--no-worktree`: Optional. Skip git worktree creation
+- `--worktree`: Optional. Create a git worktree for isolated development
+- `--no-worktree`: Accepted for backward compatibility (no-op — no worktree is the default)
 - `--no-web-search`: Optional. Disable web search for libraries
 
 Parse from $ARGUMENTS to extract task description and flags.
+
+## Step 0: Check for Pre-Initialized State
+
+A `UserPromptSubmit` hook (`on-fdispatch-init.sh`) runs BEFORE this command and may have already completed state initialization. Check for the marker:
+
+- If you see "FDISPATCH STATE PRE-INITIALIZED" in the context:
+  - **Skip Steps 1, 2a, 2b, 2d** (config, dirs, PID, state.json — already done by hook).
+  - **If `--worktree` was requested**, still execute Step 2c (worktree creation) and update `state.json` with the worktree field.
+  - Then proceed to Step 2.5 (display schedule).
+- If no pre-initialization marker is present (hook failed or was disabled), continue with Steps 1-2 below as normal.
 
 ## Step 1: Load Configuration
 
@@ -39,7 +50,7 @@ echo $PPID
 
 Store the output as `ownerPpid`.
 
-### 2c. Create git worktree (unless `--no-worktree`)
+### 2c. Create git worktree (only if `--worktree`)
 
 ```bash
 # Slugify task: lowercase, strip non-alphanum, spaces→hyphens, truncate 50 chars
@@ -81,7 +92,7 @@ Write `.agents/tmp/state.json` with **only** the fields F-phases and hooks actua
     ],
     "f4": "subagents:completion-handler"
   },
-  "worktree": "<{ path, branch, createdAt } if created, omit if --no-worktree or failed>",
+  "worktree": "<{ path, branch, createdAt } if --worktree and creation succeeded, omit otherwise>",
   "schedule": [
     { "phase": "F1", "stage": "PLAN", "name": "Fast Plan", "type": "subagent" },
     { "phase": "F2", "stage": "IMPLEMENT", "name": "Implement + Test", "type": "dispatch" },

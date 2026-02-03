@@ -32,7 +32,7 @@ Hooks use `$PPID`-based session detection to prevent cross-conversation interfer
 
 ### Git Worktree Isolation
 
-By default, the workflow creates an isolated git worktree for code changes:
+The workflow can optionally create an isolated git worktree for code changes when `--worktree` is passed:
 
 - **Worktree path:** `../<repo-name>--subagent` (sibling directory)
 - **Branch:** `subagents/<slugified-task>`
@@ -41,19 +41,20 @@ By default, the workflow creates an isolated git worktree for code changes:
 
 The orchestrator prompt includes a "Working Directory" section when `state.worktree` exists, directing phase agents to use the worktree for code and the original dir for state files. The completion handler tears down the worktree after committing and creating a PR.
 
-Use `--no-worktree` to skip worktree creation and work directly in the project directory.
+Use `--worktree` to enable worktree creation. Without it, all work happens directly in the project directory.
 
 ## Hooks
 
-Five shell hooks enforce the workflow:
+Six shell hooks enforce the workflow:
 
-| Hook                      | Event        | Purpose                                                          |
-| ------------------------- | ------------ | ---------------------------------------------------------------- |
-| `on-subagent-stop.sh`     | SubagentStop | Validate output, check gates, advance state, Codex fallback      |
-| `on-stop.sh`              | Stop         | Generate phase-specific prompt (Ralph-style loop driver)          |
-| `on-task-dispatch.sh`     | PreToolUse   | Validate Task dispatches match expected phase + enforce background dispatch for Codex agents |
-| `on-codex-guard.sh`       | PreToolUse   | Block direct Codex MCP calls, force background dispatch          |
-| `on-orchestrator-guard.sh`| PreToolUse   | Block direct Edit/Write to code files, force subagent dispatch   |
+| Hook                      | Event              | Purpose                                                          |
+| ------------------------- | ------------------ | ---------------------------------------------------------------- |
+| `on-fdispatch-init.sh`    | UserPromptSubmit   | Pre-initialize fdispatch state in shell before Claude processes command |
+| `on-subagent-stop.sh`     | SubagentStop       | Validate output, check gates, advance state, Codex fallback      |
+| `on-stop.sh`              | Stop               | Generate phase-specific prompt (Ralph-style loop driver)          |
+| `on-task-dispatch.sh`     | PreToolUse         | Validate Task dispatches match expected phase + enforce background dispatch for Codex agents |
+| `on-codex-guard.sh`       | PreToolUse         | Block direct Codex MCP calls, force background dispatch          |
+| `on-orchestrator-guard.sh`| PreToolUse         | Block direct Edit/Write to code files, force subagent dispatch   |
 
 Hooks are registered in `hooks/hooks.json` and sourced from `hooks/lib/` (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh).
 
@@ -458,7 +459,7 @@ Phase F4   │ COMPLETE  │ Git Commit + PR                     │ completion-
 **Commands:**
 - `/subagents:fdispatch <task>` — Codex MCP defaults
 - `/subagents:fdispatch-claude <task>` — Claude-only mode
-- Flags: `--no-worktree`, `--no-web-search`
+- Flags: `--worktree`, `--no-web-search`
 
 **Fix cycle:** Max 3 iterations (vs 10 for standard dispatch). Max 1 stage restart (vs 3).
 
@@ -495,7 +496,7 @@ Flow: dispatch/dispatch-claude → `init-claude` → orchestrator loop. Pre-flig
 
 **Note:** fdispatch/fdispatch-claude do NOT use `init-claude`. They initialize state inline (directory creation, worktree, state.json) to avoid an unnecessary opus-level dispatch.
 
-The init agent creates a git worktree (unless `--no-worktree`) and records `state.worktree` and `state.ownerPpid` in state.json.
+The init agent creates a git worktree (only if `--worktree` is set) and records `state.worktree` and `state.ownerPpid` in state.json.
 
 ### Phase Agents
 

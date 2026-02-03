@@ -109,17 +109,17 @@ Pass the task and remaining flags through to the appropriate dispatch command:
 
 ```
 Skill: subagents:dispatch-claude
-Args: <task description> --no-worktree [remaining flags]
+Args: <task description> [remaining flags]
 ```
 
 **Otherwise:**
 
 ```
 Skill: subagents:dispatch
-Args: <task description> --no-worktree [remaining flags]
+Args: <task description> [remaining flags]
 ```
 
-Always pass `--no-worktree` to dispatch since this command already created the worktree. The dispatch command will detect the existing worktree from `.agents/worktree.json`.
+Do NOT pass `--worktree` to dispatch — the worktree was already created by this command. Dispatch defaults to no worktree creation, so omitting the flag is correct.
 
 ## If `--no-worktree`
 
@@ -129,4 +129,4 @@ Skip Steps 2-3. Create `.agents/` directory structure:
 mkdir -p .agents/tmp/phases
 ```
 
-Then dispatch without `--no-worktree` override (let dispatch handle it normally).
+Then dispatch without `--worktree` flag (dispatch defaults to no worktree, which is correct here).

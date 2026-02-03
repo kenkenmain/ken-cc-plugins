@@ -1,6 +1,17 @@
 {
-  "description": "Subagents workflow enforcement: auto-chaining via SubagentStop, completion guard via Stop, dispatch validation via PreToolUse, Codex MCP guard via PreToolUse, orchestrator edit guard via PreToolUse",
+  "description": "Subagents workflow enforcement: fdispatch pre-init via UserPromptSubmit, auto-chaining via SubagentStop, completion guard via Stop, dispatch validation via PreToolUse, Codex MCP guard via PreToolUse, orchestrator edit guard via PreToolUse",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-fdispatch-init.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "hooks": [
