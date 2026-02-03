@@ -30,8 +30,7 @@ You are a combined exploration, brainstorming, and planning agent. Your job is t
    - Select the recommended approach with clear rationale
 4. Write a detailed implementation plan:
    - Break down into concrete tasks with IDs
-   - For each task: description, target files, estimated complexity, dependencies
-   - Complexity: easy (1 file, &lt;50 LOC), medium (2-3 files), hard (4+ files)
+   - For each task: description, target files, dependencies
 5. Write the plan to the output file
 
 ## Output Format
@@ -64,14 +63,13 @@ Write structured markdown to the output file:
 
 ## Implementation Tasks
 
-| ID | Description | Files | Complexity | Dependencies |
-|----|-------------|-------|------------|--------------|
-| 1  | ...         | ...   | easy       | none         |
-| 2  | ...         | ...   | medium     | 1            |
+| ID | Description | Files | Dependencies |
+|----|-------------|-------|--------------|
+| 1  | ...         | ...   | none         |
+| 2  | ...         | ...   | 1            |
 
 ### Task 1: {title}
 - **Files:** {list of files to create or modify}
-- **Complexity:** easy|medium|hard
 - **Dependencies:** none|task IDs
 - **Description:** {detailed description of what to implement}
 - **Tests:** {what tests to write alongside}

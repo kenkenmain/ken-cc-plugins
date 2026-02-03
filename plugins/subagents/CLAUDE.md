@@ -449,7 +449,7 @@ Streamlined 4-phase variant of the standard dispatch workflow. Collapses 13 phas
 
 ```
 Phase F1   │ PLAN      │ Explore + Brainstorm + Write Plan  │ single opus agent (fast-planner)
-Phase F2   │ IMPLEMENT │ Parallel Implement + Test           │ complexity-routed task agents
+Phase F2   │ IMPLEMENT │ Parallel Implement + Test           │ opus-task-agent for all tasks
 Phase F3   │ REVIEW    │ Parallel Specialized Review         │ 5 Codex or Claude reviewers in parallel
            │           │ (fix cycle runs within F3 if needed)│
 Phase F4   │ COMPLETE  │ Git Commit + PR                     │ completion-handler

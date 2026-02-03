@@ -32,6 +32,9 @@ Orchestrates complex tasks through a main conversation that dispatches parallel 
 │       ├─ Medium → opus-task-agent (direct, opus)          │
 │       └─ Hard  → codex-task-agent or opus-task-agent      │
 └───────────────────────────────────────────────────────────┘
+
+Fast Dispatch variant: F1 (Plan) -> F2 (Implement) -> F3 (Review) -> F4 (Complete)
+Debug variant: Explore -> Propose -> Aggregate -> Implement -> Review -> Document
 ```
 
 ## Installation
@@ -135,6 +138,40 @@ Configure plugin settings (models, timeouts, severity thresholds).
 - `--reset` - Reset to defaults
 - `--edit` - Open config file for editing
 
+### `/subagents:fdispatch <task>`
+
+Fast dispatch -- streamlined 4-phase workflow that collapses 13 standard phases into 4 (Plan -> Implement -> Review -> Complete). Uses Codex MCP defaults.
+
+**Options:**
+
+- `--no-worktree` - Skip git worktree creation
+- `--no-web-search` - Disable web search for libraries
+
+```
+/subagents:fdispatch Add user authentication
+/subagents:fdispatch --no-worktree Quick config fix
+/subagents:fdispatch --no-web-search Refactor module
+```
+
+### `/subagents:fdispatch-claude <task>`
+
+Fast dispatch using Claude agents only. Same 4-phase pipeline, no Codex MCP dependency.
+
+**Options:** Same as `fdispatch`.
+
+```
+/subagents:fdispatch-claude Add user authentication
+/subagents:fdispatch-claude --no-worktree Quick config fix
+```
+
+### `/subagents:debug <task>`
+
+Multi-phase debugging workflow. 6 phases: parallel exploration (3-5 agents), parallel solution proposals (3-5 agents), solution ranking, implementation, review, documentation. Standalone workflow (no hooks or state.json dependency). Outputs to `.agents/tmp/debug/`.
+
+```
+/subagents:debug Fix authentication timeout error
+```
+
 ## Stages and Phases
 
 ### EXPLORE Stage
@@ -180,6 +217,34 @@ Notes: Phase 3.1 produces both test results and failure analysis. Phase 3.2 only
 | 4.1   | Docs         | Update documentation             |
 | 4.2   | Final Review | Final validation (Codex MCP or Claude) |
 | 4.3   | Completion   | Git branch and PR creation       |
+
+### Fast Dispatch Pipeline (fdispatch)
+
+Streamlined 4-phase variant that collapses the standard 13-phase workflow:
+
+| Phase | Stage    | Name              | Description                                    |
+| ----- | -------- | ----------------- | ---------------------------------------------- |
+| F1    | PLAN     | Fast Plan         | Combined explore + brainstorm + plan (single opus agent) |
+| F2    | IMPLEMENT| Implement + Test  | opus-task-agent for all tasks (direct execution) |
+| F3    | REVIEW   | Parallel Review   | 5 specialized reviewers in parallel             |
+| F4    | COMPLETE | Completion        | Git commit and PR creation                      |
+
+Key differences from standard dispatch: no init-claude agent (state initialized inline), no separate explore phase (combined into F1), no plan review, no separate test stage (tests written inline by task agents), no documentation phase, all reviewers run in parallel at end.
+
+### Debug Workflow
+
+Standalone 6-phase debugging workflow (no hooks or state.json):
+
+| Phase | Name              | Description                                      |
+| ----- | ----------------- | ------------------------------------------------ |
+| 1     | Explore           | Parallel exploration focused on bug context (3-5 agents) |
+| 2     | Propose Solutions | Parallel solution proposals (3-5 agents)          |
+| 3     | Aggregate         | Rank and select best solution approach             |
+| 4     | Implement         | Apply the selected fix                             |
+| 5     | Review            | Review fix for correctness and regression risk     |
+| 6     | Document          | Update documentation after fix                     |
+
+Outputs to `.agents/tmp/debug/`.
 
 ## Complexity Scoring
 

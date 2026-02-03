@@ -22,5 +22,5 @@ Structured markdown with:
 - Codebase analysis
 - Approaches considered with trade-offs
 - Selected approach with rationale
-- Task table: ID, description, files, complexity (easy/medium/hard), dependencies
+- Task table: ID, description, files, dependencies
 - Detailed task descriptions with test expectations
