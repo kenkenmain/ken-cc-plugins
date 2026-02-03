@@ -70,6 +70,17 @@ Write `.agents/tmp/state.json` with **only** the fields F-phases and hooks actua
   "currentStage": "PLAN",
   "ownerPpid": "<PPID value>",
   "codexAvailable": false,
+  "agents": {
+    "f1": "subagents:fast-planner",
+    "f3Primary": "subagents:code-quality-reviewer",
+    "f3Supplementary": [
+      "subagents:error-handling-reviewer",
+      "subagents:type-reviewer",
+      "subagents:test-coverage-reviewer",
+      "subagents:comment-reviewer"
+    ],
+    "f4": "subagents:completion-handler"
+  },
   "worktree": "<{ path, branch, createdAt } if created, omit if --no-worktree or failed>",
   "schedule": [
     { "phase": "F1", "stage": "PLAN", "name": "Fast Plan", "type": "subagent" },
@@ -129,6 +140,24 @@ Stage Gates:
 ## Step 3: Execute Workflow
 
 Use `workflow` skill to dispatch the first phase (F1) as a subagent. Hook-driven auto-chaining handles progression.
+
+If hooks do not auto-chain (context compaction, manual orchestration), dispatch phases manually.
+
+**Before manual dispatch:** Verify `state.currentPhase` has NOT already advanced (read `.agents/tmp/state.json`). If the phase already advanced, the hook already chained — do not double-dispatch.
+
+### Phase Agent Selection
+
+**Read agent names from `state.agents`** in `.agents/tmp/state.json`. Never hardcode or guess agent names.
+
+- **F1:** dispatch `state.agents.f1`
+- **F2:** Task agents per complexity scoring (from plan)
+- **F3 primary:** dispatch `state.agents.f3Primary`
+- **F3 supplementary:** dispatch each agent in `state.agents.f3Supplementary[]`
+- **F4:** dispatch `state.agents.f4`
+
+**F3 supplementary policy:** Check `state.supplementaryPolicy`. If `"on-issues"` (default), dispatch only `state.agents.f3Primary` first. Dispatch `state.agents.f3Supplementary` only if the primary finds issues. If `"always"`, dispatch all in parallel.
+
+Each phase has a prompt template in `prompts/phases/` (e.g., `f3-parallel-review.md`). Read the template before dispatching.
 
 ## Step 4: Display Progress
 
