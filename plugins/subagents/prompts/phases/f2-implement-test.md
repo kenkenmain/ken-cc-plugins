@@ -2,10 +2,7 @@
 
 ## Subagent Config
 
-- **Type:** complexity-routed task agents (wave-based parallel batch)
-  - Easy: `sonnet-task-agent` (direct execution, model=sonnet)
-  - Medium: `opus-task-agent` (direct execution, model=opus)
-  - Hard: `codex-task-agent` (Codex) or `opus-task-agent` (Claude)
+- **Agent:** `opus-task-agent` (direct execution, model=opus) for all tasks
 - **Input:** `.agents/tmp/phases/f1-plan.md`
 - **Output:** `.agents/tmp/phases/f2-tasks.json`
 
@@ -17,22 +14,11 @@ Execute implementation tasks from the fast plan. Each task agent implements code
 
 1. Read `.agents/tmp/phases/f1-plan.md`
 2. Parse tasks and build dependency graph
-3. Score each task complexity (easy/medium/hard)
-4. Dispatch tasks in waves:
+3. Dispatch tasks in waves:
    - Wave 1: tasks with no dependencies (parallel)
    - Wave 2: tasks whose deps are complete (parallel)
    - Continue until all done
-5. After all waves complete, aggregate results
-
-### Complexity Scoring
-
-| Level  | Criteria                     | Agent               |
-| ------ | ---------------------------- | ------------------- |
-| Easy   | 1 file, <50 LOC              | sonnet-task-agent   |
-| Medium | 2-3 files, 50-200 LOC        | opus-task-agent     |
-| Hard   | 4+ files, >200 LOC, security | codex-task-agent    |
-
-Check `state.codexAvailable` to determine hard task routing.
+4. After all waves complete, aggregate results
 
 ### Task Agent Payload
 

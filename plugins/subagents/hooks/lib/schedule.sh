@@ -345,7 +345,7 @@ get_phase_subagent() {
     4.1) state_get '.docUpdater // "subagents:doc-updater"' ;;
     4.3) echo "subagents:completion-handler" ;;
     F1)  state_get '(.agents.f1 // null) as $a | if ($a | type) == "string" then $a else "subagents:fast-planner" end' ;;
-    F2)  echo "subagents:sonnet-task-agent" ;;
+    F2)  echo "subagents:opus-task-agent" ;;
     F3)  state_get '(.agents.f3Primary // null) as $a | if ($a | type) == "string" then $a elif .codexAvailable then "subagents:codex-code-quality-reviewer" else "subagents:code-quality-reviewer" end' ;;
     F4)  state_get '(.agents.f4 // null) as $a | if ($a | type) == "string" then $a else "subagents:completion-handler" end' ;;
     *)   echo "" ;;
@@ -377,7 +377,7 @@ get_phase_model() {
     2.1)   echo "per-task" ;;  # IMPLEMENT: complexity-based
     2.2)   echo "sonnet" ;;    # Simplify: sonnet
     F1)    echo "opus" ;;
-    F2)    echo "per-task" ;;
+    F2)    echo "opus" ;;
     F3)
       local codex_avail_model
       codex_avail_model="$(state_get '.codexAvailable // false')"

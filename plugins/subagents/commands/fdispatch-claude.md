@@ -137,9 +137,27 @@ Stage Gates:
   REVIEW → COMPLETE:  requires f3-review.json
 ```
 
-## Step 3: Execute Workflow
+## Step 3: Initialize Task List
 
-Use `workflow` skill to dispatch the first phase (F1) as a subagent. Hook-driven auto-chaining handles progression.
+Create tasks for each phase using TaskCreate so the user can track progress visually. Create all 4 tasks, then set dependencies so they reflect the workflow order:
+
+1. **TaskCreate:** "Execute F1: Fast Plan" (activeForm: "Planning implementation")
+2. **TaskCreate:** "Execute F2: Implement + Test" (activeForm: "Implementing tasks")
+3. **TaskCreate:** "Execute F3: Parallel Review" (activeForm: "Reviewing implementation")
+4. **TaskCreate:** "Execute F4: Completion" (activeForm: "Completing workflow")
+
+After creating all tasks, use TaskUpdate to set `addBlockedBy` dependencies:
+- F2 task is blocked by F1 task
+- F3 task is blocked by F2 task
+- F4 task is blocked by F3 task
+
+As each phase starts, mark its task `in_progress`. When a phase completes, mark its task `completed`.
+
+**Resume handling:** Before creating tasks, check if tasks already exist via TaskList. If they do (e.g., after a restart), skip creation and reuse existing task IDs.
+
+## Step 4: Execute Workflow
+
+Use `workflow` skill to dispatch the first phase (F1) as a subagent. Mark the F1 task as `in_progress` before dispatching. Hook-driven auto-chaining handles progression.
 
 If hooks do not auto-chain (context compaction, manual orchestration), dispatch phases manually.
 
@@ -150,7 +168,7 @@ If hooks do not auto-chain (context compaction, manual orchestration), dispatch 
 **Read agent names from `state.agents`** in `.agents/tmp/state.json`. Never hardcode or guess agent names.
 
 - **F1:** dispatch `state.agents.f1`
-- **F2:** Task agents per complexity scoring (from plan)
+- **F2:** dispatch `opus-task-agent` for all tasks
 - **F3 primary:** dispatch `state.agents.f3Primary`
 - **F3 supplementary:** dispatch each agent in `state.agents.f3Supplementary[]`
 - **F4:** dispatch `state.agents.f4`
@@ -159,6 +177,8 @@ If hooks do not auto-chain (context compaction, manual orchestration), dispatch 
 
 Each phase has a prompt template in `prompts/phases/` (e.g., `f3-parallel-review.md`). Read the template before dispatching.
 
-## Step 4: Display Progress
+### Task Progress Tracking
 
-Use TaskCreate/TaskUpdate for visual progress tracking.
+When dispatching each phase, update the corresponding task:
+- Mark `in_progress` before dispatching
+- Mark `completed` after the phase output file is written and validated
