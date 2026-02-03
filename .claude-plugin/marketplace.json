@@ -44,7 +44,7 @@
       "name": "subagents",
       "source": "./plugins/subagents",
       "description": "Hook-driven subagent architecture with auto-chaining, gate enforcement, and full context isolation",
-      "version": "0.16.4",
+      "version": "0.16.5",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
