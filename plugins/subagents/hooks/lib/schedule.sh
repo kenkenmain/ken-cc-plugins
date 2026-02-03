@@ -346,7 +346,7 @@ get_phase_subagent() {
     4.3) echo "subagents:completion-handler" ;;
     F1)  state_get '(.agents.f1 // null) as $a | if ($a | type) == "string" then $a else "subagents:fast-planner" end' ;;
     F2)  echo "subagents:opus-task-agent" ;;
-    F3)  state_get '(.agents.f3Primary // null) as $a | if ($a | type) == "string" then $a elif .codexAvailable then "subagents:codex-code-quality-reviewer" else "subagents:code-quality-reviewer" end' ;;
+    F3)  state_get '(.agents.f3Primary // null) as $a | if ($a | type) == "string" then $a elif .codexAvailable then "subagents:codex-unified-reviewer" else "subagents:code-quality-reviewer" end' ;;
     F4)  state_get '(.agents.f4 // null) as $a | if ($a | type) == "string" then $a else "subagents:completion-handler" end' ;;
     *)   echo "" ;;
   esac
@@ -449,10 +449,8 @@ _raw_supplementary_agents() {
         local codex_avail_supp
         codex_avail_supp="$(state_get '.codexAvailable // false')"
         if [[ "$codex_avail_supp" == "true" ]]; then
-          echo "subagents:codex-error-handling-reviewer"
-          echo "subagents:codex-type-reviewer"
-          echo "subagents:codex-test-coverage-reviewer"
-          echo "subagents:codex-comment-reviewer"
+          # Unified codex reviewer covers all areas; no supplementary agents needed
+          :
         else
           echo "subagents:error-handling-reviewer"
           echo "subagents:type-reviewer"

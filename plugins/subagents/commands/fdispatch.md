@@ -83,13 +83,8 @@ Write `.agents/tmp/state.json` with **only** the fields F-phases and hooks actua
   "codexAvailable": true,
   "agents": {
     "f1": "subagents:fast-planner",
-    "f3Primary": "subagents:codex-code-quality-reviewer",
-    "f3Supplementary": [
-      "subagents:codex-error-handling-reviewer",
-      "subagents:codex-type-reviewer",
-      "subagents:codex-test-coverage-reviewer",
-      "subagents:codex-comment-reviewer"
-    ],
+    "f3Primary": "subagents:codex-unified-reviewer",
+    "f3Supplementary": [],
     "f4": "subagents:completion-handler"
   },
   "worktree": "<{ path, branch, createdAt } if --worktree and creation succeeded, omit otherwise>",
@@ -136,7 +131,7 @@ Fast Dispatch Schedule (4 phases)
 ===================================
 Phase F1   │ PLAN      │ Fast Plan (explore+brainstorm+plan)  │ subagent   ← GATE: PLAN→IMPLEMENT
 Phase F2   │ IMPLEMENT │ Implement + Test                     │ dispatch   ← GATE: IMPLEMENT→REVIEW
-Phase F3   │ REVIEW    │ Parallel Review (5 reviewers)        │ dispatch   ← GATE: REVIEW→COMPLETE
+Phase F3   │ REVIEW    │ Unified Codex Review                  │ dispatch   ← GATE: REVIEW→COMPLETE
            │           │ (fix cycle runs within F3 if needed) │
 Phase F4   │ COMPLETE  │ Completion (commit + PR)             │ subagent
 
