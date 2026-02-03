@@ -344,18 +344,10 @@ get_phase_subagent() {
     3.3) state_get '.testDeveloper // "subagents:test-developer"' ;;
     4.1) state_get '.docUpdater // "subagents:doc-updater"' ;;
     4.3) echo "subagents:completion-handler" ;;
-    F1)  echo "subagents:fast-planner" ;;
+    F1)  state_get '(.agents.f1 // null) as $a | if ($a | type) == "string" then $a else "subagents:fast-planner" end' ;;
     F2)  echo "subagents:sonnet-task-agent" ;;
-    F3)
-      local codex_avail
-      codex_avail="$(state_get '.codexAvailable // false')"
-      if [[ "$codex_avail" == "true" ]]; then
-        echo "subagents:codex-code-quality-reviewer"
-      else
-        echo "subagents:code-quality-reviewer"
-      fi
-      ;;
-    F4)  echo "subagents:completion-handler" ;;
+    F3)  state_get '(.agents.f3Primary // null) as $a | if ($a | type) == "string" then $a elif .codexAvailable then "subagents:codex-code-quality-reviewer" else "subagents:code-quality-reviewer" end' ;;
+    F4)  state_get '(.agents.f4 // null) as $a | if ($a | type) == "string" then $a else "subagents:completion-handler" end' ;;
     *)   echo "" ;;
   esac
 }
@@ -448,18 +440,25 @@ _raw_supplementary_agents() {
       echo "subagents:retrospective-analyst"
       ;;
     F3)
-      local codex_avail_supp
-      codex_avail_supp="$(state_get '.codexAvailable // false')"
-      if [[ "$codex_avail_supp" == "true" ]]; then
-        echo "subagents:codex-error-handling-reviewer"
-        echo "subagents:codex-type-reviewer"
-        echo "subagents:codex-test-coverage-reviewer"
-        echo "subagents:codex-comment-reviewer"
+      # Read from state.agents.f3Supplementary if set, else fall back to codexAvailable logic
+      local f3_supp_type
+      f3_supp_type="$(state_get '.agents.f3Supplementary | type')"
+      if [[ "$f3_supp_type" == "array" ]]; then
+        state_get '.agents.f3Supplementary[]'
       else
-        echo "subagents:error-handling-reviewer"
-        echo "subagents:type-reviewer"
-        echo "subagents:test-coverage-reviewer"
-        echo "subagents:comment-reviewer"
+        local codex_avail_supp
+        codex_avail_supp="$(state_get '.codexAvailable // false')"
+        if [[ "$codex_avail_supp" == "true" ]]; then
+          echo "subagents:codex-error-handling-reviewer"
+          echo "subagents:codex-type-reviewer"
+          echo "subagents:codex-test-coverage-reviewer"
+          echo "subagents:codex-comment-reviewer"
+        else
+          echo "subagents:error-handling-reviewer"
+          echo "subagents:type-reviewer"
+          echo "subagents:test-coverage-reviewer"
+          echo "subagents:comment-reviewer"
+        fi
       fi
       ;;
     *)
