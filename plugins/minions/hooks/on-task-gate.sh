@@ -26,11 +26,17 @@ AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.tool_input.subagent_type // empty')
 
 # Map agent type to expected phase
 case "$AGENT_TYPE" in
+  explorer-files|minions:explorer-files) exit 0 ;;
+  explorer-architecture|minions:explorer-architecture) exit 0 ;;
+  explorer-tests|minions:explorer-tests) exit 0 ;;
+  explorer-patterns|minions:explorer-patterns) exit 0 ;;
   scout|minions:scout) EXPECTED_PHASE="F1" ;;
   builder|minions:builder) EXPECTED_PHASE="F2" ;;
   critic|minions:critic) EXPECTED_PHASE="F3" ;;
   pedant|minions:pedant) EXPECTED_PHASE="F3" ;;
   witness|minions:witness) EXPECTED_PHASE="F3" ;;
+  security-reviewer|minions:security-reviewer) EXPECTED_PHASE="F3" ;;
+  silent-failure-hunter|minions:silent-failure-hunter) EXPECTED_PHASE="F3" ;;
   shipper|minions:shipper) EXPECTED_PHASE="F4" ;;
   *) exit 0 ;; # Not a minions agent, allow
 esac
@@ -43,7 +49,7 @@ PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 # Check phase matches
 if [[ "$CURRENT_PHASE" != "$EXPECTED_PHASE" ]]; then
   jq -n --arg agent "$AGENT_TYPE" --arg expected "$EXPECTED_PHASE" --arg current "$CURRENT_PHASE" \
-    '{"decision":"block","reason":("Cannot dispatch " + $agent + " during phase " + $current + ". Expected phase: " + $expected + ". Follow the workflow order: F1 (scout) → F2 (builder) → F3 (critic/pedant/witness) → F4 (shipper).")}'
+    '{"decision":"block","reason":("Cannot dispatch " + $agent + " during phase " + $current + ". Expected phase: " + $expected + ". Follow the workflow order: F1 (scout) → F2 (builder) → F3 (critic/pedant/witness/security-reviewer/silent-failure-hunter) → F4 (shipper).")}'
   exit 0
 fi
 

@@ -17,10 +17,10 @@ Parse from $ARGUMENTS to extract the task description.
 ## Pipeline
 
 ```
-F1 (scout) → F2 (builder) → F3 (critic ∥ pedant ∥ witness)
-     ↑                              │
-     └──────── if any issues ───────┘
-               (max 10 loops)
+Explorers (4x haiku, parallel) → F1 (scout) → F2 (builder) → F3 (critic ∥ pedant ∥ witness ∥ security-reviewer ∥ silent-failure-hunter)
+                                      ↑                              │
+                                      └──────── if any issues ───────┘
+                                                (max 10 loops)
 
 All clean → F4 (shipper)
 Loop 10 hit → stop and report
@@ -88,9 +88,10 @@ Show the user the planned execution:
 ```
 Minions Launch — 4-Phase Workflow
 ====================================
+Pre-F1    │ Explore  │ 4x parallel haiku explorers         │ dispatch
 Phase F1  │ Scout    │ Explore + brainstorm + plan       │ subagent
 Phase F2  │ Build    │ Implement tasks (parallel)         │ dispatch
-Phase F3  │ Review   │ critic ∥ pedant ∥ witness          │ dispatch
+Phase F3  │ Review   │ critic ∥ pedant ∥ witness ∥ sec ∥ silent │ dispatch
 Phase F4  │ Ship     │ Docs + commit + PR                 │ subagent
 
 Loop: F1 → F2 → F3 (if issues, back to F1, max 10 loops)
@@ -111,6 +112,50 @@ Create tasks for progress tracking:
 4. **TaskCreate:** "Execute F4: Ship" (activeForm: "Shipping implementation")
 
 Set dependencies: F2 blocked by F1, F3 blocked by F2, F4 blocked by F3.
+
+## Step 3.5: Pre-Scout Exploration
+
+Dispatch 4 parallel explorer agents (haiku model) to gather codebase context before scout plans.
+
+```bash
+mkdir -p .agents/tmp/phases
+```
+
+Dispatch these 4 agents IN PARALLEL using the Task tool with `model: haiku`:
+
+1. **explorer-files** (subagent_type: `minions:explorer-files`) — Map file structure, directories, naming conventions
+2. **explorer-architecture** (subagent_type: `minions:explorer-architecture`) — Trace architecture, dependencies, module boundaries
+3. **explorer-tests** (subagent_type: `minions:explorer-tests`) — Survey test frameworks, patterns, coverage
+4. **explorer-patterns** (subagent_type: `minions:explorer-patterns`) — Find coding conventions, error handling, related implementations
+
+Each explorer receives:
+- The task description
+- Its output file path: `.agents/tmp/phases/f0-explorer.{name}.tmp`
+
+Each explorer writes its findings directly to its output file using the Write tool.
+
+After ALL 4 complete, consolidate their output files into a single file:
+
+`.agents/tmp/phases/f0-explorer-context.md`
+
+Structure:
+```markdown
+# Explorer Context
+
+## File Structure
+{content from .agents/tmp/phases/f0-explorer.files.tmp}
+
+## Architecture
+{content from .agents/tmp/phases/f0-explorer.architecture.tmp}
+
+## Tests
+{content from .agents/tmp/phases/f0-explorer.tests.tmp}
+
+## Patterns
+{content from .agents/tmp/phases/f0-explorer.patterns.tmp}
+```
+
+**Fallback:** During consolidation, check if each `.tmp` file exists before reading it. If an explorer failed, timed out, or did not write its output file, skip that section. The explorer step is supplementary — it does not block F1 dispatch. If no `.tmp` files exist, skip consolidation entirely and proceed to F1 without explorer context.
 
 ## Step 4: Dispatch F1 (Scout)
 
@@ -139,9 +184,15 @@ After scout completes, the Stop hook (`on-stop.sh`) drives the orchestrator to d
 
 | Phase | Agent | subagent_type |
 |-------|-------|---------------|
+| Pre-F1 | explorer-files | `minions:explorer-files` |
+| Pre-F1 | explorer-architecture | `minions:explorer-architecture` |
+| Pre-F1 | explorer-tests | `minions:explorer-tests` |
+| Pre-F1 | explorer-patterns | `minions:explorer-patterns` |
 | F1 | scout | `minions:scout` |
 | F2 | builder (per task) | `minions:builder` |
 | F3 | critic | `minions:critic` |
 | F3 | pedant | `minions:pedant` |
 | F3 | witness | `minions:witness` |
+| F3 | security-reviewer | `minions:security-reviewer` |
+| F3 | silent-failure-hunter | `minions:silent-failure-hunter` |
 | F4 | shipper | `minions:shipper` |
