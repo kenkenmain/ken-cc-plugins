@@ -17,10 +17,10 @@ Parse from $ARGUMENTS to extract the task description.
 ## Pipeline
 
 ```
-F1 (scout) → F2 (builder) → F3 (critic ∥ pedant ∥ witness ∥ security-reviewer ∥ silent-failure-hunter)
-     ↑                              │
-     └──────── if any issues ───────┘
-               (max 10 loops)
+Explorers (4x haiku, parallel) → F1 (scout) → F2 (builder) → F3 (critic ∥ pedant ∥ witness ∥ security-reviewer ∥ silent-failure-hunter)
+                                      ↑                              │
+                                      └──────── if any issues ───────┘
+                                                (max 10 loops)
 
 All clean → F4 (shipper)
 Loop 10 hit → stop and report
@@ -88,6 +88,7 @@ Show the user the planned execution:
 ```
 Minions Launch — 4-Phase Workflow
 ====================================
+Pre-F1    │ Explore  │ 4x parallel haiku explorers         │ dispatch
 Phase F1  │ Scout    │ Explore + brainstorm + plan       │ subagent
 Phase F2  │ Build    │ Implement tasks (parallel)         │ dispatch
 Phase F3  │ Review   │ critic ∥ pedant ∥ witness ∥ sec ∥ silent │ dispatch
@@ -111,6 +112,46 @@ Create tasks for progress tracking:
 4. **TaskCreate:** "Execute F4: Ship" (activeForm: "Shipping implementation")
 
 Set dependencies: F2 blocked by F1, F3 blocked by F2, F4 blocked by F3.
+
+## Step 3.5: Pre-Scout Exploration
+
+Dispatch 4 parallel explorer agents (haiku model) to gather codebase context before scout plans.
+
+```bash
+mkdir -p .agents/tmp/phases
+```
+
+Dispatch these 4 agents IN PARALLEL using the Task tool with `model: haiku`:
+
+1. **explorer-files** (subagent_type: `minions:explorer-files`) — Map file structure, directories, naming conventions
+2. **explorer-architecture** (subagent_type: `minions:explorer-architecture`) — Trace architecture, dependencies, module boundaries
+3. **explorer-tests** (subagent_type: `minions:explorer-tests`) — Survey test frameworks, patterns, coverage
+4. **explorer-patterns** (subagent_type: `minions:explorer-patterns`) — Find coding conventions, error handling, related implementations
+
+Each explorer receives the task description as its prompt. Explorers return their findings as text in their final response (they have no Write or Bash tools).
+
+After ALL 4 complete, capture each agent's text output and consolidate into a single file:
+
+`.agents/tmp/phases/f0-explorer-context.md`
+
+Structure:
+```markdown
+# Explorer Context
+
+## File Structure
+{output from explorer-files agent}
+
+## Architecture
+{output from explorer-architecture agent}
+
+## Tests
+{output from explorer-tests agent}
+
+## Patterns
+{output from explorer-patterns agent}
+```
+
+**Fallback:** If any explorer fails or times out, proceed without its section. The explorer step is supplementary — it does not block F1 dispatch.
 
 ## Step 4: Dispatch F1 (Scout)
 
@@ -139,6 +180,10 @@ After scout completes, the Stop hook (`on-stop.sh`) drives the orchestrator to d
 
 | Phase | Agent | subagent_type |
 |-------|-------|---------------|
+| Pre-F1 | explorer-files | `minions:explorer-files` |
+| Pre-F1 | explorer-architecture | `minions:explorer-architecture` |
+| Pre-F1 | explorer-tests | `minions:explorer-tests` |
+| Pre-F1 | explorer-patterns | `minions:explorer-patterns` |
 | F1 | scout | `minions:scout` |
 | F2 | builder (per task) | `minions:builder` |
 | F3 | critic | `minions:critic` |

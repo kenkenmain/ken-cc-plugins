@@ -26,6 +26,10 @@ AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.tool_input.subagent_type // empty')
 
 # Map agent type to expected phase
 case "$AGENT_TYPE" in
+  explorer-files|minions:explorer-files) exit 0 ;;
+  explorer-architecture|minions:explorer-architecture) exit 0 ;;
+  explorer-tests|minions:explorer-tests) exit 0 ;;
+  explorer-patterns|minions:explorer-patterns) exit 0 ;;
   scout|minions:scout) EXPECTED_PHASE="F1" ;;
   builder|minions:builder) EXPECTED_PHASE="F2" ;;
   critic|minions:critic) EXPECTED_PHASE="F3" ;;

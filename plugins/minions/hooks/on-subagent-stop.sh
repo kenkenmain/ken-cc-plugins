@@ -26,6 +26,10 @@ AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.agent_name // empty')
 
 # Only handle minions agents
 case "$AGENT_TYPE" in
+  explorer-files|minions:explorer-files) exit 0 ;;
+  explorer-architecture|minions:explorer-architecture) exit 0 ;;
+  explorer-tests|minions:explorer-tests) exit 0 ;;
+  explorer-patterns|minions:explorer-patterns) exit 0 ;;
   scout|minions:scout) AGENT="scout" ;;
   builder|minions:builder) AGENT="builder" ;;
   critic|minions:critic) AGENT="critic" ;;

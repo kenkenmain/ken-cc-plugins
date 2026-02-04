@@ -78,6 +78,11 @@ fi
 # Generate phase-specific prompt
 case "$CURRENT_PHASE" in
   F1)
+    EXPLORER_CONTEXT=""
+    if [[ -s ".agents/tmp/phases/f0-explorer-context.md" ]]; then
+      EXPLORER_CONTEXT="Pre-gathered codebase context is available from parallel explorer agents. Read .agents/tmp/phases/f0-explorer-context.md before exploring. Use this context to skip redundant exploration and focus on planning."
+    fi
+
     PREV_CONTEXT=""
     if [[ "$LOOP" -gt 1 ]]; then
       PREV=$((LOOP - 1))
@@ -98,6 +103,8 @@ Read .agents/tmp/state.json to confirm currentPhase is F1.
 Dispatch the **scout** agent (subagent_type: minions:scout) with this prompt:
 
 Task: ${TASK}
+
+${EXPLORER_CONTEXT}
 
 ${PREV_CONTEXT}
 
