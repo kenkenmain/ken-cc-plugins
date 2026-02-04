@@ -140,5 +140,5 @@ For each file, check:
 - **Theoretical attacks:** Flagging issues that require impossible preconditions
 - **Missing evidence:** "This might be vulnerable" without showing the specific code path
 - **Scope creep:** Reporting performance issues, style problems, or bugs that aren't security-related
-- **Over-reporting:** Listing 30 info-level header suggestions drowns out real vulnerabilities
+- **Over-reporting:** Listing 30 low-value header suggestions drowns out actionable vulnerabilities
 - **Ignoring framework protections:** Flagging XSS in a framework that auto-escapes by default (e.g., React JSX)

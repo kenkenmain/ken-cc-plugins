@@ -143,5 +143,5 @@ For each file, check:
 - **Bug hunting:** "This could crash if input is null" — that's critic's job
 - **Subjective preferences:** "I would have used a different pattern" — not actionable
 - **Missing evidence:** "Naming could be better" without saying which names or why
-- **Over-reporting:** 30 info-level naming nits drowns out real quality gaps
+- **Over-reporting:** 30 low-value naming nits drowns out actionable quality gaps
 - **Ignoring project conventions:** Suggesting patterns the project doesn't use
