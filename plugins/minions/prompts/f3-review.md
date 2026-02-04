@@ -52,7 +52,7 @@ After all 5 complete, write:
 
 - `overall_verdict` is `"clean"` only if ALL 5 agents report `"clean"`
 - ANY agent reporting `"issues_found"` makes the overall verdict `"issues_found"`
-- Info-level issues do NOT count — only critical and warning
+- All severity levels count — critical, warning, and info
 
 ## Loop-Back
 

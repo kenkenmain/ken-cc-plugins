@@ -54,7 +54,7 @@ PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 _issue_count() {
   local file="$1"
   local raw
-  raw=$(jq -r '((.summary.critical // 0) + (.summary.warning // 0)) | floor' "$file" 2>/dev/null || echo "")
+  raw=$(jq -r '((.summary.critical // 0) + (.summary.warning // 0) + (.summary.info // 0)) | floor' "$file" 2>/dev/null || echo "")
   # Sanitize: strip decimals, ensure integer
   raw="${raw%%.*}"
   if [[ "$raw" =~ ^[0-9]+$ ]]; then
