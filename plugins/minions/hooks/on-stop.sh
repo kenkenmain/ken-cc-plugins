@@ -85,6 +85,8 @@ case "$CURRENT_PHASE" in
 - .agents/tmp/phases/loop-${PREV}/f3-critic.json
 - .agents/tmp/phases/loop-${PREV}/f3-pedant.json
 - .agents/tmp/phases/loop-${PREV}/f3-witness.json
+- .agents/tmp/phases/loop-${PREV}/f3-security-reviewer.json
+- .agents/tmp/phases/loop-${PREV}/f3-silent-failure-hunter.json
 
 Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     fi
@@ -133,11 +135,13 @@ The aggregated file should be a JSON object with:
 Read .agents/tmp/state.json to confirm currentPhase is F3.
 Read .agents/tmp/phases/loop-${LOOP}/f2-tasks.json for the list of changed files.
 
-Dispatch these 3 agents IN PARALLEL:
+Dispatch these 5 agents IN PARALLEL:
 
 1. **critic** (subagent_type: minions:critic) — correctness review
 2. **pedant** (subagent_type: minions:pedant) — quality review
 3. **witness** (subagent_type: minions:witness) — runtime verification
+4. **security-reviewer** (subagent_type: minions:security-reviewer) — deep security review
+5. **silent-failure-hunter** (subagent_type: minions:silent-failure-hunter) — error handling review
 
 Pass each agent the list of changed files from f2-tasks.json.
 
@@ -145,14 +149,18 @@ Each agent writes its output to:
 - .agents/tmp/phases/loop-${LOOP}/f3-critic.json
 - .agents/tmp/phases/loop-${LOOP}/f3-pedant.json
 - .agents/tmp/phases/loop-${LOOP}/f3-witness.json
+- .agents/tmp/phases/loop-${LOOP}/f3-security-reviewer.json
+- .agents/tmp/phases/loop-${LOOP}/f3-silent-failure-hunter.json
 
-After ALL 3 complete, aggregate their verdicts into:
+After ALL 5 complete, aggregate their verdicts into:
 .agents/tmp/phases/loop-${LOOP}/f3-verdict.json
 
 {
   \"critic\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
   \"pedant\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
   \"witness\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
+  \"security_reviewer\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
+  \"silent_failure_hunter\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
   \"overall_verdict\": \"clean|issues_found\",
   \"total_issues\": N
 }"

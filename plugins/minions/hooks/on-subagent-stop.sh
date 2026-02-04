@@ -31,6 +31,8 @@ case "$AGENT_TYPE" in
   critic|minions:critic) AGENT="critic" ;;
   pedant|minions:pedant) AGENT="pedant" ;;
   witness|minions:witness) AGENT="witness" ;;
+  security-reviewer|minions:security-reviewer) AGENT="security-reviewer" ;;
+  silent-failure-hunter|minions:silent-failure-hunter) AGENT="silent-failure-hunter" ;;
   shipper|minions:shipper) AGENT="shipper" ;;
   *) exit 0 ;;
 esac
@@ -105,16 +107,18 @@ case "$AGENT" in
     fi
     ;;
 
-  critic|pedant|witness)
-    # F3 agents run in parallel. Only advance when all 3 have completed.
+  critic|pedant|witness|security-reviewer|silent-failure-hunter)
+    # F3 agents run in parallel. Only advance when all 5 have completed.
     CRITIC_FILE="${PHASES_DIR}/f3-critic.json"
     PEDANT_FILE="${PHASES_DIR}/f3-pedant.json"
     WITNESS_FILE="${PHASES_DIR}/f3-witness.json"
+    SECURITY_FILE="${PHASES_DIR}/f3-security-reviewer.json"
+    SILENT_FILE="${PHASES_DIR}/f3-silent-failure-hunter.json"
     VERDICT_FILE="${PHASES_DIR}/f3-verdict.json"
     LOCK_DIR="${PHASES_DIR}/.f3-advance.lock"
 
     # Not all complete yet — wait
-    if [[ ! -f "$CRITIC_FILE" || ! -f "$PEDANT_FILE" || ! -f "$WITNESS_FILE" ]]; then
+    if [[ ! -f "$CRITIC_FILE" || ! -f "$PEDANT_FILE" || ! -f "$WITNESS_FILE" || ! -f "$SECURITY_FILE" || ! -f "$SILENT_FILE" ]]; then
       exit 0
     fi
 
@@ -145,8 +149,8 @@ case "$AGENT" in
       exit 0
     fi
 
-    # Validate all 3 files are valid JSON
-    for f in "$CRITIC_FILE" "$PEDANT_FILE" "$WITNESS_FILE"; do
+    # Validate all 5 files are valid JSON
+    for f in "$CRITIC_FILE" "$PEDANT_FILE" "$WITNESS_FILE" "$SECURITY_FILE" "$SILENT_FILE"; do
       if ! validate_json_file "$f" "$(basename "$f")"; then
         rm -rf "$LOCK_DIR" 2>/dev/null || true
         echo "ERROR: F3 output file $(basename "$f") is invalid JSON." >&2
@@ -158,9 +162,11 @@ case "$AGENT" in
     CRITIC_VERDICT=$(jq -r '.summary.verdict // "issues_found"' "$CRITIC_FILE") || CRITIC_VERDICT="issues_found"
     PEDANT_VERDICT=$(jq -r '.summary.verdict // "issues_found"' "$PEDANT_FILE") || PEDANT_VERDICT="issues_found"
     WITNESS_VERDICT=$(jq -r '.summary.verdict // "issues_found"' "$WITNESS_FILE") || WITNESS_VERDICT="issues_found"
+    SECURITY_VERDICT=$(jq -r '.summary.verdict // "issues_found"' "$SECURITY_FILE") || SECURITY_VERDICT="issues_found"
+    SILENT_VERDICT=$(jq -r '.summary.verdict // "issues_found"' "$SILENT_FILE") || SILENT_VERDICT="issues_found"
 
     # Validate verdicts are expected values
-    for v in "$CRITIC_VERDICT" "$PEDANT_VERDICT" "$WITNESS_VERDICT"; do
+    for v in "$CRITIC_VERDICT" "$PEDANT_VERDICT" "$WITNESS_VERDICT" "$SECURITY_VERDICT" "$SILENT_VERDICT"; do
       if [[ "$v" != "clean" && "$v" != "issues_found" ]]; then
         rm -rf "$LOCK_DIR" 2>/dev/null || true
         echo "ERROR: Unexpected verdict value '$v'. Expected 'clean' or 'issues_found'." >&2
@@ -169,7 +175,7 @@ case "$AGENT" in
     done
 
     OVERALL="clean"
-    if [[ "$CRITIC_VERDICT" == "issues_found" || "$PEDANT_VERDICT" == "issues_found" || "$WITNESS_VERDICT" == "issues_found" ]]; then
+    if [[ "$CRITIC_VERDICT" == "issues_found" || "$PEDANT_VERDICT" == "issues_found" || "$WITNESS_VERDICT" == "issues_found" || "$SECURITY_VERDICT" == "issues_found" || "$SILENT_VERDICT" == "issues_found" ]]; then
       OVERALL="issues_found"
     fi
 
@@ -177,7 +183,9 @@ case "$AGENT" in
     CRITIC_ISSUES=$(_issue_count "$CRITIC_FILE")
     PEDANT_ISSUES=$(_issue_count "$PEDANT_FILE")
     WITNESS_ISSUES=$(_issue_count "$WITNESS_FILE")
-    TOTAL_ISSUES=$((CRITIC_ISSUES + PEDANT_ISSUES + WITNESS_ISSUES))
+    SECURITY_ISSUES=$(_issue_count "$SECURITY_FILE")
+    SILENT_ISSUES=$(_issue_count "$SILENT_FILE")
+    TOTAL_ISSUES=$((CRITIC_ISSUES + PEDANT_ISSUES + WITNESS_ISSUES + SECURITY_ISSUES + SILENT_ISSUES))
 
     # Write f3-verdict.json (required by F4 gate)
     # Use separate statements (not &&) so set -e catches failures
@@ -185,11 +193,15 @@ case "$AGENT" in
       --arg cv "$CRITIC_VERDICT" --argjson ci "$CRITIC_ISSUES" \
       --arg pv "$PEDANT_VERDICT" --argjson pi "$PEDANT_ISSUES" \
       --arg wv "$WITNESS_VERDICT" --argjson wi "$WITNESS_ISSUES" \
+      --arg sv "$SECURITY_VERDICT" --argjson si "$SECURITY_ISSUES" \
+      --arg slv "$SILENT_VERDICT" --argjson sli "$SILENT_ISSUES" \
       --arg ov "$OVERALL" --argjson ti "$TOTAL_ISSUES" \
       '{
         critic: { verdict: $cv, issues: $ci },
         pedant: { verdict: $pv, issues: $pi },
         witness: { verdict: $wv, issues: $wi },
+        security_reviewer: { verdict: $sv, issues: $si },
+        silent_failure_hunter: { verdict: $slv, issues: $sli },
         overall_verdict: $ov,
         total_issues: $ti
       }' > "${VERDICT_FILE}.tmp"
