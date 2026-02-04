@@ -44,7 +44,7 @@
       "name": "minions",
       "source": "./plugins/minions",
       "description": "Personality-driven 4-phase development workflow with loop-back issue resolution",
-      "version": "0.1.0",
+      "version": "0.4.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -68,21 +68,6 @@
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
       "keywords": ["subagents", "hooks", "auto-chaining", "context-isolation", "gate-enforcement"],
-      "category": "workflow"
-    },
-    {
-      "name": "minions",
-      "source": "./plugins/minions",
-      "description": "Personality-driven 4-phase development workflow with loop-back issue resolution",
-      "version": "0.2.0",
-      "author": {
-        "name": "Kennard Ng",
-        "email": "kennard.ng.pool.hua@gmail.com"
-      },
-      "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
-      "repository": "https://github.com/kenkenmain/ken-cc-plugins",
-      "license": "MIT",
-      "keywords": ["minions", "workflow", "agents", "loop", "review"],
       "category": "workflow"
     }
   ]
