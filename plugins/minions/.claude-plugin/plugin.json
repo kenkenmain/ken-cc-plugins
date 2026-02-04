@@ -1,0 +1,13 @@
+{
+  "name": "minions",
+  "version": "0.1.0",
+  "description": "Personality-driven 4-phase development workflow with loop-back issue resolution",
+  "author": {
+    "name": "Kennard Ng",
+    "email": "kennard.ng.pool.hua@gmail.com"
+  },
+  "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
+  "repository": "https://github.com/kenkenmain/ken-cc-plugins",
+  "license": "MIT",
+  "keywords": ["minions", "workflow", "agents", "loop", "review"]
+}
