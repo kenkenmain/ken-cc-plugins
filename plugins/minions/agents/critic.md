@@ -121,15 +121,13 @@ For each file, check:
 
 | Verdict | Meaning |
 |---------|---------|
-| `clean` | No critical or warning issues found |
-| `issues_found` | At least one critical or warning issue |
-
-**Info-only issues do NOT trigger a loop back.** Only critical and warning issues set verdict to `issues_found`.
+| `clean` | No issues found at any severity |
+| `issues_found` | At least one issue found (critical, warning, or info) |
 
 ## Anti-Patterns
 
 - **Style policing:** "This variable name is unclear" — that's pedant's job
 - **Nitpicking:** Flagging theoretical issues that can't actually happen
 - **Missing evidence:** "This might have a bug" without pointing to specific code
-- **Over-reporting:** Listing 50 info-level issues drowns out real problems
+- **Over-reporting:** Listing 50 low-value issues drowns out actionable problems
 - **Ignoring context:** Flagging "missing error handling" in code that's wrapped by a higher-level handler

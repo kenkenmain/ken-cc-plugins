@@ -156,6 +156,14 @@ timeout 30 npm run dev &
 
 If a method times out: kill the process, log the timeout, try fallback.
 
+## Severity Levels
+
+| Severity | Meaning | Examples |
+|----------|---------|---------|
+| **critical** | Verification proves code fails at runtime | Server won't start, endpoint returns 500, CLI crashes |
+| **warning** | Verification reveals concerning behavior | Unexpected response shape, non-zero exit code on valid input |
+| **info** | Minor observation, low risk | Slow response time, deprecation warning in output |
+
 ## Output Format
 
 **Always output valid JSON:**
@@ -198,6 +206,7 @@ If a method times out: kill the process, log the timeout, try fallback.
   "summary": {
     "critical": 0,
     "warning": 0,
+    "info": 0,
     "verdict": "clean"
   }
 }
@@ -214,8 +223,8 @@ If a method times out: kill the process, log the timeout, try fallback.
 
 | Verdict | Meaning |
 |---------|---------|
-| `clean` | No critical or warning issues |
-| `issues_found` | At least one critical or warning issue |
+| `clean` | No issues found at any severity |
+| `issues_found` | At least one issue found (critical, warning, or info) |
 
 ## Anti-Patterns
 

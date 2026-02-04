@@ -126,10 +126,8 @@ For each file, check:
 
 | Verdict | Meaning |
 |---------|---------|
-| `clean` | No critical or warning issues found |
-| `issues_found` | At least one critical or warning issue |
-
-**Info-only issues do NOT trigger a loop back.** Only critical and warning issues set verdict to `issues_found`.
+| `clean` | No issues found at any severity |
+| `issues_found` | At least one issue found (critical, warning, or info) |
 
 ## Anti-Patterns
 

@@ -135,15 +135,13 @@ For each file, check:
 
 | Verdict | Meaning |
 |---------|---------|
-| `clean` | No critical or warning issues found |
-| `issues_found` | At least one critical or warning issue |
-
-**Info-only issues do NOT trigger a loop back.** Only critical and warning issues set verdict to `issues_found`.
+| `clean` | No issues found at any severity |
+| `issues_found` | At least one issue found (critical, warning, or info) |
 
 ## Anti-Patterns
 
 - **Bug hunting:** "This could crash if input is null" — that's critic's job
 - **Subjective preferences:** "I would have used a different pattern" — not actionable
 - **Missing evidence:** "Naming could be better" without saying which names or why
-- **Over-reporting:** 30 info-level naming nits drowns out real quality gaps
+- **Over-reporting:** 30 low-value naming nits drowns out actionable quality gaps
 - **Ignoring project conventions:** Suggesting patterns the project doesn't use
