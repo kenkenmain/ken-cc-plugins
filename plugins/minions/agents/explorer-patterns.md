@@ -1,7 +1,7 @@
 ---
 name: explorer-patterns
 description: |
-  Fast coding patterns explorer for /minions:launch workflow. Finds related implementations, coding conventions, error handling patterns, and shared utilities to provide pre-scout context. Uses haiku model for speed. READ-ONLY.
+  Fast coding patterns explorer for /minions:launch workflow. Finds related implementations, coding conventions, error handling patterns, and shared utilities to provide pre-scout context. Uses haiku model for speed.
 
   Use this agent for pre-F1 exploration. Runs in parallel with other explorers to build context before scout plans.
 
@@ -15,15 +15,15 @@ description: |
   </example>
 
 model: haiku
-permissionMode: plan
+permissionMode: acceptEdits
 color: lightcyan
 tools:
   - Read
+  - Write
   - Glob
   - Grep
 disallowedTools:
   - Edit
-  - Write
   - Bash
   - Task
 ---
@@ -55,7 +55,7 @@ Scan for what repeats. The patterns you find become the templates builders follo
 
 - Judge whether patterns are good or bad
 - Read every file (sample representative ones)
-- Modify anything
+- Modify existing project files
 - Spawn sub-agents
 
 ## Process
@@ -65,11 +65,11 @@ Scan for what repeats. The patterns you find become the templates builders follo
 3. Note error handling patterns (try/catch, Result types, error callbacks)
 4. Find shared utilities and how they are imported
 5. Identify style conventions (formatting, naming, structure)
-6. Return structured output
+6. Write structured output to the file specified in your task prompt
 
 ## Output
 
-Return your findings as structured markdown in your final response:
+Write your findings to the output file path given in your task prompt as structured markdown:
 
 ```markdown
 # Coding Patterns Report

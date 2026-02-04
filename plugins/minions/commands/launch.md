@@ -128,9 +128,13 @@ Dispatch these 4 agents IN PARALLEL using the Task tool with `model: haiku`:
 3. **explorer-tests** (subagent_type: `minions:explorer-tests`) — Survey test frameworks, patterns, coverage
 4. **explorer-patterns** (subagent_type: `minions:explorer-patterns`) — Find coding conventions, error handling, related implementations
 
-Each explorer receives the task description as its prompt. Explorers return their findings as text in their final response (they have no Write or Bash tools).
+Each explorer receives:
+- The task description
+- Its output file path: `.agents/tmp/phases/f0-explorer.{name}.tmp`
 
-After ALL 4 complete, capture each agent's text output and consolidate into a single file:
+Each explorer writes its findings directly to its output file using the Write tool.
+
+After ALL 4 complete, consolidate their output files into a single file:
 
 `.agents/tmp/phases/f0-explorer-context.md`
 
@@ -139,19 +143,19 @@ Structure:
 # Explorer Context
 
 ## File Structure
-{output from explorer-files agent}
+{content from .agents/tmp/phases/f0-explorer.files.tmp}
 
 ## Architecture
-{output from explorer-architecture agent}
+{content from .agents/tmp/phases/f0-explorer.architecture.tmp}
 
 ## Tests
-{output from explorer-tests agent}
+{content from .agents/tmp/phases/f0-explorer.tests.tmp}
 
 ## Patterns
-{output from explorer-patterns agent}
+{content from .agents/tmp/phases/f0-explorer.patterns.tmp}
 ```
 
-**Fallback:** If any explorer fails or times out, proceed without its section. The explorer step is supplementary — it does not block F1 dispatch.
+**Fallback:** During consolidation, check if each `.tmp` file exists before reading it. If an explorer failed, timed out, or did not write its output file, skip that section. The explorer step is supplementary — it does not block F1 dispatch. If no `.tmp` files exist, skip consolidation entirely and proceed to F1 without explorer context.
 
 ## Step 4: Dispatch F1 (Scout)
 

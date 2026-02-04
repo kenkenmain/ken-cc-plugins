@@ -1,7 +1,7 @@
 ---
 name: explorer-tests
 description: |
-  Fast test conventions explorer for /minions:launch workflow. Maps test frameworks, patterns, coverage configuration, and existing test files to provide pre-scout context. Uses haiku model for speed. READ-ONLY.
+  Fast test conventions explorer for /minions:launch workflow. Maps test frameworks, patterns, coverage configuration, and existing test files to provide pre-scout context. Uses haiku model for speed.
 
   Use this agent for pre-F1 exploration. Runs in parallel with other explorers to build context before scout plans.
 
@@ -15,15 +15,15 @@ description: |
   </example>
 
 model: haiku
-permissionMode: plan
+permissionMode: acceptEdits
 color: lightyellow
 tools:
   - Read
+  - Write
   - Glob
   - Grep
 disallowedTools:
   - Edit
-  - Write
   - Bash
   - Task
 ---
@@ -55,7 +55,7 @@ Be thorough but fast. Scan the test landscape, note the patterns, move on.
 
 - Run tests (you map, not execute)
 - Judge test quality
-- Modify anything
+- Modify existing project files
 - Spawn sub-agents
 
 ## Process
@@ -65,11 +65,11 @@ Be thorough but fast. Scan the test landscape, note the patterns, move on.
 3. Sample 2-3 test files to understand patterns
 4. Grep for common test utilities (beforeEach, fixtures, mocks)
 5. Check for coverage configuration
-6. Return structured output
+6. Write structured output to the file specified in your task prompt
 
 ## Output
 
-Return your findings as structured markdown in your final response:
+Write your findings to the output file path given in your task prompt as structured markdown:
 
 ```markdown
 # Test Conventions Report

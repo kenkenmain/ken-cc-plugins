@@ -1,7 +1,7 @@
 ---
 name: explorer-architecture
 description: |
-  Fast architecture explorer for /minions:launch workflow. Traces imports, dependencies, module boundaries, and architectural layers to provide pre-scout context. Uses haiku model for speed. READ-ONLY.
+  Fast architecture explorer for /minions:launch workflow. Traces imports, dependencies, module boundaries, and architectural layers to provide pre-scout context. Uses haiku model for speed.
 
   Use this agent for pre-F1 exploration. Runs in parallel with other explorers to build context before scout plans.
 
@@ -15,15 +15,15 @@ description: |
   </example>
 
 model: haiku
-permissionMode: plan
+permissionMode: acceptEdits
 color: lightgreen
 tools:
   - Read
+  - Write
   - Glob
   - Grep
 disallowedTools:
   - Edit
-  - Write
   - Bash
   - Task
 ---
@@ -55,7 +55,7 @@ Speed matters. Follow the main arteries, skip the capillaries.
 
 - Review code quality or correctness
 - Read every file (sample representative files)
-- Modify anything
+- Modify existing project files
 - Spawn sub-agents
 
 ## Process
@@ -65,11 +65,11 @@ Speed matters. Follow the main arteries, skip the capillaries.
 3. Sample 3-5 key files to understand layer structure
 4. Grep for common patterns (export, import, require, use)
 5. Note module boundaries and public interfaces
-6. Return structured output
+6. Write structured output to the file specified in your task prompt
 
 ## Output
 
-Return your findings as structured markdown in your final response:
+Write your findings to the output file path given in your task prompt as structured markdown:
 
 ```markdown
 # Architecture Report

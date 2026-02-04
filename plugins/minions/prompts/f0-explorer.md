@@ -19,8 +19,8 @@ F0 runs during launch initialization, **before** F1 (Scout) is dispatched. The o
 
 1. Dispatch all 4 explorer agents simultaneously with the task description
 2. Each agent reads the codebase using its specialization lens
-3. Each returns its findings as structured markdown in its final response
-4. The orchestrator captures each agent's output and consolidates into a single context document
+3. Each writes its findings to a dedicated output file using the Write tool
+4. After all 4 complete, the orchestrator consolidates output files into a single context document
 5. The consolidated context is passed to F1 (Scout) as supplementary input
 
 ## Prompt Template (per explorer)
@@ -32,9 +32,10 @@ Task: {{TASK}}
 
 Your specialization: {{SPECIALIZATION}}
 
-Read the codebase and return a concise summary relevant to the task.
+Read the codebase and write a concise summary relevant to the task.
 Focus only on what a planner would need to know.
-Return your findings as structured markdown in your final response.
+
+Write your output to: .agents/tmp/phases/f0-explorer.{{NAME}}.tmp
 ```
 
 ### Explorer Specializations
@@ -46,9 +47,14 @@ Return your findings as structured markdown in your final response.
 | explorer-tests | explorer-tests | tests | Survey the test landscape. Identify test frameworks, existing test files, coverage patterns, and testing conventions. |
 | explorer-patterns | explorer-patterns | patterns | Identify code patterns, naming conventions, error handling idioms, and style conventions used in the codebase. |
 
-## Output Capture
+## Output Paths
 
-Each explorer returns its findings as text. The orchestrator captures the output from each Task tool response. Explorer agents do not write files (they have no Write or Bash tools).
+Each explorer writes its findings to a dedicated output file using the Write tool:
+
+- `.agents/tmp/phases/f0-explorer.files.tmp`
+- `.agents/tmp/phases/f0-explorer.architecture.tmp`
+- `.agents/tmp/phases/f0-explorer.tests.tmp`
+- `.agents/tmp/phases/f0-explorer.patterns.tmp`
 
 ## Consolidation
 
@@ -60,16 +66,16 @@ After all 4 complete, the orchestrator writes the consolidated output to:
 # Explorer Context
 
 ## File Structure
-{output captured from explorer-files agent response}
+{content from .agents/tmp/phases/f0-explorer.files.tmp}
 
 ## Architecture
-{output captured from explorer-architecture agent response}
+{content from .agents/tmp/phases/f0-explorer.architecture.tmp}
 
 ## Tests
-{output captured from explorer-tests agent response}
+{content from .agents/tmp/phases/f0-explorer.tests.tmp}
 
 ## Patterns
-{output captured from explorer-patterns agent response}
+{content from .agents/tmp/phases/f0-explorer.patterns.tmp}
 ```
 
 This file is passed to the F1 scout as additional context.
