@@ -647,6 +647,104 @@ jobs:
           fi
           echo "SUCCESS: All skill frontmatter validated"
 
+  validate-minions:
+    name: Validate Minions Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate JSON files
+        run: |
+          errors=0
+          for json_file in plugins/minions/.claude-plugin/plugin.json plugins/minions/hooks/hooks.json; do
+            if ! python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$json_file"; then
+              echo "ERROR: Invalid JSON in $json_file"
+              errors=$((errors + 1))
+            else
+              echo "✓ Valid JSON: $json_file"
+            fi
+          done
+          if [ $errors -gt 0 ]; then exit 1; fi
+
+      - name: Verify hook scripts exist
+        run: |
+          hooks_file="plugins/minions/hooks/hooks.json"
+          hooks_dir="plugins/minions/hooks"
+          errors=0
+          scripts=$(jq -r '.. | .command? // empty' "$hooks_file") || {
+            echo "ERROR: jq failed to parse $hooks_file"
+            exit 1
+          }
+          if [ -z "$scripts" ]; then
+            echo "ERROR: No hook scripts found in $hooks_file"
+            exit 1
+          fi
+          count=0
+          for script_ref in $scripts; do
+            count=$((count + 1))
+            # Replace ${CLAUDE_PLUGIN_ROOT} with actual hooks dir parent for validation
+            script_path=$(echo "$script_ref" | sed "s|\${CLAUDE_PLUGIN_ROOT}|$hooks_dir/..|")
+            if [ ! -f "$script_path" ]; then
+              echo "ERROR: Hook script not found: $script_ref -> $script_path"
+              errors=$((errors + 1))
+            else
+              echo "✓ Hook script exists: $script_ref"
+            fi
+          done
+          echo "Verified $count hook script references"
+          if [ $errors -gt 0 ]; then exit 1; fi
+
+      - name: Check state.sh sourcing
+        run: |
+          errors=0
+          hooks_dir="plugins/minions/hooks"
+          hooks_file="plugins/minions/hooks/hooks.json"
+          # Extract scripts from hooks.json (excluding on-launch-init.sh which must not source state.sh)
+          all_scripts=$(jq -r '.. | .command? // empty' "$hooks_file" | sed 's|.*/||' | sort -u) || {
+            echo "ERROR: jq failed to parse $hooks_file"
+            exit 1
+          }
+          scripts=$(echo "$all_scripts" | grep -v 'on-launch-init.sh' || true)
+          if [ -z "$scripts" ]; then
+            echo "ERROR: No hook scripts found (excluding on-launch-init.sh)"
+            exit 1
+          fi
+          for script in $scripts; do
+            if ! grep -q 'source.*lib/state\.sh' "$hooks_dir/$script"; then
+              echo "ERROR: $script does not source lib/state.sh"
+              errors=$((errors + 1))
+            else
+              echo "✓ $script sources lib/state.sh"
+            fi
+          done
+          # on-launch-init.sh runs before state file exists, so it must NOT source state.sh
+          if grep -q 'source.*lib/state\.sh' "$hooks_dir/on-launch-init.sh"; then
+            echo "ERROR: on-launch-init.sh should NOT source lib/state.sh"
+            errors=$((errors + 1))
+          else
+            echo "✓ on-launch-init.sh correctly does not source lib/state.sh"
+          fi
+          if [ $errors -gt 0 ]; then exit 1; fi
+
+      - name: Verify phase prompts exist
+        run: |
+          errors=0
+          prompts_dir="plugins/minions/prompts"
+          # Required phases for minions workflow (specification-based validation)
+          expected_phases="f0 f1 f2 f3 f4"
+          for phase in $expected_phases; do
+            prompt_file=$(ls "$prompts_dir"/${phase}-*.md 2>/dev/null | head -1)
+            if [ -z "$prompt_file" ]; then
+              echo "ERROR: Missing phase prompt for $phase"
+              errors=$((errors + 1))
+            else
+              echo "✓ Found phase prompt: $(basename "$prompt_file")"
+            fi
+          done
+          if [ $errors -gt 0 ]; then exit 1; fi
+          echo "SUCCESS: All phase prompts exist"
+
   test:
     name: Run Tests
     runs-on: ubuntu-latest
