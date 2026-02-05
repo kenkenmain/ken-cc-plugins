@@ -1,7 +1,7 @@
 ---
 name: explorer-patterns
 description: |
-  Fast coding patterns explorer for /minions:launch and /minions:superlaunch workflows. Finds related implementations, coding conventions, error handling patterns, and shared utilities to provide pre-scout context. Uses haiku model for speed.
+  Fast coding patterns explorer for /minions:launch workflow. Finds related implementations, coding conventions, error handling patterns, and shared utilities to provide pre-scout context. Uses haiku model for speed.
 
   Use this agent for pre-F1 exploration. Runs in parallel with other explorers to build context before scout plans.
 
@@ -36,7 +36,7 @@ Scan for what repeats. The patterns you find become the templates builders follo
 
 ## Your Task
 
-Your task details are provided in the prompt that dispatched you. Read the dispatch prompt carefully for the specific exploration scope and output file path.
+{{TASK_DESCRIPTION}}
 
 ## Core Principle
 

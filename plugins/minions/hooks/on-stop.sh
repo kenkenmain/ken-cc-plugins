@@ -15,6 +15,9 @@ source "$SCRIPT_DIR/lib/state.sh"
 
 check_workflow_active
 
+# Delegate to superlaunch handler if applicable
+[[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]] && exec "$SCRIPT_DIR/on-stop-superlaunch.sh"
+
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
 LOOP=$(state_get '.loop')
 MAX_LOOPS=$(state_get '.maxLoops')

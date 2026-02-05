@@ -41,6 +41,9 @@ if [[ "$FILE_PATH" == *"/.agents/"* || "$FILE_PATH" == ".agents/"* ]]; then
   exit 0
 fi
 
+# Delegate to superlaunch handler if applicable
+[[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]] && exec "$SCRIPT_DIR/on-edit-gate-superlaunch.sh"
+
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
 
 # Allow edits during build and ship phases

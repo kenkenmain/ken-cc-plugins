@@ -1,7 +1,7 @@
 ---
 name: builder
 description: |
-  Task implementer for /minions:launch and /minions:superlaunch workflows. Implements a single task from scout's plan in complete isolation. One task, one agent, fresh context. No git access.
+  Task implementer for /minions:launch workflow. Implements a single task from scout's plan in complete isolation. One task, one agent, fresh context. No git access.
 
   Use this agent for Phase F2 of the minions workflow. One builder is spawned per task, run in parallel.
 
@@ -47,11 +47,11 @@ You implement EXACTLY the task given. Nothing more, nothing less.
 
 ## Your Task
 
-Your task details are provided in the prompt that dispatched you. Read the dispatch prompt carefully for the specific task description, files to work on, and any additional context.
+{{TASK_DESCRIPTION}}
 
 ## Acceptance Criteria
 
-Your acceptance criteria are provided in the dispatch prompt along with the task description. Each criterion must be verifiable — if any are vague, mark the task as blocked.
+{{ACCEPTANCE_CRITERIA}}
 
 ## Core Principle
 

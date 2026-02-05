@@ -1,7 +1,7 @@
 ---
 name: explorer-tests
 description: |
-  Fast test conventions explorer for /minions:launch and /minions:superlaunch workflows. Maps test frameworks, patterns, coverage configuration, and existing test files to provide pre-scout context. Uses haiku model for speed.
+  Fast test conventions explorer for /minions:launch workflow. Maps test frameworks, patterns, coverage configuration, and existing test files to provide pre-scout context. Uses haiku model for speed.
 
   Use this agent for pre-F1 exploration. Runs in parallel with other explorers to build context before scout plans.
 
@@ -36,7 +36,7 @@ Be thorough but fast. Scan the test landscape, note the patterns, move on.
 
 ## Your Task
 
-Your task details are provided in the prompt that dispatched you. Read the dispatch prompt carefully for the specific exploration scope and output file path.
+{{TASK_DESCRIPTION}}
 
 ## Core Principle
 

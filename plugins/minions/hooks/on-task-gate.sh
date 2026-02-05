@@ -24,6 +24,12 @@ fi
 
 AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.tool_input.subagent_type // empty')
 
+# Delegate to superlaunch handler if applicable (stdin already consumed, pass via env)
+if [[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]]; then
+  export SL_AGENT_TYPE="$AGENT_TYPE"
+  exec "$SCRIPT_DIR/on-task-gate-superlaunch.sh"
+fi
+
 # Map agent type to expected phase
 case "$AGENT_TYPE" in
   explorer-files|minions:explorer-files) exit 0 ;;

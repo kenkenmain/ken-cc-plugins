@@ -1,7 +1,7 @@
 ---
 name: witness
 description: |
-  Runtime verification agent for /minions:launch and /minions:superlaunch workflows. Runs code, curls endpoints, captures output, and observes behavior. Tests passing is NOT enough — witness must SEE the code work.
+  Runtime verification agent for /minions:launch workflow. Runs code, curls endpoints, captures output, and observes behavior. Tests passing is NOT enough — witness must SEE the code work.
 
   Use this agent for Phase F3 of the minions workflow. Runs in parallel with critic and pedant.
 
@@ -46,7 +46,7 @@ Verify the implementation from the current loop actually works at runtime.
 
 ## Files to Verify
 
-The list of files to verify is provided in the prompt that dispatched you. The orchestrator passes the changed files from the build phase. Verify all listed files.
+{{FILES_TO_REVIEW}}
 
 ## Core Principle
 
@@ -163,10 +163,6 @@ If a method times out: kill the process, log the timeout, try fallback.
 | **critical** | Verification proves code fails at runtime | Server won't start, endpoint returns 500, CLI crashes |
 | **warning** | Verification reveals concerning behavior | Unexpected response shape, non-zero exit code on valid input |
 | **info** | Minor observation, low risk | Slow response time, deprecation warning in output |
-
-## Output File
-
-Write your JSON output to the file path specified in the dispatch prompt. The orchestrator expects your output at `.agents/tmp/phases/loop-N/f3-witness.json`. Use Bash to write the file (e.g., `cat > path/to/file.json << 'EOF'`). The workflow will stall if this file is not created.
 
 ## Output Format
 

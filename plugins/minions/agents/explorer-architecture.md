@@ -1,7 +1,7 @@
 ---
 name: explorer-architecture
 description: |
-  Fast architecture explorer for /minions:launch and /minions:superlaunch workflows. Traces imports, dependencies, module boundaries, and architectural layers to provide pre-scout context. Uses haiku model for speed.
+  Fast architecture explorer for /minions:launch workflow. Traces imports, dependencies, module boundaries, and architectural layers to provide pre-scout context. Uses haiku model for speed.
 
   Use this agent for pre-F1 exploration. Runs in parallel with other explorers to build context before scout plans.
 
@@ -36,7 +36,7 @@ Speed matters. Follow the main arteries, skip the capillaries.
 
 ## Your Task
 
-Your task details are provided in the prompt that dispatched you. Read the dispatch prompt carefully for the specific exploration scope and output file path.
+{{TASK_DESCRIPTION}}
 
 ## Core Principle
 

@@ -1,7 +1,7 @@
 ---
 name: pedant
 description: |
-  Quality reviewer for /minions:launch and /minions:superlaunch workflows. Reviews code for naming, style, unnecessary complexity, test coverage gaps, and comment accuracy. READ-ONLY — does not modify files.
+  Quality reviewer for /minions:launch workflow. Reviews code for naming, style, unnecessary complexity, test coverage gaps, and comment accuracy. READ-ONLY — does not modify files.
 
   Use this agent for Phase F3 of the minions workflow. Runs in parallel with critic and witness.
 
@@ -45,7 +45,7 @@ Review the implementation from the current loop for quality issues.
 
 ## Files to Review
 
-The list of files to review is provided in the prompt that dispatched you. The orchestrator passes the changed files from the build phase. Review all listed files.
+{{FILES_TO_REVIEW}}
 
 ## Core Principle
 
@@ -88,10 +88,6 @@ For each file, check:
 | **critical** | Significant maintainability risk | No tests for complex logic, completely misleading comments |
 | **warning** | Will cause confusion or slow future development | Unclear naming, unnecessary abstraction, missing edge case tests |
 | **info** | Minor improvement opportunity | Slightly better name possible, optional test case |
-
-## Output File
-
-Write your JSON output to the file path specified in the dispatch prompt. The orchestrator expects your output at `.agents/tmp/phases/loop-N/f3-pedant.json`. Use Bash to write the file (e.g., `cat > path/to/file.json << 'EOF'`). The workflow will stall if this file is not created.
 
 ## Output Format
 

@@ -1,145 +1,131 @@
 ---
 name: superlaunch
-description: Claude-only 4-phase workflow with loop-back — dispatches phases as subagents, hooks enforce progression
+description: Claude-only 15-phase thorough pipeline — dispatches subagents agents through minions hooks
 ---
 
 # Superlaunch Workflow
 
-Claude-only 4-phase workflow adapted from subagents fdispatch-claude. Dispatches each phase as a subagent. Hooks enforce output validation, gate checks, state advancement, and loop re-injection. This skill documents the orchestration pattern.
+Claude-only 15-phase thorough pipeline matching `/subagents:dispatch --profile thorough`. Uses **subagents plugin agents** (battle-tested, no duplication) driven by **minions plugin hooks** (Ralph-style loop driver). No Codex MCP dependency.
+
+## Key Architecture
+
+- `pipeline: "superlaunch"` in state.json
+- `plugin: "minions"` — so minions hooks fire
+- Subagents hooks silently exit (they check `plugin == "subagents"`)
+- All agents are `subagents:*` prefixed — they exist in the subagents plugin
 
 ## Execution Flow (Ralph-Style)
 
-The orchestrator uses the Ralph Loop pattern: the Stop hook generates a **phase-specific orchestrator prompt** every time Claude tries to stop. Claude reads state from disk and dispatches the current phase — no conversation memory required.
+The orchestrator uses the Ralph Loop pattern: the Stop hook generates a **schedule-driven orchestrator prompt** every time Claude tries to stop. Claude reads state from disk and dispatches the current phase.
 
 ```
-Claude dispatches phase F{N} as a subagent (Task tool)
-  |
-Subagent completes
-  |
-SubagentStop hook fires:
-  - Validates output file exists
-  - Checks gate at phase boundary
-  - Marks phase completed
-  - Advances state to F{N+1}
-  - Exits silently (no stdout)
-  |
-Claude tries to stop (subagent done)
-  |
-Stop hook fires:
-  - Generates phase-specific prompt
-  - Returns {"decision":"block","reason":"<prompt>"}
-  |
-Claude receives prompt -> reads state -> dispatches F{N+1}
-  |
-Repeat until F4 completes or loop limit reached
+superlaunch.md initializes state (pipeline: "superlaunch", 15-phase schedule)
+  → dispatches Phase 0 (Explore)
+  → on-subagent-stop.sh validates output, checks gates, advances state
+  → on-stop.sh reads schedule, generates phase prompt, blocks stop
+  → Claude dispatches next subagents agent
+  → cycle repeats through all 15 phases
 ```
 
-## Pipeline
+## 15-Phase Thorough Schedule
 
 ```
-Explorers (4x haiku, parallel) -> F1 (scout) -> F2 (builder) -> F3 (5 reviewers parallel)
-                                      ^                              |
-                                      +-------- if issues ----------+
-                                                (max 10 loops)
-
-All clean -> F4 (shipper)
-Loop 10 hit -> stop and report
+Phase 0   │ EXPLORE   │ Explore                 │ dispatch  → explorers + aggregator
+Phase 1.1 │ PLAN      │ Brainstorm              │ subagent  → brainstormer
+Phase 1.2 │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
+Phase 1.3 │ PLAN      │ Plan Review             │ review    → claude-reviewer
+Phase 2.1 │ IMPLEMENT │ Task Execution          │ dispatch  → task agents (per complexity)
+Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent  → simplifier
+Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review    → claude-reviewer + supplementary
+Phase 3.1 │ TEST      │ Run Tests & Analyze     │ subagent  → test-developer
+Phase 3.2 │ TEST      │ Analyze Failures        │ subagent  → failure-analyzer
+Phase 3.3 │ TEST      │ Develop Tests           │ subagent  → test-developer
+Phase 3.4 │ TEST      │ Test Dev Review         │ review    → claude-reviewer
+Phase 3.5 │ TEST      │ Test Review             │ review    → claude-reviewer
+Phase 4.1 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
+Phase 4.2 │ FINAL     │ Final Review            │ review    → claude-reviewer + supplementary
+Phase 4.3 │ FINAL     │ Completion              │ subagent  → completion-handler + retrospective
 ```
 
-## Phase Dispatch Mapping
+## Stage Gates
 
-| Phase | Agent | subagent_type | model | Notes |
-|-------|-------|---------------|-------|-------|
-| Pre-F1 | explorer-files | `minions:explorer-files` | haiku | Parallel batch (4 agents) |
-| Pre-F1 | explorer-architecture | `minions:explorer-architecture` | haiku | Parallel batch |
-| Pre-F1 | explorer-tests | `minions:explorer-tests` | haiku | Parallel batch |
-| Pre-F1 | explorer-patterns | `minions:explorer-patterns` | haiku | Parallel batch |
-| F1 | scout | `minions:scout` | inherit | Single agent, writes f1-plan.md |
-| F2 | builder (per task) | `minions:builder` | inherit | Parallel batch, writes f2-tasks.json |
-| F3 | critic | `minions:critic` | inherit | Parallel batch (5 agents) |
-| F3 | pedant | `minions:pedant` | inherit | Parallel batch |
-| F3 | witness | `minions:witness` | inherit | Parallel batch |
-| F3 | security-reviewer | `minions:security-reviewer` | inherit | Parallel batch |
-| F3 | silent-failure-hunter | `minions:silent-failure-hunter` | inherit | Parallel batch |
-| F4 | shipper | `minions:shipper` | inherit | Single agent, writes f4-ship.json |
+| Gate | Required Files | Transition |
+|------|---------------|------------|
+| EXPLORE→PLAN | `0-explore.md` | After Phase 0 |
+| PLAN→IMPLEMENT | `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json` | After Phase 1.3 |
+| IMPLEMENT→TEST | `2.1-tasks.json`, `2.3-impl-review.json` | After Phase 2.3 |
+| TEST→FINAL | `3.1-test-results.json`, `3.3-test-dev.json`, `3.5-test-review.json` | After Phase 3.5 |
+| FINAL→COMPLETE | `4.2-final-review.json` | After Phase 4.2 |
 
-## Gate Requirements
+## Review-Fix Cycles
 
-| Transition | Required Files | Validated By |
-|------------|---------------|--------------|
-| F1 -> F2 | `loop-{N}/f1-plan.md` | on-subagent-stop.sh (scout case) |
-| F2 -> F3 | `loop-{N}/f2-tasks.json` | on-subagent-stop.sh (builder case) |
-| F3 -> F4 | `loop-{N}/f3-verdict.json` with `verdict: clean` | on-subagent-stop.sh (reviewer case) |
-| F4 -> DONE | `f4-ship.json` | on-subagent-stop.sh (shipper case) |
+Review phases (1.3, 2.3, 3.4, 3.5, 4.2) support two-tier retry:
 
-## Loop-Back Behavior
+```
+Tier 1: 10 fix attempts per review phase (within one run of the stage)
+Tier 2: 3 stage restarts (each restart resets fix counters to 0)
+Total:  up to 3 x 10 = 30 fix attempts per review phase before blocking
+```
 
-After F3 completes, the SubagentStop hook aggregates all 5 reviewer outputs into `f3-verdict.json`:
+## Coverage Loop
 
-- **If `verdict: clean`**: Advance to F4 (shipper)
-- **If `verdict: issues_found` AND `loop < maxLoops` (default 10)**:
-  - Increment loop counter
-  - Reset currentPhase to F1
-  - Create new loop directory (`loop-{N+1}/`)
-  - Scout reads previous loop's review outputs for targeted fixes
-- **If `verdict: issues_found` AND `loop >= maxLoops`**:
-  - Set status to "stopped", currentPhase to "STOPPED"
-  - Report remaining issues to user
+Phases 3.3 → 3.4 → 3.5 repeat until `coverage >= coverageThreshold` (default 90%) or 20 iterations reached.
 
-## State Schema (v1)
+## Supplementary Agents
+
+Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`):
+
+| Phase | Supplementary Agents |
+|-------|---------------------|
+| 0 | `subagents:deep-explorer` |
+| 1.2 | `subagents:architecture-analyst` |
+| 2.3 | `subagents:code-quality-reviewer`, `subagents:error-handling-reviewer`, `subagents:type-reviewer` |
+| 4.1 | `subagents:claude-md-updater` |
+| 4.2 | `subagents:code-quality-reviewer`, `subagents:test-coverage-reviewer`, `subagents:comment-reviewer` |
+| 4.3 | `subagents:retrospective-analyst` |
+
+## State Schema (superlaunch)
 
 ```json
 {
   "version": 1,
   "plugin": "minions",
   "pipeline": "superlaunch",
-  "status": "in_progress|stopped|complete",
-  "task": "<description>",
-  "startedAt": "<ISO>",
-  "updatedAt": "<ISO>",
-  "currentPhase": "F1|F2|F3|F4|DONE|STOPPED",
-  "loop": 1,
-  "maxLoops": 10,
-  "ownerPpid": "<PPID>",
-  "sessionId": "<hex>",
-  "branch": "feat/minions-<slug>",
-  "schedule": [
-    { "phase": "F1", "name": "Scout", "type": "subagent" },
-    { "phase": "F2", "name": "Build", "type": "dispatch" },
-    { "phase": "F3", "name": "Review", "type": "dispatch" },
-    { "phase": "F4", "name": "Ship", "type": "subagent" }
-  ],
-  "loops": [
-    {
-      "loop": 1,
-      "startedAt": "<ISO>",
-      "f1": { "status": "pending|complete" },
-      "f2": { "status": "pending|complete" },
-      "f3": { "status": "pending|complete", "verdict": "clean|issues_found" }
-    }
-  ],
-  "files": [],
-  "failure": null
+  "status": "in_progress|blocked|complete",
+  "currentPhase": "0|1.1|1.2|...|4.3|DONE|STOPPED",
+  "currentStage": "EXPLORE|PLAN|IMPLEMENT|TEST|FINAL",
+  "codexAvailable": false,
+  "reviewer": "subagents:claude-reviewer",
+  "testDeveloper": "subagents:test-developer",
+  "failureAnalyzer": "subagents:failure-analyzer",
+  "docUpdater": "subagents:doc-updater",
+  "schedule": [/* 15 phases */],
+  "gates": {/* 5 stage gates */},
+  "stages": {/* per-stage status tracking */},
+  "reviewPolicy": {"maxFixAttempts": 10, "maxStageRestarts": 3},
+  "supplementaryPolicy": "on-issues",
+  "coverageThreshold": 90,
+  "webSearch": true
 }
 ```
 
 ## Hook Responsibilities
 
-| Hook | Event | Responsibility |
-|------|-------|---------------|
-| on-stop.sh | Stop | Generate phase-specific orchestrator prompt (Ralph-style loop driver). Reads state.currentPhase, builds prompt for that phase, blocks stop with prompt injection. |
-| on-subagent-stop.sh | SubagentStop | Validate output files exist, check gates, advance state to next phase, handle loop-back logic (F3 verdict aggregation). |
-| on-task-gate.sh | PreToolUse (Task) | Validate Task dispatches match expected phase. Reserved for dispatch ordering enforcement. |
-| on-edit-gate.sh | PreToolUse (Edit/Write) | Block direct code edits during workflow. Force edits through subagent dispatch. |
-| on-launch-init.sh | UserPromptSubmit | Detect existing state, warn on stale/active workflows, inject resume/clean prompts. |
+| Hook | Event | Superlaunch Behavior |
+|------|-------|---------------------|
+| on-stop.sh | Stop | Calls `generate_sl_prompt()` from `lib/superlaunch.sh` — schedule-driven prompt |
+| on-subagent-stop.sh | SubagentStop | Validates output, checks gates, handles review-fix cycles, advances phase |
+| on-task-gate.sh | PreToolUse (Task) | Validates `subagents:*` agent matches current phase via `is_sl_agent_allowed()` |
+| on-edit-gate.sh | PreToolUse (Edit/Write) | Allows edits in IMPLEMENT and FINAL stages only |
+| on-launch-init.sh | UserPromptSubmit | Shows pipeline and stage info for stale state detection |
 
-## What This Skill Does NOT Do
+## Difference from /minions:launch
 
-- **Gate checks** -> handled by `on-subagent-stop.sh` hook
-- **State updates** -> handled by `on-subagent-stop.sh` hook
-- **Phase progression** -> handled by `on-subagent-stop.sh` hook
-- **Stop prevention** -> handled by `on-stop.sh` hook
-- **Dispatch validation** -> handled by `on-task-gate.sh` hook
-- **Source file protection** -> handled by `on-edit-gate.sh` hook
-
-This skill documents the workflow pattern for reference and injection into agent contexts. All enforcement logic lives in the hooks.
+| Aspect | launch | superlaunch |
+|--------|--------|-------------|
+| Phases | 4 (F1-F4) | 15 (0 through 4.3) |
+| Agents | `minions:*` (12 agents) | `subagents:*` (49 agents) |
+| Hooks | Same hooks, `launch` branch | Same hooks, `superlaunch` branch |
+| Codex | No | No |
+| Review | 5 parallel personality reviewers | Structured review-fix cycles |
+| State | `loop`/`maxLoops` counters | `currentStage`/`currentPhase` schedule |

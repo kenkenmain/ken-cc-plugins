@@ -1,7 +1,7 @@
 ---
 name: silent-failure-hunter
 description: |
-  Silent failure hunter for /minions:launch and /minions:superlaunch workflows. Finds silently swallowed errors, empty catch blocks, catch-and-log-only patterns, overly broad catches, silent null returns, and missing async error handling. READ-ONLY — does not modify files.
+  Silent failure hunter for /minions:launch workflow. Finds silently swallowed errors, empty catch blocks, catch-and-log-only patterns, overly broad catches, silent null returns, and missing async error handling. READ-ONLY — does not modify files.
 
   Use this agent for Phase F3 of the minions workflow. Runs in parallel with critic, pedant, witness, and security-reviewer.
 
@@ -15,7 +15,7 @@ description: |
   </example>
 
 permissionMode: plan
-color: magenta
+color: cyan
 tools:
   - Read
   - Glob
@@ -45,7 +45,7 @@ Review the implementation from the current loop for silently swallowed errors an
 
 ## Files to Review
 
-The list of files to review is provided in the prompt that dispatched you. The orchestrator passes the changed files from the build phase. Review all listed files.
+{{FILES_TO_REVIEW}}
 
 ## Core Principle
 
@@ -93,10 +93,6 @@ For each file, check:
 | **critical** | Error is silently swallowed, will cause data loss, corruption, or inconsistent state | Empty catch around database write, silent null return from auth check, unhandled Promise rejection in data pipeline |
 | **warning** | Inadequate handling — error exists but could mask problems | Catch-and-log-only for recoverable errors, overly broad catch hiding unexpected exceptions, missing cleanup in finally |
 | **info** | Minor improvement to error messaging or handling | Generic error message, optional telemetry error that's intentionally swallowed |
-
-## Output File
-
-Write your JSON output to the file path specified in the dispatch prompt. The orchestrator expects your output at `.agents/tmp/phases/loop-N/f3-silent-failure-hunter.json`. Use Bash to write the file (e.g., `cat > path/to/file.json << 'EOF'`). The workflow will stall if this file is not created.
 
 ## Output Format
 
