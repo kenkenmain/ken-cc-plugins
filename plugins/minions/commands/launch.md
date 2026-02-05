@@ -51,7 +51,24 @@ head -c 8 /dev/urandom | xxd -p
 
 Store the output as `sessionId`.
 
-### 1c. Write state.json
+### 1c. Create feature branch
+
+Create a feature branch from main for this workflow. Generate a slug from the task description:
+
+```bash
+# Generate branch name from task (first 40 chars, slugified)
+BRANCH_SLUG=$(echo "<task description>" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-40 | sed 's/-$//')
+BRANCH_NAME="feat/minions-${BRANCH_SLUG}"
+
+# Ensure we're on main and create branch
+git checkout main 2>/dev/null || git checkout master
+git pull --ff-only origin HEAD 2>/dev/null || true
+git checkout -b "$BRANCH_NAME"
+```
+
+Store `BRANCH_NAME` for state.json.
+
+### 1d. Write state.json
 
 Write `.agents/tmp/state.json` with the following structure. Use Bash with jq for atomic write (write to tmp file, then mv):
 
@@ -68,6 +85,7 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "maxLoops": 10,
   "ownerPpid": "<PPID value>",
   "sessionId": "<sessionId value>",
+  "branch": "<BRANCH_NAME>",
   "schedule": [
     { "phase": "F1", "name": "Scout", "type": "subagent" },
     { "phase": "F2", "name": "Build", "type": "dispatch" },

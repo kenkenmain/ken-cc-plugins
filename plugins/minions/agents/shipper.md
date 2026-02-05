@@ -99,18 +99,26 @@ Commit message guidelines:
 
 ### Step 3: Push and Create PR
 
+The workflow runs on a feature branch created at launch. Read the branch name from state:
+
 ```bash
-# Create branch if on main
-BRANCH=$(git branch --show-current)
-if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
-  git checkout -b feat/<slug>
+# Get branch from state.json (created at launch)
+BRANCH=$(jq -r '.branch // empty' .agents/tmp/state.json)
+if [ -z "$BRANCH" ]; then
+  BRANCH=$(git branch --show-current)
 fi
 
-# Push
-git push -u origin HEAD
+# Verify we're not on main (safety check)
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+  echo "ERROR: Cannot ship from main/master branch"
+  exit 1
+fi
 
-# Create PR
-gh pr create --title "<title>" --body "$(cat <<'EOF'
+# Push branch
+git push -u origin "$BRANCH"
+
+# Create PR to main
+gh pr create --base main --title "<title>" --body "$(cat <<'EOF'
 ## Summary
 <1-3 bullet points>
 
@@ -122,6 +130,7 @@ gh pr create --title "<title>" --body "$(cat <<'EOF'
 - [ ] Linter clean
 - [ ] Runtime verified by witness agent
 
+🤖 Generated with minions workflow
 EOF
 )"
 ```
