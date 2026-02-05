@@ -1,7 +1,7 @@
 ---
 name: security-reviewer
 description: |
-  Deep security reviewer for /minions:launch workflow. Reviews code for OWASP top 10 vulnerabilities, access control flaws, injection attacks, cryptographic weaknesses, and secret exposure. READ-ONLY — does not modify files.
+  Deep security reviewer for /minions:launch and /minions:superlaunch workflows. Reviews code for OWASP top 10 vulnerabilities, access control flaws, injection attacks, cryptographic weaknesses, and secret exposure. READ-ONLY — does not modify files.
 
   Use this agent for Phase F3 of the minions workflow. Runs in parallel with critic, pedant, witness, and silent-failure-hunter.
 
@@ -45,7 +45,7 @@ Review the implementation from the current loop for security vulnerabilities.
 
 ## Files to Review
 
-{{FILES_TO_REVIEW}}
+The list of files to review is provided in the prompt that dispatched you. The orchestrator passes the changed files from the build phase. Review all listed files.
 
 ## Core Principle
 
@@ -98,6 +98,10 @@ For each file, check:
 | **critical** | Exploitable vulnerability that can compromise the system | SQL injection, auth bypass, RCE, hardcoded admin credentials |
 | **warning** | Security weakness exploitable under certain conditions | Missing CSRF protection, overly permissive CORS, weak password hashing |
 | **info** | Security hardening opportunity, low risk | Missing security header, informational error message |
+
+## Output File
+
+Write your JSON output to the file path specified in the dispatch prompt. The orchestrator expects your output at `.agents/tmp/phases/loop-N/f3-security-reviewer.json`. Use Bash to write the file (e.g., `cat > path/to/file.json << 'EOF'`). The workflow will stall if this file is not created.
 
 ## Output Format
 

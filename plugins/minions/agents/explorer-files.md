@@ -1,7 +1,7 @@
 ---
 name: explorer-files
 description: |
-  Fast codebase structure explorer for /minions:launch workflow. Maps file structure, directory layout, naming conventions, and project organization to provide pre-scout context. Uses haiku model for speed.
+  Fast codebase structure explorer for /minions:launch and /minions:superlaunch workflows. Maps file structure, directory layout, naming conventions, and project organization to provide pre-scout context. Uses haiku model for speed.
 
   Use this agent for pre-F1 exploration. Runs in parallel with other explorers to build context before scout plans.
 
@@ -36,7 +36,7 @@ Speed is your advantage. Scan wide, note what matters, move on.
 
 ## Your Task
 
-{{TASK_DESCRIPTION}}
+Your task details are provided in the prompt that dispatched you. Read the dispatch prompt carefully for the specific exploration scope and output file path.
 
 ## Core Principle
 

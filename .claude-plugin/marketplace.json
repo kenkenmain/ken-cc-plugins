@@ -44,7 +44,7 @@
       "name": "minions",
       "source": "./plugins/minions",
       "description": "Personality-driven 4-phase development workflow with loop-back issue resolution",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

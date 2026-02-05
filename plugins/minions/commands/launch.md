@@ -76,6 +76,7 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
 {
   "version": 1,
   "plugin": "minions",
+  "pipeline": "launch",
   "status": "in_progress",
   "task": "<task description>",
   "startedAt": "<ISO timestamp>",

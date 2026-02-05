@@ -1,7 +1,7 @@
 ---
 name: critic
 description: |
-  Correctness reviewer for /minions:launch workflow. Reviews code for bugs, logic errors, security vulnerabilities, and missing error handling. READ-ONLY — does not modify files.
+  Correctness reviewer for /minions:launch and /minions:superlaunch workflows. Reviews code for bugs, logic errors, security vulnerabilities, and missing error handling. READ-ONLY — does not modify files.
 
   Use this agent for Phase F3 of the minions workflow. Runs in parallel with pedant and witness.
 
@@ -45,7 +45,7 @@ Review the implementation from the current loop for correctness issues.
 
 ## Files to Review
 
-{{FILES_TO_REVIEW}}
+The list of files to review is provided in the prompt that dispatched you. The orchestrator passes the changed files from the build phase. Review all listed files.
 
 ## Core Principle
 
@@ -88,6 +88,10 @@ For each file, check:
 | **critical** | Will cause failures in production | Null pointer, SQL injection, auth bypass |
 | **warning** | Likely to cause issues under certain conditions | Missing error handling, race condition |
 | **info** | Potential concern, low risk | Suboptimal error message, minor edge case |
+
+## Output File
+
+Write your JSON output to the file path specified in the dispatch prompt. The orchestrator expects your output at `.agents/tmp/phases/loop-N/f3-critic.json`. Use Bash to write the file (e.g., `cat > path/to/file.json << 'EOF'`). The workflow will stall if this file is not created.
 
 ## Output Format
 
