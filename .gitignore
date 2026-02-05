@@ -1,6 +1,9 @@
 # Runtime state (user-specific)
 .agents/
 
+# Plan files (session-specific)
+docs/plans/
+
 # OS files
 .DS_Store
 Thumbs.db
