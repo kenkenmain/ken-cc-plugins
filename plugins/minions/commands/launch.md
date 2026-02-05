@@ -37,13 +37,19 @@ mkdir -p .agents/tmp/phases
 rm -f .agents/tmp/phases/*.tmp
 ```
 
-### 1b. Capture session PID
+### 1b. Capture session PID and generate sessionId
 
 ```bash
 echo $PPID
 ```
 
 Store the output as `ownerPpid`.
+
+```bash
+head -c 8 /dev/urandom | xxd -p
+```
+
+Store the output as `sessionId`.
 
 ### 1c. Write state.json
 
@@ -61,6 +67,7 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "loop": 1,
   "maxLoops": 10,
   "ownerPpid": "<PPID value>",
+  "sessionId": "<sessionId value>",
   "schedule": [
     { "phase": "F1", "name": "Scout", "type": "subagent" },
     { "phase": "F2", "name": "Build", "type": "dispatch" },

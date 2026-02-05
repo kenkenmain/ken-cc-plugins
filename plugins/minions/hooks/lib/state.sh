@@ -29,10 +29,21 @@ check_workflow_active() {
     exit 0
   fi
 
-  # Session scoping
+  # Session scoping - ownerPpid
   local owner_ppid
   owner_ppid=$(jq -r '.ownerPpid // empty' "$STATE_FILE")
   if [[ -n "$owner_ppid" && "$owner_ppid" != "$PPID" ]]; then
+    exit 0
+  fi
+
+  # Session scoping - sessionId
+  # CLAUDE_SESSION_ID is a forward-compatible placeholder environment variable.
+  # It may be provided by Claude Code in future versions to uniquely identify sessions.
+  # If not present, the sessionId check is skipped (backward compatible with current Claude Code).
+  # When both state.sessionId and CLAUDE_SESSION_ID are set, they must match for the hook to proceed.
+  local state_session_id
+  state_session_id=$(jq -r '.sessionId // empty' "$STATE_FILE")
+  if [[ -n "$state_session_id" && -n "${CLAUDE_SESSION_ID:-}" && "$state_session_id" != "$CLAUDE_SESSION_ID" ]]; then
     exit 0
   fi
 

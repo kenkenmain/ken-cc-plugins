@@ -1,6 +1,18 @@
 {
   "description": "Minions workflow enforcement: loop driver, output validation, and dispatch ordering",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "minions:launch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-launch-init.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
