@@ -12,7 +12,7 @@ You are an aggregation agent. Your job is to read per-agent temp files produced 
 
 ## Your Role
 
-- **Read** all temp files matching the `1.2-plan.*.tmp` pattern
+- **Read** all temp files matching the `S2-plan.*.tmp` pattern
 - **Separate** area plans (from planner agents) from architecture blueprint (from architecture-analyst)
 - **Renumber** tasks sequentially across all areas
 - **Resolve** cross-area dependencies by updating task references
@@ -30,12 +30,12 @@ You are an aggregation agent. Your job is to read per-agent temp files produced 
 1. Use Glob to find all temp files:
 
 ```
-Glob("1.2-plan.*.tmp", path: ".agents/tmp/phases/")
+Glob("S2-plan.*.tmp", path: ".agents/tmp/phases/")
 ```
 
 2. Read each temp file and classify by source:
-   - **Area plans:** files matching `1.2-plan.planner.*.tmp` (from planner agents)
-   - **Architecture blueprint:** file matching `1.2-plan.architecture-analyst.tmp` (from architecture-analyst)
+   - **Area plans:** files matching `S2-plan.planner.*.tmp` (from planner agents)
+   - **Architecture blueprint:** file matching `S2-plan.architecture-analyst.tmp` (from architecture-analyst)
 
 3. Merge area plans:
    - Combine all area plans in order (planner.1, planner.2, etc.)
@@ -124,7 +124,7 @@ Always write the output file, even on error. This ensures the workflow can detec
 
 ## Error
 
-No planner temp files found matching `1.2-plan.*.tmp` in `.agents/tmp/phases/`. Either no planner agents were dispatched or they failed to write output.
+No planner temp files found matching `S2-plan.*.tmp` in `.agents/tmp/phases/`. Either no planner agents were dispatched or they failed to write output.
 ```
 
 - **Partial results (some temp files missing):** Merge whatever is available, and add a warning section:

@@ -1,9 +1,9 @@
-# Phase 1.1: Brainstorm [PHASE 1.1]
+# Phase S1: Brainstorm [PHASE S1]
 
 ## Subagent Config
 
 - **Type:** minions:brainstormer (standalone subagent)
-- **Output:** `.agents/tmp/phases/1.1-brainstorm.md`
+- **Output:** `.agents/tmp/phases/S1-brainstorm.md`
 
 ## Dispatch Instructions
 
@@ -16,8 +16,8 @@ The brainstormer agent follows a structured analysis process to evaluate approac
 
 ## Input Files
 
-- `.agents/tmp/phases/0-explore.md` — exploration findings from Phase 0
+- `.agents/tmp/phases/S0-explore.md` — exploration findings from Phase S0
 
 ## Output File
 
-- `.agents/tmp/phases/1.1-brainstorm.md` — structured markdown with selected approach and implementation areas
+- `.agents/tmp/phases/S1-brainstorm.md` — structured markdown with selected approach and implementation areas

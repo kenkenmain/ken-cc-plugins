@@ -26,7 +26,7 @@ You receive a prompt specifying:
 Example prompt:
 
 ```
-Review the implementation plan at .agents/tmp/phases/1.2-plan.md.
+Review the implementation plan at .agents/tmp/phases/S2-plan.md.
 Use prompts/high-stakes/plan-review.md criteria.
 ```
 
@@ -47,7 +47,7 @@ Each review type defines its own output schema in the corresponding prompt file:
 - **Test review:** `prompts/high-stakes/test-review.md` — returns `status`, `issues[]`, `summary`
 - **Final review:** `prompts/high-stakes/final-review.md` — returns `status`, `overallQuality`, `issues[]`, `metrics`, `summary`, `readyForCommit`
 
-All review types include `status` and `issues[]` with `severity`, `location`, `issue`, `suggestion`. Status values differ by type: plan/implementation/test-dev reviews return `approved` | `needs_revision`; test review (3.5) returns `approved` | `needs_coverage` | `blocked`; final review returns `approved` | `blocked`.
+All review types include `status` and `issues[]` with `severity`, `location`, `issue`, `suggestion`. Status values differ by type: plan/implementation/test-dev reviews return `approved` | `needs_revision`; test review (S11) returns `approved` | `needs_coverage` | `blocked`; final review returns `approved` | `blocked`.
 
 ## Review Type Mapping
 

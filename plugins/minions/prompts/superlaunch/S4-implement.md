@@ -1,13 +1,10 @@
-# Phase 2.1: Implement [PHASE 2.1]
+# Phase S4: Implement [PHASE S4]
 
 ## Subagent Config
 
-- **Type:** complexity-routed task agents (wave-based parallel batch)
-  - Easy: `minions:sonnet-task-agent` (direct execution, model=sonnet)
-  - Medium: `minions:opus-task-agent` (direct execution, model=opus)
-  - Hard: `minions:opus-task-agent` (direct execution, model=opus)
-- **Input:** `.agents/tmp/phases/1.2-plan.md`
-- **Output:** `.agents/tmp/phases/2.1-tasks.json`
+- **Type:** `minions:task-agent` (wave-based parallel batch, model=inherit)
+- **Input:** `.agents/tmp/phases/S2-plan.md`
+- **Output:** `.agents/tmp/phases/S4-tasks.json`
 
 ## Instructions
 
@@ -15,7 +12,7 @@ Execute implementation tasks from the plan in dependency-ordered waves.
 
 ### Process
 
-1. Read `.agents/tmp/phases/1.2-plan.md`
+1. Read `.agents/tmp/phases/S2-plan.md`
 2. Parse tasks and build dependency graph
 3. Score each task complexity (easy/medium/hard)
 4. Dispatch tasks in waves:
@@ -26,19 +23,9 @@ Execute implementation tasks from the plan in dependency-ordered waves.
    - Count total tests across all tasks (`testsTotal`)
    - Collect unique test file paths (`testFiles`)
 
-### Complexity Scoring
-
-| Level  | Criteria                     | Agent               | Execution                       |
-| ------ | ---------------------------- | ------------------- | ------------------------------- |
-| Easy   | 1 file, <50 LOC              | sonnet-task-agent   | direct execution (model=sonnet) |
-| Medium | 2-3 files, 50-200 LOC        | opus-task-agent     | direct execution (model=opus)   |
-| Hard   | 4+ files, >200 LOC, security | opus-task-agent     | direct execution (model=opus)   |
-
-For each task, pick `subagent_type`:
-- Easy: `minions:sonnet-task-agent`
-- Medium/Hard: `minions:opus-task-agent`
-
 ### Task Agent Payload
+
+For each task, dispatch `minions:task-agent` with:
 
 ```json
 {"taskId":"task-N","description":"...","targetFiles":[...],"instructions":"...","dependencyOutputs":[...],"constraints":{"allowBashCommands":false}}
@@ -48,7 +35,7 @@ Task agents write unit tests alongside their implementation. The `testsWritten` 
 
 ### Output Format
 
-Write to `.agents/tmp/phases/2.1-tasks.json`:
+Write to `.agents/tmp/phases/S4-tasks.json`:
 
 ```json
 {

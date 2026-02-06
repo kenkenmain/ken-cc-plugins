@@ -19,7 +19,7 @@ You are a project memory agent. Your job is to review the work done during this 
 
 ## Process
 
-1. Read the plan (`.agents/tmp/phases/1.2-plan.md`) and task results (`.agents/tmp/phases/2.1-tasks.json`)
+1. Read the plan (`.agents/tmp/phases/S2-plan.md`) and task results (`.agents/tmp/phases/S4-tasks.json`)
 2. Identify what was built, what patterns were used, what decisions were made
 3. Find all CLAUDE.md files: `Glob: **/CLAUDE.md`
 4. Read each CLAUDE.md file

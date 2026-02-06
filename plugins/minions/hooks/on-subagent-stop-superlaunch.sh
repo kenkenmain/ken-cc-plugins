@@ -139,20 +139,20 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
     exit 0
   fi
 
-  # Review approved — check for coverage loop (phase 3.5)
-  if [[ "$CURRENT_PHASE" == "3.5" ]]; then
+  # Review approved — check for coverage loop (phase S11)
+  if [[ "$CURRENT_PHASE" == "S11" ]]; then
     COVERAGE_MET=$(jq -r '.coverage.met // true' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "true")
     if [[ "$COVERAGE_MET" == "false" ]]; then
       COVERAGE_ITER=$(state_get '.coverageLoop.iteration // 0' 2>/dev/null || echo "0")
       if [[ "$COVERAGE_ITER" -lt 20 ]]; then
-        # Loop back to 3.3
+        # Loop back to S9
         if ! update_state --argjson iter "$((COVERAGE_ITER + 1))" \
-          '.currentPhase = "3.3" | .coverageLoop.iteration = $iter | .updatedAt = $ts'; then
-          echo "ERROR: Failed to loop back to 3.3 for coverage." >&2
+          '.currentPhase = "S9" | .coverageLoop.iteration = $iter | .updatedAt = $ts'; then
+          echo "ERROR: Failed to loop back to S9 for coverage." >&2
           exit 2
         fi
-        # Delete stale 3.3-3.5 output for clean re-run
-        rm -f "${PHASES_DIR}/3.3-test-dev.json" "${PHASES_DIR}/3.4-test-dev-review.json" "${PHASES_DIR}/3.5-test-review.json" 2>/dev/null || true
+        # Delete stale S9-S11 output for clean re-run
+        rm -f "${PHASES_DIR}/S9-test-dev.json" "${PHASES_DIR}/S10-test-dev-review.json" "${PHASES_DIR}/S11-test-review.json" 2>/dev/null || true
         exit 0
       fi
     fi

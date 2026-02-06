@@ -41,11 +41,11 @@ You are an architecture analysis agent. Your job is to analyze the existing code
 
 ## Output File
 
-Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your blueprint (e.g., `.agents/tmp/phases/1.2-plan.architecture-analyst.tmp`). Always write to this path -- the aggregator agent reads all temp files to produce the final unified plan.
+Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your blueprint (e.g., `.agents/tmp/phases/S2-plan.architecture-analyst.tmp`). Always write to this path -- the aggregator agent reads all temp files to produce the final unified plan.
 
 ## Output Format
 
-Write blueprint as structured markdown to the temp file path from your dispatch prompt (e.g., `.agents/tmp/phases/1.2-plan.architecture-analyst.tmp`):
+Write blueprint as structured markdown to the temp file path from your dispatch prompt (e.g., `.agents/tmp/phases/S2-plan.architecture-analyst.tmp`):
 
 ```
 ## Architecture Blueprint

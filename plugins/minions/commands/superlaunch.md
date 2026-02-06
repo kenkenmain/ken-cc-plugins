@@ -6,7 +6,7 @@ argument-hint: <task description>
 
 # Minions Superlaunch
 
-You are launching a Claude-only 15-phase thorough development pipeline. This uses **minions plugin agents** (self-contained, 22 superlaunch agents) driven by **minions plugin hooks** (Ralph-style loop driver).
+You are launching a Claude-only 15-phase thorough development pipeline. This uses **minions plugin agents** (self-contained, 25 superlaunch agents) driven by **minions plugin hooks** (Ralph-style loop driver).
 
 Use the `superlaunch` skill for workflow reference documentation.
 
@@ -21,21 +21,21 @@ Parse from $ARGUMENTS to extract the task description.
 ```
 EXPLORE → PLAN → IMPLEMENT → TEST → FINAL → COMPLETE
 
-Phase 0   │ EXPLORE   │ Explore                 │ dispatch
-Phase 1.1 │ PLAN      │ Brainstorm              │ subagent
-Phase 1.2 │ PLAN      │ Plan                    │ dispatch
-Phase 1.3 │ PLAN      │ Plan Review             │ review
-Phase 2.1 │ IMPLEMENT │ Implement               │ dispatch
-Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent
-Phase 2.3 │ IMPLEMENT │ Impl Review             │ review
-Phase 3.1 │ TEST      │ Run Tests               │ subagent
-Phase 3.2 │ TEST      │ Analyze                 │ subagent
-Phase 3.3 │ TEST      │ Develop Tests           │ subagent
-Phase 3.4 │ TEST      │ Test Dev Review         │ review
-Phase 3.5 │ TEST      │ Test Review             │ review
-Phase 4.1 │ FINAL     │ Documentation           │ subagent
-Phase 4.2 │ FINAL     │ Final Review            │ review
-Phase 4.3 │ FINAL     │ Completion              │ subagent
+Phase S0  │ EXPLORE   │ Explore                 │ dispatch
+Phase S1  │ PLAN      │ Brainstorm              │ subagent
+Phase S2  │ PLAN      │ Plan                    │ dispatch
+Phase S3  │ PLAN      │ Plan Review             │ review
+Phase S4  │ IMPLEMENT │ Implement               │ dispatch
+Phase S5  │ IMPLEMENT │ Simplify                │ subagent
+Phase S6  │ IMPLEMENT │ Impl Review             │ review
+Phase S7  │ TEST      │ Run Tests               │ subagent
+Phase S8  │ TEST      │ Analyze                 │ subagent
+Phase S9  │ TEST      │ Develop Tests           │ subagent
+Phase S10 │ TEST      │ Test Dev Review         │ review
+Phase S11 │ TEST      │ Test Review             │ review
+Phase S12 │ FINAL     │ Documentation           │ subagent
+Phase S13 │ FINAL     │ Final Review            │ review
+Phase S14 │ FINAL     │ Completion              │ subagent
 
 Gates: EXPLORE→PLAN, PLAN→IMPLEMENT, IMPLEMENT→TEST, TEST→FINAL, FINAL→COMPLETE
 ```
@@ -95,10 +95,9 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "task": "<task description>",
   "startedAt": "<ISO timestamp>",
   "updatedAt": "<ISO timestamp>",
-  "currentPhase": "0",
+  "currentPhase": "S0",
   "currentStage": "EXPLORE",
   "codexAvailable": false,
-  "reviewer": "minions:claude-reviewer",
   "testDeveloper": "minions:test-developer",
   "failureAnalyzer": "minions:failure-analyzer",
   "docUpdater": "minions:doc-updater",
@@ -106,35 +105,35 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "sessionId": "<sessionId value>",
   "branch": "<BRANCH_NAME>",
   "schedule": [
-    {"phase":"0","stage":"EXPLORE","name":"Explore","type":"dispatch"},
-    {"phase":"1.1","stage":"PLAN","name":"Brainstorm","type":"subagent"},
-    {"phase":"1.2","stage":"PLAN","name":"Plan","type":"dispatch"},
-    {"phase":"1.3","stage":"PLAN","name":"Plan Review","type":"review"},
-    {"phase":"2.1","stage":"IMPLEMENT","name":"Implement","type":"dispatch"},
-    {"phase":"2.2","stage":"IMPLEMENT","name":"Simplify","type":"subagent"},
-    {"phase":"2.3","stage":"IMPLEMENT","name":"Impl Review","type":"review"},
-    {"phase":"3.1","stage":"TEST","name":"Run Tests","type":"subagent"},
-    {"phase":"3.2","stage":"TEST","name":"Analyze","type":"subagent"},
-    {"phase":"3.3","stage":"TEST","name":"Develop Tests","type":"subagent"},
-    {"phase":"3.4","stage":"TEST","name":"Test Dev Review","type":"review"},
-    {"phase":"3.5","stage":"TEST","name":"Test Review","type":"review"},
-    {"phase":"4.1","stage":"FINAL","name":"Documentation","type":"subagent"},
-    {"phase":"4.2","stage":"FINAL","name":"Final Review","type":"review"},
-    {"phase":"4.3","stage":"FINAL","name":"Completion","type":"subagent"}
+    {"phase":"S0","stage":"EXPLORE","name":"Explore","type":"dispatch"},
+    {"phase":"S1","stage":"PLAN","name":"Brainstorm","type":"subagent"},
+    {"phase":"S2","stage":"PLAN","name":"Plan","type":"dispatch"},
+    {"phase":"S3","stage":"PLAN","name":"Plan Review","type":"review"},
+    {"phase":"S4","stage":"IMPLEMENT","name":"Implement","type":"dispatch"},
+    {"phase":"S5","stage":"IMPLEMENT","name":"Simplify","type":"subagent"},
+    {"phase":"S6","stage":"IMPLEMENT","name":"Impl Review","type":"review"},
+    {"phase":"S7","stage":"TEST","name":"Run Tests","type":"subagent"},
+    {"phase":"S8","stage":"TEST","name":"Analyze","type":"subagent"},
+    {"phase":"S9","stage":"TEST","name":"Develop Tests","type":"subagent"},
+    {"phase":"S10","stage":"TEST","name":"Test Dev Review","type":"review"},
+    {"phase":"S11","stage":"TEST","name":"Test Review","type":"review"},
+    {"phase":"S12","stage":"FINAL","name":"Documentation","type":"subagent"},
+    {"phase":"S13","stage":"FINAL","name":"Final Review","type":"review"},
+    {"phase":"S14","stage":"FINAL","name":"Completion","type":"subagent"}
   ],
   "gates": {
-    "EXPLORE->PLAN": {"required":["0-explore.md"],"phase":"0"},
-    "PLAN->IMPLEMENT": {"required":["1.1-brainstorm.md","1.2-plan.md","1.3-plan-review.json"],"phase":"1.3"},
-    "IMPLEMENT->TEST": {"required":["2.1-tasks.json","2.3-impl-review.json"],"phase":"2.3"},
-    "TEST->FINAL": {"required":["3.1-test-results.json","3.3-test-dev.json","3.5-test-review.json"],"phase":"3.5"},
-    "FINAL->COMPLETE": {"required":["4.2-final-review.json"],"phase":"4.2"}
+    "EXPLORE->PLAN": {"required":["S0-explore.md"],"phase":"S0"},
+    "PLAN->IMPLEMENT": {"required":["S1-brainstorm.md","S2-plan.md","S3-plan-review.json"],"phase":"S3"},
+    "IMPLEMENT->TEST": {"required":["S4-tasks.json","S6-impl-review.json"],"phase":"S6"},
+    "TEST->FINAL": {"required":["S7-test-results.json","S9-test-dev.json","S11-test-review.json"],"phase":"S11"},
+    "FINAL->COMPLETE": {"required":["S13-final-review.json"],"phase":"S13"}
   },
   "stages": {
-    "EXPLORE": {"status":"pending","phases":["0"]},
-    "PLAN": {"status":"pending","phases":["1.1","1.2","1.3"]},
-    "IMPLEMENT": {"status":"pending","phases":["2.1","2.2","2.3"]},
-    "TEST": {"status":"pending","phases":["3.1","3.2","3.3","3.4","3.5"]},
-    "FINAL": {"status":"pending","phases":["4.1","4.2","4.3"]}
+    "EXPLORE": {"status":"pending","phases":["S0"]},
+    "PLAN": {"status":"pending","phases":["S1","S2","S3"]},
+    "IMPLEMENT": {"status":"pending","phases":["S4","S5","S6"]},
+    "TEST": {"status":"pending","phases":["S7","S8","S9","S10","S11"]},
+    "FINAL": {"status":"pending","phases":["S12","S13","S14"]}
   },
   "reviewPolicy": {"maxFixAttempts": 10, "maxStageRestarts": 3},
   "supplementaryPolicy": "on-issues",
@@ -152,28 +151,28 @@ Show the user the planned execution:
 ```
 Minions Superlaunch — 15-Phase Thorough Pipeline (Claude-only)
 ===============================================================
-Phase 0   │ EXPLORE   │ Explore                 │ dispatch  → explorers + aggregator
-Phase 1.1 │ PLAN      │ Brainstorm              │ subagent  → brainstormer
-Phase 1.2 │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
-Phase 1.3 │ PLAN      │ Plan Review             │ review    → claude-reviewer
-Phase 2.1 │ IMPLEMENT │ Implement               │ dispatch  → task agents (per complexity)
-Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent  → simplifier
-Phase 2.3 │ IMPLEMENT │ Impl Review             │ review    → claude-reviewer + supplementary
-Phase 3.1 │ TEST      │ Run Tests               │ subagent  → test-developer
-Phase 3.2 │ TEST      │ Analyze                 │ subagent  → failure-analyzer
-Phase 3.3 │ TEST      │ Develop Tests           │ subagent  → test-developer
-Phase 3.4 │ TEST      │ Test Dev Review         │ review    → claude-reviewer
-Phase 3.5 │ TEST      │ Test Review             │ review    → claude-reviewer
-Phase 4.1 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
-Phase 4.2 │ FINAL     │ Final Review            │ review    → claude-reviewer + supplementary
-Phase 4.3 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
+Phase S0  │ EXPLORE   │ Explore                 │ dispatch  → explorers + aggregator
+Phase S1  │ PLAN      │ Brainstorm              │ subagent  → brainstormer
+Phase S2  │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
+Phase S3  │ PLAN      │ Plan Review             │ review    → plan-reviewer
+Phase S4  │ IMPLEMENT │ Implement               │ dispatch  → task-agent (parallel batch)
+Phase S5  │ IMPLEMENT │ Simplify                │ subagent  → simplifier
+Phase S6  │ IMPLEMENT │ Impl Review             │ review    → impl-reviewer + supplementary
+Phase S7  │ TEST      │ Run Tests               │ subagent  → test-developer
+Phase S8  │ TEST      │ Analyze                 │ subagent  → failure-analyzer
+Phase S9  │ TEST      │ Develop Tests           │ subagent  → test-developer
+Phase S10 │ TEST      │ Test Dev Review         │ review    → test-dev-reviewer
+Phase S11 │ TEST      │ Test Review             │ review    → test-reviewer
+Phase S12 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
+Phase S13 │ FINAL     │ Final Review            │ review    → final-reviewer + supplementary
+Phase S14 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
 
 Gates:
-  EXPLORE → PLAN:      requires 0-explore.md
-  PLAN → IMPLEMENT:    requires 1.1-brainstorm.md, 1.2-plan.md, 1.3-plan-review.json
-  IMPLEMENT → TEST:    requires 2.1-tasks.json, 2.3-impl-review.json
-  TEST → FINAL:        requires 3.1-test-results.json, 3.3-test-dev.json, 3.5-test-review.json
-  FINAL → COMPLETE:    requires 4.2-final-review.json
+  EXPLORE → PLAN:      requires S0-explore.md
+  PLAN → IMPLEMENT:    requires S1-brainstorm.md, S2-plan.md, S3-plan-review.json
+  IMPLEMENT → TEST:    requires S4-tasks.json, S6-impl-review.json
+  TEST → FINAL:        requires S7-test-results.json, S9-test-dev.json, S11-test-review.json
+  FINAL → COMPLETE:    requires S13-final-review.json
 ```
 
 ## Step 3: Initialize Task List
@@ -188,36 +187,36 @@ Create tasks for progress tracking:
 
 Set dependencies: PLAN blocked by EXPLORE, IMPLEMENT blocked by PLAN, TEST blocked by IMPLEMENT, FINAL blocked by TEST.
 
-## Step 4: Dispatch Phase 0 (Explore)
+## Step 4: Dispatch Phase S0 (Explore)
 
-Read the prompt template at `prompts/superlaunch/0-explore.md` for dispatch instructions.
+Read the prompt template at `prompts/superlaunch/S0-explore.md` for dispatch instructions.
 
 Dispatch the explore phase using `minions:explorer` agents (parallel batch) and `minions:deep-explorer` (supplementary).
 
-After all explorers complete, dispatch `minions:explore-aggregator` to merge results into `.agents/tmp/phases/0-explore.md`.
+After all explorers complete, dispatch `minions:explore-aggregator` to merge results into `.agents/tmp/phases/S0-explore.md`.
 
-After Phase 0 completes, the Stop hook (`on-stop.sh`) drives the orchestrator through all 15 phases automatically via schedule-driven prompt generation.
+After Phase S0 completes, the Stop hook (`on-stop.sh`) drives the orchestrator through all 15 phases automatically via schedule-driven prompt generation.
 
 ## Phase Agent Mapping
 
 | Phase | Agent | subagent_type |
 |-------|-------|---------------|
-| 0 | explorer (batch) | `minions:explorer` |
-| 0 | deep-explorer (supplementary) | `minions:deep-explorer` |
-| 0 | explore-aggregator | `minions:explore-aggregator` |
-| 1.1 | brainstormer | `minions:brainstormer` |
-| 1.2 | planner (batch) | `minions:planner` |
-| 1.2 | architecture-analyst (supplementary) | `minions:architecture-analyst` |
-| 1.2 | plan-aggregator | `minions:plan-aggregator` |
-| 1.3 | claude-reviewer | `minions:claude-reviewer` |
-| 2.1 | sonnet-task-agent / opus-task-agent | `minions:sonnet-task-agent` / `minions:opus-task-agent` |
-| 2.2 | simplifier | `minions:simplifier` |
-| 2.3 | claude-reviewer + supplementary | `minions:claude-reviewer` |
-| 3.1 | test-developer | `minions:test-developer` |
-| 3.2 | failure-analyzer | `minions:failure-analyzer` |
-| 3.3 | test-developer | `minions:test-developer` |
-| 3.4 | claude-reviewer | `minions:claude-reviewer` |
-| 3.5 | claude-reviewer | `minions:claude-reviewer` |
-| 4.1 | doc-updater + claude-md-updater | `minions:doc-updater` |
-| 4.2 | claude-reviewer + supplementary | `minions:claude-reviewer` |
-| 4.3 | shipper + retrospective | `minions:shipper` |
+| S0 | explorer (batch) | `minions:explorer` |
+| S0 | deep-explorer (supplementary) | `minions:deep-explorer` |
+| S0 | explore-aggregator | `minions:explore-aggregator` |
+| S1 | brainstormer | `minions:brainstormer` |
+| S2 | planner (batch) | `minions:planner` |
+| S2 | architecture-analyst (supplementary) | `minions:architecture-analyst` |
+| S2 | plan-aggregator | `minions:plan-aggregator` |
+| S3 | plan-reviewer | `minions:plan-reviewer` |
+| S4 | task-agent (batch) | `minions:task-agent` |
+| S5 | simplifier | `minions:simplifier` |
+| S6 | impl-reviewer + supplementary | `minions:impl-reviewer` |
+| S7 | test-developer | `minions:test-developer` |
+| S8 | failure-analyzer | `minions:failure-analyzer` |
+| S9 | test-developer | `minions:test-developer` |
+| S10 | test-dev-reviewer | `minions:test-dev-reviewer` |
+| S11 | test-reviewer | `minions:test-reviewer` |
+| S12 | doc-updater + claude-md-updater | `minions:doc-updater` |
+| S13 | final-reviewer + supplementary | `minions:final-reviewer` |
+| S14 | shipper + retrospective | `minions:shipper` |

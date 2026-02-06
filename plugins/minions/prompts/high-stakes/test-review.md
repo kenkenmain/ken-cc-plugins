@@ -55,4 +55,4 @@ You are reviewing test coverage and quality for code produced by task agents.
 
 ## Note
 
-Invoked via `minions:claude-reviewer` agent. For Phase 3.5 (Test Review), the output includes coverage threshold checking with `approved | needs_coverage | blocked` status.
+Invoked via `minions:test-reviewer` agent. For Phase S11 (Test Review), the output includes coverage threshold checking with `approved | needs_coverage | blocked` status.

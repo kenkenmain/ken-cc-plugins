@@ -23,21 +23,21 @@ set -euo pipefail
 get_sl_phase_output() {
   local phase="${1:?get_sl_phase_output requires a phase ID}"
   case "$phase" in
-    0)   echo "0-explore.md" ;;
-    1.1) echo "1.1-brainstorm.md" ;;
-    1.2) echo "1.2-plan.md" ;;
-    1.3) echo "1.3-plan-review.json" ;;
-    2.1) echo "2.1-tasks.json" ;;
-    2.2) echo "2.2-simplify.md" ;;
-    2.3) echo "2.3-impl-review.json" ;;
-    3.1) echo "3.1-test-results.json" ;;
-    3.2) echo "3.2-analysis.md" ;;
-    3.3) echo "3.3-test-dev.json" ;;
-    3.4) echo "3.4-test-dev-review.json" ;;
-    3.5) echo "3.5-test-review.json" ;;
-    4.1) echo "4.1-docs.md" ;;
-    4.2) echo "4.2-final-review.json" ;;
-    4.3) echo "4.3-completion.json" ;;
+    S0)  echo "S0-explore.md" ;;
+    S1)  echo "S1-brainstorm.md" ;;
+    S2)  echo "S2-plan.md" ;;
+    S3)  echo "S3-plan-review.json" ;;
+    S4)  echo "S4-tasks.json" ;;
+    S5)  echo "S5-simplify.md" ;;
+    S6)  echo "S6-impl-review.json" ;;
+    S7)  echo "S7-test-results.json" ;;
+    S8)  echo "S8-analysis.md" ;;
+    S9)  echo "S9-test-dev.json" ;;
+    S10) echo "S10-test-dev-review.json" ;;
+    S11) echo "S11-test-review.json" ;;
+    S12) echo "S12-docs.md" ;;
+    S13) echo "S13-final-review.json" ;;
+    S14) echo "S14-completion.json" ;;
     *)   echo "" ;;
   esac
 }
@@ -49,59 +49,59 @@ get_sl_phase_output() {
 get_sl_phase_input() {
   local phase="${1:?get_sl_phase_input requires a phase ID}"
   case "$phase" in
-    0)
+    S0)
       echo "- Task description from state.json \`.task\` field"
       ;;
-    1.1)
-      echo "- \`.agents/tmp/phases/0-explore.md\`"
+    S1)
+      echo "- \`.agents/tmp/phases/S0-explore.md\`"
       ;;
-    1.2)
-      echo "- \`.agents/tmp/phases/0-explore.md\`"
-      echo "- \`.agents/tmp/phases/1.1-brainstorm.md\`"
+    S2)
+      echo "- \`.agents/tmp/phases/S0-explore.md\`"
+      echo "- \`.agents/tmp/phases/S1-brainstorm.md\`"
       ;;
-    1.3)
-      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+    S3)
+      echo "- \`.agents/tmp/phases/S2-plan.md\`"
       ;;
-    2.1)
-      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+    S4)
+      echo "- \`.agents/tmp/phases/S2-plan.md\`"
       ;;
-    2.2)
-      echo "- \`.agents/tmp/phases/2.1-tasks.json\`"
+    S5)
+      echo "- \`.agents/tmp/phases/S4-tasks.json\`"
       echo "- Run \`git diff\` for current changes"
       ;;
-    2.3)
-      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
+    S6)
+      echo "- \`.agents/tmp/phases/S2-plan.md\`"
       echo "- Run \`git diff\` for current changes"
       ;;
-    3.1)
+    S7)
       echo "- Test commands from project config (Makefile, package.json, etc.)"
       ;;
-    3.2)
-      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+    S8)
+      echo "- \`.agents/tmp/phases/S7-test-results.json\`"
       ;;
-    3.3)
-      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
-      echo "- \`.agents/tmp/phases/3.2-analysis.md\` (may not exist if tests passed)"
-      echo "- \`.agents/tmp/phases/2.1-tasks.json\` (check \`testsWritten\` — skip already-tested code)"
+    S9)
+      echo "- \`.agents/tmp/phases/S7-test-results.json\`"
+      echo "- \`.agents/tmp/phases/S8-analysis.md\` (may not exist if tests passed)"
+      echo "- \`.agents/tmp/phases/S4-tasks.json\` (check \`testsWritten\` — skip already-tested code)"
       ;;
-    3.4)
-      echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"
-      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
+    S10)
+      echo "- \`.agents/tmp/phases/S9-test-dev.json\`"
+      echo "- \`.agents/tmp/phases/S7-test-results.json\`"
       ;;
-    3.5)
-      echo "- \`.agents/tmp/phases/3.1-test-results.json\`"
-      echo "- \`.agents/tmp/phases/3.2-analysis.md\`"
-      echo "- \`.agents/tmp/phases/3.3-test-dev.json\`"
+    S11)
+      echo "- \`.agents/tmp/phases/S7-test-results.json\`"
+      echo "- \`.agents/tmp/phases/S8-analysis.md\`"
+      echo "- \`.agents/tmp/phases/S9-test-dev.json\`"
       ;;
-    4.1)
-      echo "- \`.agents/tmp/phases/1.2-plan.md\`"
-      echo "- \`.agents/tmp/phases/2.1-tasks.json\`"
+    S12)
+      echo "- \`.agents/tmp/phases/S2-plan.md\`"
+      echo "- \`.agents/tmp/phases/S4-tasks.json\`"
       ;;
-    4.2)
+    S13)
       echo "- All \`.agents/tmp/phases/*.json\` files"
       ;;
-    4.3)
-      echo "- \`.agents/tmp/phases/4.2-final-review.json\`"
+    S14)
+      echo "- \`.agents/tmp/phases/S13-final-review.json\`"
       ;;
     *)
       echo "- None"
@@ -120,23 +120,30 @@ get_sl_phase_agent() {
   local phase_type
   phase_type="$(jq -r --arg p "$phase" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE" 2>/dev/null || echo "")"
 
-  # Review phases use state.reviewer
+  # Review phases — each has a dedicated reviewer agent
   if [[ "$phase_type" == "review" ]]; then
-    state_get '.reviewer // "minions:claude-reviewer"'
+    case "$phase" in
+      S3)  echo "minions:plan-reviewer" ;;
+      S6)  echo "minions:impl-reviewer" ;;
+      S10) echo "minions:test-dev-reviewer" ;;
+      S11) echo "minions:test-reviewer" ;;
+      S13) echo "minions:final-reviewer" ;;
+      *)   echo "minions:plan-reviewer" ;;  # fallback
+    esac
     return
   fi
 
   case "$phase" in
-    0)   echo "minions:explorer" ;;
-    1.1) echo "minions:brainstormer" ;;
-    1.2) echo "minions:planner" ;;
-    2.1) echo "minions:sonnet-task-agent" ;;
-    2.2) echo "minions:simplifier" ;;
-    3.1) state_get '.testDeveloper // "minions:test-developer"' ;;
-    3.2) state_get '.failureAnalyzer // "minions:failure-analyzer"' ;;
-    3.3) state_get '.testDeveloper // "minions:test-developer"' ;;
-    4.1) state_get '.docUpdater // "minions:doc-updater"' ;;
-    4.3) echo "minions:shipper" ;;
+    S0)  echo "minions:explorer" ;;
+    S1)  echo "minions:brainstormer" ;;
+    S2)  echo "minions:planner" ;;
+    S4)  echo "minions:task-agent" ;;
+    S5)  echo "minions:simplifier" ;;
+    S7)  state_get '.testDeveloper // "minions:test-developer"' ;;
+    S8)  state_get '.failureAnalyzer // "minions:failure-analyzer"' ;;
+    S9)  state_get '.testDeveloper // "minions:test-developer"' ;;
+    S12) state_get '.docUpdater // "minions:doc-updater"' ;;
+    S14) echo "minions:shipper" ;;
     *)   echo "" ;;
   esac
 }
@@ -147,15 +154,8 @@ get_sl_phase_agent() {
 
 get_sl_phase_model() {
   local phase="${1:?get_sl_phase_model requires a phase ID}"
-
-  case "$phase" in
-    2.1)
-      echo "per-task"
-      ;;
-    *)
-      echo "inherit"
-      ;;
-  esac
+  # All phases use inherit — the parent conversation's model controls execution
+  echo "inherit"
 }
 
 # ===========================================================================
@@ -165,26 +165,26 @@ get_sl_phase_model() {
 _raw_sl_supplementary() {
   local phase="${1:?_raw_sl_supplementary requires a phase ID}"
   case "$phase" in
-    0)
+    S0)
       echo "minions:deep-explorer"
       ;;
-    1.2)
+    S2)
       echo "minions:architecture-analyst"
       ;;
-    2.3)
+    S6)
       echo "minions:critic"
       echo "minions:silent-failure-hunter"
       echo "minions:type-reviewer"
       ;;
-    4.1)
+    S12)
       echo "minions:claude-md-updater"
       ;;
-    4.2)
+    S13)
       echo "minions:pedant"
       echo "minions:security-reviewer"
       echo "minions:silent-failure-hunter"
       ;;
-    4.3)
+    S14)
       echo "minions:retrospective-analyst"
       ;;
     *)
@@ -221,7 +221,7 @@ get_sl_supplementary() {
 sl_phase_has_aggregator() {
   local phase="${1:-}"
   case "$phase" in
-    0|1.2) return 0 ;;
+    S0|S2) return 0 ;;
     *)     return 1 ;;
   esac
 }
@@ -229,8 +229,8 @@ sl_phase_has_aggregator() {
 get_sl_phase_aggregator() {
   local phase="${1:?get_sl_phase_aggregator requires a phase ID}"
   case "$phase" in
-    0)   echo "minions:explore-aggregator" ;;
-    1.2) echo "minions:plan-aggregator" ;;
+    S0) echo "minions:explore-aggregator" ;;
+    S2) echo "minions:plan-aggregator" ;;
     *)   echo "" ;;
   esac
 }
@@ -348,28 +348,31 @@ get_sl_editable_stages() {
 get_sl_agent_phases() {
   local agent_type="${1:?get_sl_agent_phases requires an agent type}"
   case "$agent_type" in
-    minions:explorer)             echo "0" ;;
-    minions:deep-explorer)        echo "0" ;;
-    minions:explore-aggregator)   echo "0" ;;
-    minions:brainstormer)         echo "1.1" ;;
-    minions:planner)              echo "1.2" ;;
-    minions:architecture-analyst) echo "1.2" ;;
-    minions:plan-aggregator)      echo "1.2" ;;
-    minions:claude-reviewer)      echo "1.3 2.3 3.4 3.5 4.2" ;;
-    minions:sonnet-task-agent)    echo "2.1" ;;
-    minions:opus-task-agent)      echo "2.1" ;;
-    minions:simplifier)           echo "2.2" ;;
-    minions:critic)                  echo "2.3" ;;
-    minions:silent-failure-hunter)   echo "2.3 4.2" ;;
-    minions:type-reviewer)           echo "2.3" ;;
-    minions:test-developer)       echo "3.1 3.3" ;;
-    minions:failure-analyzer)     echo "3.2" ;;
-    minions:pedant)                  echo "4.2" ;;
-    minions:security-reviewer)       echo "4.2" ;;
-    minions:doc-updater)          echo "4.1" ;;
-    minions:claude-md-updater)    echo "4.1" ;;
-    minions:shipper)              echo "4.3" ;;
-    minions:retrospective-analyst) echo "4.3" ;;
+    minions:explorer)             echo "S0" ;;
+    minions:deep-explorer)        echo "S0" ;;
+    minions:explore-aggregator)   echo "S0" ;;
+    minions:brainstormer)         echo "S1" ;;
+    minions:planner)              echo "S2" ;;
+    minions:architecture-analyst) echo "S2" ;;
+    minions:plan-aggregator)      echo "S2" ;;
+    minions:plan-reviewer)        echo "S3" ;;
+    minions:impl-reviewer)        echo "S6" ;;
+    minions:test-dev-reviewer)    echo "S10" ;;
+    minions:test-reviewer)        echo "S11" ;;
+    minions:final-reviewer)       echo "S13" ;;
+    minions:task-agent)           echo "S4" ;;
+    minions:simplifier)           echo "S5" ;;
+    minions:critic)                  echo "S6" ;;
+    minions:silent-failure-hunter)   echo "S6 S13" ;;
+    minions:type-reviewer)           echo "S6" ;;
+    minions:test-developer)       echo "S7 S9" ;;
+    minions:failure-analyzer)     echo "S8" ;;
+    minions:pedant)                  echo "S13" ;;
+    minions:security-reviewer)       echo "S13" ;;
+    minions:doc-updater)          echo "S12" ;;
+    minions:claude-md-updater)    echo "S12" ;;
+    minions:shipper)              echo "S14" ;;
+    minions:retrospective-analyst) echo "S14" ;;
     *) echo "" ;;
   esac
 }
@@ -513,8 +516,8 @@ NONE
     aggregator="$(get_sl_phase_aggregator "$phase")"
     local agg_glob
     case "$phase" in
-      0)   agg_glob="0-explore.*.tmp" ;;
-      1.2) agg_glob="1.2-plan.*.tmp" ;;
+      S0) agg_glob="S0-explore.*.tmp" ;;
+      S2) agg_glob="S2-plan.*.tmp" ;;
       *)   agg_glob="*.tmp" ;;
     esac
     cat <<AGG
@@ -541,31 +544,15 @@ The SubagentStop hook sets `state.reviewFix` and the Stop hook regenerates this 
 REVIEW
   fi
 
-  # Coverage loop (phase 3.5)
-  if [[ "$phase" == "3.5" ]]; then
+  # Coverage loop (phase S11)
+  if [[ "$phase" == "S11" ]]; then
     cat <<'COVERAGE'
 
 ## Coverage Loop
 
 After this phase, the SubagentStop hook checks coverage against `state.coverageThreshold`.
-If below threshold, it resets `currentPhase` to `"3.3"` for another test development cycle.
+If below threshold, it resets `currentPhase` to `"S9"` for another test development cycle.
 COVERAGE
-  fi
-
-  # Model selection for per-task phases
-  if [[ "$model" == "per-task" ]]; then
-    cat <<'PERTASK'
-
-## Model Selection (Complexity-Routed)
-
-Pick `subagent_type` based on each task's complexity:
-
-| Level  | subagent_type                | Execution                       |
-| ------ | ---------------------------- | ------------------------------- |
-| Easy   | `minions:sonnet-task-agent` | Direct execution (model=sonnet) |
-| Medium | `minions:opus-task-agent`   | Direct execution (model=opus)   |
-| Hard   | `minions:opus-task-agent`   | Direct execution (model=opus)   |
-PERTASK
   fi
 
   # Standard rules footer

@@ -75,4 +75,4 @@ You are reviewing code implementation produced by task agents. Focus on correctn
 
 ## Note
 
-Invoked via `minions:claude-reviewer` agent.
+Invoked via `minions:impl-reviewer` agent.

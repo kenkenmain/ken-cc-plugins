@@ -56,7 +56,7 @@ Write findings as structured markdown to the temp file:
 
 ## Output File
 
-Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your results (e.g., `.agents/tmp/phases/0-explore.deep-explorer.tmp`). Always write to this path — the aggregator agent reads all temp files to produce the final exploration report.
+Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your results (e.g., `.agents/tmp/phases/S0-explore.deep-explorer.tmp`). Always write to this path — the aggregator agent reads all temp files to produce the final exploration report.
 
 ## Guidelines
 

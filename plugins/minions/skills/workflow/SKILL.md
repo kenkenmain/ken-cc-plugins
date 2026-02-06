@@ -47,21 +47,21 @@ Repeat until SubagentStop marks workflow "completed" → Stop hook allows exit
 
 | Phase | subagent_type              | model    | Notes                                    |
 | ----- | -------------------------- | -------- | ---------------------------------------- |
-| 0     | `minions:explorer`         | inherit  | Parallel batch: dispatch 1-10 agents     |
-| 1.1   | `minions:brainstormer`     | inherit  | Single agent                             |
-| 1.2   | `minions:planner`          | inherit  | Parallel batch: dispatch 1-10 agents     |
-| 1.3   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
-| 2.1   | `complexity-routed agents` | per-task | Easy→sonnet-task-agent, Medium→opus-task-agent |
-| 2.2   | `minions:simplifier`       | inherit  | Single agent                             |
-| 2.3   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
-| 3.1   | `state.testDeveloper`      | inherit  | Dynamic: test-developer                  |
-| 3.2   | `state.failureAnalyzer`    | inherit  | Dynamic: failure-analyzer                |
-| 3.3   | `state.testDeveloper`      | inherit  | Dynamic: test-developer                  |
-| 3.4   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
-| 3.5   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer; coverage loop  |
-| 4.1   | `state.docUpdater`         | inherit  | Dynamic: doc-updater                     |
-| 4.2   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
-| 4.3   | `minions:shipper`          | inherit  | Single agent                             |
+| S0    | `minions:explorer`         | inherit  | Parallel batch: dispatch 1-10 agents     |
+| S1    | `minions:brainstormer`     | inherit  | Single agent                             |
+| S2    | `minions:planner`          | inherit  | Parallel batch: dispatch 1-10 agents     |
+| S3    | `minions:plan-reviewer`    | inherit  | plan-reviewer                            |
+| S4    | `minions:task-agent`       | inherit  | Parallel batch: dispatch per-task               |
+| S5    | `minions:simplifier`       | inherit  | Single agent                             |
+| S6    | `minions:impl-reviewer`    | inherit  | impl-reviewer                            |
+| S7    | `state.testDeveloper`      | inherit  | Dynamic: test-developer                  |
+| S8    | `state.failureAnalyzer`    | inherit  | Dynamic: failure-analyzer                |
+| S9    | `state.testDeveloper`      | inherit  | Dynamic: test-developer                  |
+| S10   | `minions:test-dev-reviewer` | inherit  | test-dev-reviewer                        |
+| S11   | `minions:test-reviewer`    | inherit  | test-reviewer; coverage loop             |
+| S12   | `state.docUpdater`         | inherit  | Dynamic: doc-updater                     |
+| S13   | `minions:final-reviewer`   | inherit  | final-reviewer                           |
+| S14   | `minions:shipper`          | inherit  | Single agent                             |
 
 ## Prompt Construction
 
@@ -83,7 +83,7 @@ Task: {state.task}
 
 The `[PHASE {id}]` tag is used by the PreToolUse hook to validate dispatches.
 
-## Batch Phases (0, 1.2, 2.1)
+## Batch Phases (S0, S2, S4)
 
 These phases dispatch multiple parallel subagents. The workflow skill:
 

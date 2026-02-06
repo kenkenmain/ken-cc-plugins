@@ -82,4 +82,4 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 
 ## Note
 
-Invoked via `minions:claude-reviewer` agent.
+Invoked via `minions:final-reviewer` agent.

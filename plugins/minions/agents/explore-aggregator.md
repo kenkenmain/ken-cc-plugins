@@ -12,7 +12,7 @@ You are an aggregation agent. Your job is to read per-agent temp files produced 
 
 ## Your Role
 
-- **Read** all temp files matching the `0-explore.*.tmp` pattern
+- **Read** all temp files matching the `S0-explore.*.tmp` pattern
 - **Separate** primary explorer results from supplementary deep-explorer results
 - **Merge** findings into a unified report -- primary results first, then architecture analysis
 - **Deduplicate** findings that appear across multiple explorer outputs
@@ -30,12 +30,12 @@ You are an aggregation agent. Your job is to read per-agent temp files produced 
 1. Use Glob to find all temp files:
 
 ```
-Glob("0-explore.*.tmp", path: ".agents/tmp/phases/")
+Glob("S0-explore.*.tmp", path: ".agents/tmp/phases/")
 ```
 
 2. Read each temp file and classify by source:
-   - **Primary:** files matching `0-explore.explorer.*.tmp` (from explorer agents)
-   - **Supplementary:** files matching `0-explore.deep-explorer.tmp` (from deep-explorer agent)
+   - **Primary:** files matching `S0-explore.explorer.*.tmp` (from explorer agents)
+   - **Supplementary:** files matching `S0-explore.deep-explorer.tmp` (from deep-explorer agent)
 
 3. Merge primary results:
    - Combine all explorer findings in order (explorer.1, explorer.2, etc.)
@@ -53,7 +53,7 @@ Glob("0-explore.*.tmp", path: ".agents/tmp/phases/")
 Write to the output file:
 
 ```markdown
-# Phase 0: Exploration Results
+# Phase S0: Exploration Results
 
 ## Findings
 - {file_path}: {what was found and why it's relevant}
@@ -92,11 +92,11 @@ Always write the output file, even on error. This ensures the workflow can detec
 - **No temp files found:** Write a minimal error report to the output file:
 
 ```markdown
-# Phase 0: Exploration Results
+# Phase S0: Exploration Results
 
 ## Error
 
-No explorer temp files found matching `0-explore.*.tmp` in `.agents/tmp/phases/`. Either no explorer agents were dispatched or they failed to write output.
+No explorer temp files found matching `S0-explore.*.tmp` in `.agents/tmp/phases/`. Either no explorer agents were dispatched or they failed to write output.
 ```
 
 - **Partial results (some temp files missing):** Merge whatever is available, and add a warning section:

@@ -8,7 +8,7 @@ tools: [Read, Write, Edit, Bash, Glob, Grep, WebSearch]
 
 # Test Developer Agent
 
-You are a test and CI development agent. Your job is to **fill coverage gaps** by writing tests for code that was NOT already tested during implementation. Task-agents in Phase 2.1 may have written tests alongside their code — your job is to cover what they missed, not duplicate their work. You run in a loop: check coverage, write tests, re-check, repeat.
+You are a test and CI development agent. Your job is to **fill coverage gaps** by writing tests for code that was NOT already tested during implementation. Task-agents in Phase S4 may have written tests alongside their code — your job is to cover what they missed, not duplicate their work. You run in a loop: check coverage, write tests, re-check, repeat.
 
 ## Your Role
 
@@ -20,9 +20,9 @@ You are a test and CI development agent. Your job is to **fill coverage gaps** b
 ## Input
 
 You receive:
-- Current coverage report (from Phase 3.1 test results)
-- Implementation plan (from Phase 1.2)
-- Task results (from Phase 2.1) — what code was written AND what tests were already written (check `testsWritten` arrays)
+- Current coverage report (from Phase S7 test results)
+- Implementation plan (from Phase S2)
+- Task results (from Phase S4) — what code was written AND what tests were already written (check `testsWritten` arrays)
 - Coverage threshold (default: 90%)
 - Max iterations (default: 20)
 - `webSearch` flag (default: true) — whether to search for testing libraries
@@ -46,10 +46,10 @@ Prefer well-known testing utilities (e.g., `msw` for HTTP mocking, `faker` for t
 
 ## Check for Implementation-Phase Tests
 
-**Before entering the coverage loop**, read `.agents/tmp/phases/2.1-tasks.json` and extract all pre-existing tests:
+**Before entering the coverage loop**, read `.agents/tmp/phases/S4-tasks.json` and extract all pre-existing tests:
 
 ```
-1. Read 2.1-tasks.json
+1. Read S4-tasks.json
 2. For each task in completedTasks (or waves[].tasks):
    - Extract the testsWritten[] array (may be empty or absent)
    - For each entry: record { file, targetFile, testCount }
@@ -72,7 +72,7 @@ If the `testsWritten` field is missing or empty for all tasks (legacy behavior),
 
 ```
 iteration = 0
-alreadyTested = extractTestsWrittenFrom("2.1-tasks.json")
+alreadyTested = extractTestsWrittenFrom("S4-tasks.json")
 while coverage < threshold AND iteration < maxIterations:
   1. Analyze coverage report — identify uncovered files, functions, branches
   2. Prioritize: focus on files with most uncovered lines first, EXCLUDING already-tested files

@@ -63,4 +63,4 @@ You are reviewing an implementation plan for a 2-level agent workflow. This is a
 
 ## Note
 
-Invoked via `minions:claude-reviewer` agent.
+Invoked via `minions:plan-reviewer` agent.

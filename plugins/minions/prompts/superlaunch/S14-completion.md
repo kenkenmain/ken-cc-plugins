@@ -1,9 +1,9 @@
-# Phase 4.3: Completion [PHASE 4.3]
+# Phase S14: Completion [PHASE S14]
 
 ## Subagent Config
 
 - **Type:** minions:shipper
-- **Output:** `.agents/tmp/phases/4.3-completion.json`
+- **Output:** `.agents/tmp/phases/S14-completion.json`
 
 ## Supplementary Agent
 
@@ -14,9 +14,9 @@
 
 ## Input Files
 
-- `.agents/tmp/phases/4.2-final-review.json`
+- `.agents/tmp/phases/S13-final-review.json`
 - `.agents/tmp/state.json` (for retrospective analysis)
 
 ## Output File
 
-- `.agents/tmp/phases/4.3-completion.json`
+- `.agents/tmp/phases/S14-completion.json`

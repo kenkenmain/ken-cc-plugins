@@ -20,7 +20,7 @@ The orchestrator uses the Ralph Loop pattern: the Stop hook generates a **schedu
 
 ```
 superlaunch.md initializes state (pipeline: "superlaunch", 15-phase schedule)
-  → dispatches Phase 0 (Explore)
+  → dispatches Phase S0 (Explore)
   → on-subagent-stop.sh validates output, checks gates, advances state
   → on-stop.sh reads schedule, generates phase prompt, blocks stop
   → Claude dispatches next minions agent
@@ -30,36 +30,36 @@ superlaunch.md initializes state (pipeline: "superlaunch", 15-phase schedule)
 ## 15-Phase Thorough Schedule
 
 ```
-Phase 0   │ EXPLORE   │ Explore                 │ dispatch  → explorers + aggregator
-Phase 1.1 │ PLAN      │ Brainstorm              │ subagent  → brainstormer
-Phase 1.2 │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
-Phase 1.3 │ PLAN      │ Plan Review             │ review    → claude-reviewer
-Phase 2.1 │ IMPLEMENT │ Implement               │ dispatch  → task agents (per complexity)
-Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent  → simplifier
-Phase 2.3 │ IMPLEMENT │ Impl Review             │ review    → claude-reviewer + supplementary
-Phase 3.1 │ TEST      │ Run Tests               │ subagent  → test-developer
-Phase 3.2 │ TEST      │ Analyze                 │ subagent  → failure-analyzer
-Phase 3.3 │ TEST      │ Develop Tests           │ subagent  → test-developer
-Phase 3.4 │ TEST      │ Test Dev Review         │ review    → claude-reviewer
-Phase 3.5 │ TEST      │ Test Review             │ review    → claude-reviewer
-Phase 4.1 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
-Phase 4.2 │ FINAL     │ Final Review            │ review    → claude-reviewer + supplementary
-Phase 4.3 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
+Phase S0  │ EXPLORE   │ Explore                 │ dispatch  → explorers + aggregator
+Phase S1  │ PLAN      │ Brainstorm              │ subagent  → brainstormer
+Phase S2  │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
+Phase S3  │ PLAN      │ Plan Review             │ review    → plan-reviewer
+Phase S4  │ IMPLEMENT │ Implement               │ dispatch  → task-agent (parallel batch)
+Phase S5  │ IMPLEMENT │ Simplify                │ subagent  → simplifier
+Phase S6  │ IMPLEMENT │ Impl Review             │ review    → impl-reviewer + supplementary
+Phase S7  │ TEST      │ Run Tests               │ subagent  → test-developer
+Phase S8  │ TEST      │ Analyze                 │ subagent  → failure-analyzer
+Phase S9  │ TEST      │ Develop Tests           │ subagent  → test-developer
+Phase S10 │ TEST      │ Test Dev Review         │ review    → test-dev-reviewer
+Phase S11 │ TEST      │ Test Review             │ review    → test-reviewer
+Phase S12 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
+Phase S13 │ FINAL     │ Final Review            │ review    → final-reviewer + supplementary
+Phase S14 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
 ```
 
 ## Stage Gates
 
 | Gate | Required Files | Transition |
 |------|---------------|------------|
-| EXPLORE→PLAN | `0-explore.md` | After Phase 0 |
-| PLAN→IMPLEMENT | `1.1-brainstorm.md`, `1.2-plan.md`, `1.3-plan-review.json` | After Phase 1.3 |
-| IMPLEMENT→TEST | `2.1-tasks.json`, `2.3-impl-review.json` | After Phase 2.3 |
-| TEST→FINAL | `3.1-test-results.json`, `3.3-test-dev.json`, `3.5-test-review.json` | After Phase 3.5 |
-| FINAL→COMPLETE | `4.2-final-review.json` | After Phase 4.2 |
+| EXPLORE→PLAN | `S0-explore.md` | After Phase S0 |
+| PLAN→IMPLEMENT | `S1-brainstorm.md`, `S2-plan.md`, `S3-plan-review.json` | After Phase S3 |
+| IMPLEMENT→TEST | `S4-tasks.json`, `S6-impl-review.json` | After Phase S6 |
+| TEST→FINAL | `S7-test-results.json`, `S9-test-dev.json`, `S11-test-review.json` | After Phase S11 |
+| FINAL→COMPLETE | `S13-final-review.json` | After Phase S13 |
 
 ## Review-Fix Cycles
 
-Review phases (1.3, 2.3, 3.4, 3.5, 4.2) support two-tier retry:
+Review phases (S3, S6, S10, S11, S13) support two-tier retry:
 
 ```
 Tier 1: 10 fix attempts per review phase (within one run of the stage)
@@ -69,7 +69,7 @@ Total:  up to 3 x 10 = 30 fix attempts per review phase before blocking
 
 ## Coverage Loop
 
-Phases 3.3 → 3.4 → 3.5 repeat until `coverage >= coverageThreshold` (default 90%) or 20 iterations reached.
+Phases S9 → S10 → S11 repeat until `coverage >= coverageThreshold` (default 90%) or 20 iterations reached.
 
 ## Supplementary Agents
 
@@ -77,12 +77,12 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
 
 | Phase | Supplementary Agents |
 |-------|---------------------|
-| 0 | `minions:deep-explorer` |
-| 1.2 | `minions:architecture-analyst` |
-| 2.3 | `minions:critic`, `minions:silent-failure-hunter`, `minions:type-reviewer` |
-| 4.1 | `minions:claude-md-updater` |
-| 4.2 | `minions:pedant`, `minions:security-reviewer`, `minions:silent-failure-hunter` |
-| 4.3 | `minions:retrospective-analyst` |
+| S0 | `minions:deep-explorer` |
+| S2 | `minions:architecture-analyst` |
+| S6 | `minions:critic`, `minions:silent-failure-hunter`, `minions:type-reviewer` |
+| S12 | `minions:claude-md-updater` |
+| S13 | `minions:pedant`, `minions:security-reviewer`, `minions:silent-failure-hunter` |
+| S14 | `minions:retrospective-analyst` |
 
 ## State Schema (superlaunch)
 
@@ -92,10 +92,9 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
   "plugin": "minions",
   "pipeline": "superlaunch",
   "status": "in_progress|blocked|complete",
-  "currentPhase": "0|1.1|1.2|...|4.3|DONE|STOPPED",
+  "currentPhase": "S0|S1|S2|...|S14|DONE|STOPPED",
   "currentStage": "EXPLORE|PLAN|IMPLEMENT|TEST|FINAL",
   "codexAvailable": false,
-  "reviewer": "minions:claude-reviewer",
   "testDeveloper": "minions:test-developer",
   "failureAnalyzer": "minions:failure-analyzer",
   "docUpdater": "minions:doc-updater",
@@ -123,8 +122,8 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
 
 | Aspect | launch | superlaunch |
 |--------|--------|-------------|
-| Phases | 4 (F1-F4) | 15 (0 through 4.3) |
-| Agents | `minions:*` (12 agents) | `minions:*` (22 superlaunch agents) |
+| Phases | 4 (F1-F4) | 15 (S0 through S14) |
+| Agents | `minions:*` (12 agents) | `minions:*` (25 superlaunch agents) |
 | Hooks | Same hooks, `launch` branch | Same hooks, `superlaunch` branch |
 | Codex | No | No |
 | Review | 5 parallel personality reviewers | Structured review-fix cycles |
