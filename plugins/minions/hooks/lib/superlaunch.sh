@@ -553,7 +553,7 @@ You are the superlaunch orchestrator. Dispatch this phase as a subagent.
 ## Instructions
 
 1. Read \`.agents/tmp/state.json\` — extract \`.task\`, \`.webSearch\`
-2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, apply the fixes directly (read the issues, fix each one, then clear \`state.reviewFix\`). The SubagentStop hook sets \`state.reviewFix\` and the Stop hook regenerates this prompt.
+2. **Check for review-fix cycle:** If \`state.reviewFix.phase\` matches \`${phase}\`, apply the fixes directly (read the issues, fix each one, then clear \`state.reviewFix\`). The SubagentStop hook sets \`state.reviewFix\` and the Stop hook regenerates this prompt.
 3. Read the prompt template at \`prompts/superlaunch/${phase}-$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-').md\` for phase-specific instructions.
 4. Build a minimal dispatch prompt (format below)
 5. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
@@ -638,7 +638,7 @@ AGG
 
 ## Review-Fix Cycle
 
-When `state.reviewFix` exists, apply the fixes directly instead of dispatching the reviewer.
+When `state.reviewFix.phase` matches the current phase, apply the fixes directly instead of dispatching the reviewer.
 Read the issues from the review output, fix each one in the codebase, then clear `state.reviewFix`.
 The SubagentStop hook sets `state.reviewFix` and the Stop hook regenerates this prompt.
 REVIEW
@@ -671,8 +671,8 @@ COVERAGE
     [[ -n "$restart_instruction" ]] && printf '%s\n\n' "$restart_instruction"
     [[ -n "$fix_instruction" ]] && printf '%s\n\n' "$fix_instruction"
     [[ -n "$coverage_instruction" ]] && printf '%s\n\n' "$coverage_instruction"
-    printf 'Use **TaskList** to find tasks by subject, then **TaskUpdate** / **TaskCreate** as needed.\n'
-    printf 'Also mark any leftover fix-cycle or restart sub-tasks as **completed** when moving to a new stage.\n'
+    printf 'Use **TaskList** to find tasks by subject, then **TaskUpdate** / **TaskCreate** as needed. Only create sub-tasks if they do not already exist.\n'
+    printf 'Also mark any leftover fix-cycle or restart sub-tasks as **completed** when moving to a new stage or after a stage restart.\n'
   fi
 
   # Standard rules footer

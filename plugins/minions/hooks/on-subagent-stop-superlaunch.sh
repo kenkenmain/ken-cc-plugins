@@ -123,9 +123,30 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
       FIRST_PHASE=$(jq -r --arg s "$CURRENT_STAGE" '.stages[$s].phases[0] // empty' "$STATE_FILE" 2>/dev/null || echo "")
       if [[ -n "$FIRST_PHASE" ]]; then
         if ! update_state --arg phase "$FIRST_PHASE" --arg stage "$CURRENT_STAGE" --argjson rc "$((RESTART_COUNT + 1))" \
-          '.currentPhase = $phase | .currentStage = $stage | .updatedAt = $ts | .stages[$stage].restartCount = $rc | .fixAttempts = {} | del(.supplementaryRun)'; then
+          '.currentPhase = $phase
+          | .currentStage = $stage
+          | .updatedAt = $ts
+          | .stages[$stage].restartCount = $rc
+          | .fixAttempts = {}
+          | .coverageLoop.iteration = 0
+          | del(.reviewFix)
+          | del(.supplementaryRun)'; then
           echo "ERROR: Failed to restart stage $CURRENT_STAGE." >&2
           exit 2
+        fi
+        # Remove stale outputs from the restarted stage to avoid false validation.
+        STAGE_PHASES=$(jq -r --arg s "$CURRENT_STAGE" '.stages[$s].phases[]? // empty' "$STATE_FILE" 2>/dev/null || echo "")
+        if [[ -n "$STAGE_PHASES" ]]; then
+          while IFS= read -r phase; do
+            [[ -z "$phase" ]] && continue
+            output_file=$(get_sl_phase_output "$phase")
+            [[ -z "$output_file" ]] && continue
+            rm -f "${PHASES_DIR}/${output_file}" 2>/dev/null || true
+            case "$phase" in
+              S0) rm -f "${PHASES_DIR}/S0-explore."*.tmp 2>/dev/null || true ;;
+              S2) rm -f "${PHASES_DIR}/S2-plan."*.tmp 2>/dev/null || true ;;
+            esac
+          done <<< "$STAGE_PHASES"
         fi
       fi
     else
