@@ -1,7 +1,7 @@
 {
   "name": "minions",
-  "version": "0.5.0",
-  "description": "Personality-driven 4-phase development workflow with loop-back issue resolution",
+  "version": "0.11.0",
+  "description": "Personality-driven 4-phase workflow (launch) and Claude-only 15-phase thorough pipeline (superlaunch)",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"

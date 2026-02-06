@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# on-launch-init.sh -- UserPromptSubmit hook for minions:launch commands.
+# on-launch-init.sh -- UserPromptSubmit hook for minions:launch and minions:superlaunch commands.
 # Detects existing workflow state and injects resume/clean prompts when appropriate.
 set -euo pipefail
 
@@ -22,10 +22,10 @@ fi
 
 PROMPT="$(echo "$INPUT" | jq -r '.prompt // ""')"
 
-# ── Only act on minions:launch commands ──────────────────────────────────────
-# Match /minions:launch at the start of the prompt.
+# ── Only act on minions:launch and minions:superlaunch commands ──────────────
+# Match /minions:launch or /minions:superlaunch at the start of the prompt.
 # Anchored to avoid triggering on prompts that merely mention the command in text.
-if ! echo "$PROMPT" | grep -qiE '^\s*/?minions:launch\b'; then
+if ! echo "$PROMPT" | grep -qiE '^\s*/?minions:(launch|superlaunch)\b'; then
   exit 0
 fi
 
@@ -61,7 +61,7 @@ EXISTING_PHASE="$(jq -r '.currentPhase // empty' "$STATE_FILE" 2>/dev/null)" || 
 # ── Non-minions plugin: warn but allow ───────────────────────────────────────
 if [[ -n "$EXISTING_PLUGIN" && "$EXISTING_PLUGIN" != "minions" ]]; then
   CONTEXT="WARNING: Existing workflow state belongs to plugin '$EXISTING_PLUGIN'.
-Launching minions:launch will overwrite this state.
+Launching this minions workflow will overwrite this state.
 If you want to preserve the other workflow, cancel and rename/backup .agents/tmp/state.json first."
 
   jq -n --arg ctx "$CONTEXT" '{

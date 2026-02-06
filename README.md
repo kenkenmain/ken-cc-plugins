@@ -65,6 +65,25 @@ claude plugin install superpowers-iterate@ken-cc-plugins
 
 See [AGENTS.md](AGENTS.md) for workflow architecture, modes, and state management details.
 
+### minions
+
+Personality-driven 4-phase development workflow with loop-back issue resolution. Claude-only (no Codex MCP required).
+
+```bash
+claude plugin install minions@ken-cc-plugins
+
+/minions:launch <task>        # Standard 4-phase workflow
+/minions:superlaunch <task>   # Claude-only 15-phase thorough pipeline
+```
+
+**Launch Pipeline:** Explore (4x parallel haiku) -> F1 Scout -> F2 Build -> F3 Review (5 parallel reviewers) -> F4 Ship
+
+**Launch Features:** Ralph-style hook-driven orchestration, parallel explorer pre-scan, 5 parallel reviewers (critic, pedant, witness, security-reviewer, silent-failure-hunter), automatic loop-back on issues (max 10 loops), feature branch creation
+
+**Superlaunch Pipeline:** Explore -> Plan (brainstorm + plan + review) -> Implement (build + simplify + review) -> Test (run + analyze + develop + review) -> Final (docs + review + completion) — 15 phases, 25 agents
+
+**Superlaunch Features:** Structured review-fix cycles, coverage-driven test loops, parallel supplementary reviewers (critic, pedant, security-reviewer, silent-failure-hunter, type-reviewer), high-stakes review criteria prompts
+
 ### kenken
 
 4-stage development workflow.

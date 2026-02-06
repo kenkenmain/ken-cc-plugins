@@ -745,6 +745,98 @@ jobs:
           if [ $errors -gt 0 ]; then exit 1; fi
           echo "SUCCESS: All phase prompts exist"
 
+      - name: Verify superlaunch phase prompts
+        run: |
+          errors=0
+          prompts_dir="plugins/minions/prompts/superlaunch"
+          expected_phases="S0-explore S1-brainstorm S2-plan S3-plan-review S4-implement S5-simplify S6-impl-review S7-run-tests S8-analyze S9-develop-tests S10-test-dev-review S11-test-review S12-documentation S13-final-review S14-completion"
+          for phase in $expected_phases; do
+            prompt_file="$prompts_dir/${phase}.md"
+            if [ ! -f "$prompt_file" ]; then
+              echo "ERROR: Missing superlaunch prompt: $prompt_file"
+              errors=$((errors + 1))
+            else
+              # Extract phase ID from filename (e.g., "S0" from "S0-explore")
+              phase_num=$(echo "$phase" | grep -oE '^S[0-9]+')
+              # Check for [PHASE SN] tag in file
+              if ! grep -q "\[PHASE ${phase_num}\]" "$prompt_file"; then
+                echo "ERROR: $prompt_file missing [PHASE ${phase_num}] tag"
+                errors=$((errors + 1))
+              else
+                echo "✓ Superlaunch prompt: ${phase}.md (tag matches)"
+              fi
+            fi
+          done
+          echo "Checked 15 superlaunch phase prompts"
+          if [ $errors -gt 0 ]; then exit 1; fi
+          echo "SUCCESS: All superlaunch phase prompts exist with correct tags"
+
+      - name: Validate agent frontmatter
+        run: |
+          errors=0
+          agents_dir="plugins/minions/agents"
+          valid_models="inherit|sonnet|opus|haiku|sonnet-4.5|opus-4.5|haiku-4.5"
+          for agent_file in "$agents_dir"/*.md; do
+            basename=$(basename "$agent_file")
+            # Check frontmatter exists
+            if ! head -1 "$agent_file" | grep -q '^---$'; then
+              echo "ERROR: $basename missing YAML frontmatter"
+              errors=$((errors + 1))
+              continue
+            fi
+            # Extract frontmatter (between first --- and second ---)
+            frontmatter=$(awk '/^---$/{n++; next} n==1{print} n==2{exit}' "$agent_file")
+            # Check required fields
+            if ! echo "$frontmatter" | grep -q '^name:'; then
+              echo "ERROR: $basename missing 'name' field"
+              errors=$((errors + 1))
+            fi
+            if ! echo "$frontmatter" | grep -q '^description:'; then
+              echo "ERROR: $basename missing 'description' field"
+              errors=$((errors + 1))
+            fi
+            # Validate model field if present
+            model_line=$(echo "$frontmatter" | grep '^model:' || true)
+            if [ -n "$model_line" ]; then
+              model_value=$(echo "$model_line" | sed 's/^model: *//')
+              if ! echo "$model_value" | grep -qE "^(${valid_models})$"; then
+                echo "ERROR: $basename has invalid model: $model_value"
+                errors=$((errors + 1))
+              fi
+            fi
+            echo "✓ Agent frontmatter: $basename"
+          done
+          if [ $errors -gt 0 ]; then exit 1; fi
+          echo "SUCCESS: All agent frontmatter validated"
+
+      - name: Validate superlaunch delegate hooks
+        run: |
+          errors=0
+          hooks_dir="plugins/minions/hooks"
+          delegates="on-stop-superlaunch.sh on-subagent-stop-superlaunch.sh on-task-gate-superlaunch.sh on-edit-gate-superlaunch.sh"
+          for script in $delegates; do
+            script_path="$hooks_dir/$script"
+            # Check existence
+            if [ ! -f "$script_path" ]; then
+              echo "ERROR: Missing delegate hook: $script"
+              errors=$((errors + 1))
+              continue
+            fi
+            # Check syntax
+            if ! bash -n "$script_path" 2>/dev/null; then
+              echo "ERROR: Syntax error in $script"
+              errors=$((errors + 1))
+            fi
+            # Check lib/superlaunch.sh sourcing (most delegates need it, some only need state.sh)
+            if ! grep -q 'source.*lib/superlaunch\.sh' "$script_path" && ! grep -q 'source.*lib/state\.sh' "$script_path"; then
+              echo "ERROR: $script does not source lib/superlaunch.sh or lib/state.sh"
+              errors=$((errors + 1))
+            fi
+            echo "✓ Delegate hook: $script"
+          done
+          if [ $errors -gt 0 ]; then exit 1; fi
+          echo "SUCCESS: All superlaunch delegate hooks validated"
+
   test:
     name: Run Tests
     runs-on: ubuntu-latest

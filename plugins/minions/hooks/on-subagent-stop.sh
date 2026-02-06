@@ -24,6 +24,12 @@ fi
 
 AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.agent_name // empty')
 
+# Delegate to superlaunch handler if applicable (stdin already consumed, pass via env)
+if [[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]]; then
+  export SL_AGENT_TYPE="$AGENT_TYPE"
+  exec "$SCRIPT_DIR/on-subagent-stop-superlaunch.sh"
+fi
+
 # Only handle minions agents
 case "$AGENT_TYPE" in
   explorer-files|minions:explorer-files) exit 0 ;;
