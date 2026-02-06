@@ -123,15 +123,15 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
       FIRST_PHASE=$(jq -r --arg s "$CURRENT_STAGE" '.stages[$s].phases[0] // empty' "$STATE_FILE" 2>/dev/null || echo "")
       if [[ -n "$FIRST_PHASE" ]]; then
         if ! update_state --arg phase "$FIRST_PHASE" --arg stage "$CURRENT_STAGE" --argjson rc "$((RESTART_COUNT + 1))" \
-          '.currentPhase = $phase | .currentStage = $stage | .updatedAt = $ts | .stages[$stage].restartCount = $rc | .fixAttempts = {}'; then
+          '.currentPhase = $phase | .currentStage = $stage | .updatedAt = $ts | .stages[$stage].restartCount = $rc | .fixAttempts = {} | del(.supplementaryRun)'; then
           echo "ERROR: Failed to restart stage $CURRENT_STAGE." >&2
           exit 2
         fi
       fi
     else
-      # Start fix cycle — set reviewFix in state so the Stop hook generates a fix prompt
+      # Start fix cycle — set reviewFix and supplementaryRun so re-review dispatches supplementary agents
       if ! update_state --arg phase "$CURRENT_PHASE" --argjson attempts "$((FIX_ATTEMPTS + 1))" \
-        '.reviewFix = {"phase": $phase} | .fixAttempts[$phase] = $attempts | .updatedAt = $ts'; then
+        '.reviewFix = {"phase": $phase} | .fixAttempts[$phase] = $attempts | .supplementaryRun[$phase] = true | .updatedAt = $ts'; then
         echo "ERROR: Failed to start review-fix cycle." >&2
         exit 2
       fi

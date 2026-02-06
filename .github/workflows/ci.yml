@@ -749,16 +749,16 @@ jobs:
         run: |
           errors=0
           prompts_dir="plugins/minions/prompts/superlaunch"
-          expected_phases="0-explore 1.1-brainstorm 1.2-plan 1.3-plan-review 2.1-implement 2.2-simplify 2.3-impl-review 3.1-run-tests 3.2-analyze 3.3-develop-tests 3.4-test-dev-review 3.5-test-review 4.1-documentation 4.2-final-review 4.3-completion"
+          expected_phases="S0-explore S1-brainstorm S2-plan S3-plan-review S4-implement S5-simplify S6-impl-review S7-run-tests S8-analyze S9-develop-tests S10-test-dev-review S11-test-review S12-documentation S13-final-review S14-completion"
           for phase in $expected_phases; do
             prompt_file="$prompts_dir/${phase}.md"
             if [ ! -f "$prompt_file" ]; then
               echo "ERROR: Missing superlaunch prompt: $prompt_file"
               errors=$((errors + 1))
             else
-              # Extract phase number from filename (e.g., "1.1" from "1.1-brainstorm")
-              phase_num=$(echo "$phase" | grep -oE '^[0-9]+(\.[0-9]+)?')
-              # Check for [PHASE X.Y] tag in file
+              # Extract phase ID from filename (e.g., "S0" from "S0-explore")
+              phase_num=$(echo "$phase" | grep -oE '^S[0-9]+')
+              # Check for [PHASE SN] tag in file
               if ! grep -q "\[PHASE ${phase_num}\]" "$prompt_file"; then
                 echo "ERROR: $prompt_file missing [PHASE ${phase_num}] tag"
                 errors=$((errors + 1))

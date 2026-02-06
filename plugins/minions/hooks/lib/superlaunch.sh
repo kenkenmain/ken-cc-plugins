@@ -13,6 +13,10 @@
 #   validate_sl_gate()          — Check gate requirements at stage boundary
 #   generate_sl_prompt()        — Build orchestrator prompt from phase metadata
 #   get_sl_editable_stages()    — Stages where Edit/Write are allowed
+#   get_sl_task_progress_instruction()      — Stage-transition task updates
+#   get_sl_fix_cycle_task_instruction()     — Review-fix sub-task creation
+#   get_sl_stage_restart_task_instruction() — Stage-restart sub-task creation
+#   get_sl_coverage_loop_task_instruction() — Coverage-loop sub-task creation
 
 set -euo pipefail
 
@@ -396,6 +400,102 @@ is_sl_agent_allowed() {
 }
 
 # ===========================================================================
+# Task Progress Instructions
+# ===========================================================================
+
+# Returns task update instruction for stage-transition phases.
+# These get embedded in the orchestrator prompt so Claude calls TaskUpdate.
+get_sl_task_progress_instruction() {
+  local phase="${1:-}"
+  case "$phase" in
+    S0)  echo 'Mark "Execute EXPLORE stage" task as **in_progress** (activeForm: "Exploring codebase").' ;;
+    S1)  printf '%s\n%s' \
+           'Mark "Execute EXPLORE stage" task as **completed**.' \
+           'Mark "Execute PLAN stage" task as **in_progress** (activeForm: "Planning implementation").' ;;
+    S4)  printf '%s\n%s' \
+           'Mark "Execute PLAN stage" task as **completed**.' \
+           'Mark "Execute IMPLEMENT stage" task as **in_progress** (activeForm: "Implementing tasks").' ;;
+    S7)  printf '%s\n%s' \
+           'Mark "Execute IMPLEMENT stage" task as **completed**.' \
+           'Mark "Execute TEST stage" task as **in_progress** (activeForm: "Testing implementation").' ;;
+    S12) printf '%s\n%s' \
+           'Mark "Execute TEST stage" task as **completed**.' \
+           'Mark "Execute FINAL stage" task as **in_progress** (activeForm: "Finalizing and shipping").' ;;
+    S14) echo 'After dispatching the agent and it completes, mark "Execute FINAL stage" task as **completed**.' ;;
+    *)   return 0 ;;
+  esac
+}
+
+# Returns fix-cycle sub-task instruction when in a review-fix loop.
+# The SubagentStop hook sets state.reviewFix and increments fixAttempts.
+get_sl_fix_cycle_task_instruction() {
+  local phase="${1:-}"
+
+  local review_fix_phase
+  review_fix_phase="$(state_get '.reviewFix.phase // empty')"
+  [[ -z "$review_fix_phase" || "$review_fix_phase" != "$phase" ]] && return 0
+
+  local stage
+  stage="$(state_get '.currentStage // empty')"
+  [[ -z "$stage" ]] && return 0
+
+  local attempts
+  attempts="$(state_get ".fixAttempts[\"$phase\"] // 1")"
+  local max_attempts
+  max_attempts="$(state_get '.reviewPolicy.maxFixAttempts // 10')"
+
+  local stage_lower
+  stage_lower="$(echo "$stage" | tr '[:upper:]' '[:lower:]')"
+
+  printf 'TaskCreate: subject: "Fix %s review issues (attempt %s/%s)", description: "Apply fixes from %s review feedback", activeForm: "Fixing %s review issues"\n' \
+    "$stage_lower" "$attempts" "$max_attempts" "$phase" "$stage_lower"
+  printf 'Mark it **in_progress** immediately. After applying all fixes and re-dispatching the reviewer, mark it **completed**.\n'
+}
+
+# Returns stage-restart sub-task instruction when stage has been restarted.
+# The SubagentStop hook resets to first phase and bumps restartCount.
+get_sl_stage_restart_task_instruction() {
+  local phase="${1:-}"
+
+  local stage
+  stage="$(state_get '.currentStage // empty')"
+  [[ -z "$stage" ]] && return 0
+
+  # Only at first phase of stage
+  local first_phase
+  first_phase="$(state_get ".stages[\"$stage\"].phases[0] // empty")"
+  [[ "$phase" != "$first_phase" ]] && return 0
+
+  local restart_count
+  restart_count="$(state_get ".stages[\"$stage\"].restartCount // 0")"
+  local max_restarts
+  max_restarts="$(state_get '.reviewPolicy.maxStageRestarts // 3')"
+  [[ "$restart_count" -le 0 ]] && return 0
+
+  local stage_lower
+  stage_lower="$(echo "$stage" | tr '[:upper:]' '[:lower:]')"
+
+  printf 'TaskCreate: subject: "Restart %s stage (attempt %s/%s)", description: "Stage restarted after exhausting fix attempts — re-running from %s", activeForm: "Restarting %s stage"\n' \
+    "$stage_lower" "$restart_count" "$max_restarts" "$phase" "$stage_lower"
+  printf 'Mark it **in_progress** immediately. Mark **completed** when the stage review passes.\n'
+}
+
+# Returns coverage-loop sub-task instruction when in a coverage improvement loop.
+# The SubagentStop hook resets to S9 and bumps coverageLoop.iteration.
+get_sl_coverage_loop_task_instruction() {
+  local phase="${1:-}"
+  [[ "$phase" != "S9" ]] && return 0
+
+  local iteration
+  iteration="$(state_get '.coverageLoop.iteration // 0')"
+  [[ "$iteration" -le 0 ]] && return 0
+
+  printf 'TaskCreate: subject: "Improve test coverage (iteration %s)", description: "Coverage loop: re-running S9-S11 to meet threshold", activeForm: "Improving test coverage (iteration %s)"\n' \
+    "$iteration" "$iteration"
+  printf 'Mark it **in_progress** immediately. Mark **completed** when S11 test review passes.\n'
+}
+
+# ===========================================================================
 # Prompt Generation
 # ===========================================================================
 
@@ -553,6 +653,26 @@ REVIEW
 After this phase, the SubagentStop hook checks coverage against `state.coverageThreshold`.
 If below threshold, it resets `currentPhase` to `"S9"` for another test development cycle.
 COVERAGE
+  fi
+
+  # Task progress updates
+  local task_instruction
+  task_instruction="$(get_sl_task_progress_instruction "$phase")"
+  local fix_instruction
+  fix_instruction="$(get_sl_fix_cycle_task_instruction "$phase")"
+  local restart_instruction
+  restart_instruction="$(get_sl_stage_restart_task_instruction "$phase")"
+  local coverage_instruction
+  coverage_instruction="$(get_sl_coverage_loop_task_instruction "$phase")"
+
+  if [[ -n "$task_instruction" || -n "$fix_instruction" || -n "$restart_instruction" || -n "$coverage_instruction" ]]; then
+    printf '\n## Task Progress\n\n'
+    [[ -n "$task_instruction" ]] && printf '%s\n\n' "$task_instruction"
+    [[ -n "$restart_instruction" ]] && printf '%s\n\n' "$restart_instruction"
+    [[ -n "$fix_instruction" ]] && printf '%s\n\n' "$fix_instruction"
+    [[ -n "$coverage_instruction" ]] && printf '%s\n\n' "$coverage_instruction"
+    printf 'Use **TaskList** to find tasks by subject, then **TaskUpdate** / **TaskCreate** as needed.\n'
+    printf 'Also mark any leftover fix-cycle or restart sub-tasks as **completed** when moving to a new stage.\n'
   fi
 
   # Standard rules footer

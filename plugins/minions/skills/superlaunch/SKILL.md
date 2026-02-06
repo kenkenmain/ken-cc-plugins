@@ -100,11 +100,22 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
   "docUpdater": "minions:doc-updater",
   "schedule": [/* 15 phases */],
   "gates": {/* 5 stage gates */},
-  "stages": {/* per-stage status tracking */},
+  "stages": {
+    "EXPLORE": {"status":"pending","phases":["S0"],"restartCount":0},
+    "PLAN": {"status":"pending","phases":["S1","S2","S3"],"restartCount":0},
+    "IMPLEMENT": {"status":"pending","phases":["S4","S5","S6"],"restartCount":0},
+    "TEST": {"status":"pending","phases":["S7","S8","S9","S10","S11"],"restartCount":0},
+    "FINAL": {"status":"pending","phases":["S12","S13","S14"],"restartCount":0}
+  },
   "reviewPolicy": {"maxFixAttempts": 10, "maxStageRestarts": 3},
   "supplementaryPolicy": "on-issues",
   "coverageThreshold": 90,
-  "webSearch": true
+  "webSearch": true,
+  "fixAttempts": {},
+  "coverageLoop": {"iteration": 0},
+  "reviewFix": null,
+  "supplementaryRun": {},
+  "failure": null
 }
 ```
 

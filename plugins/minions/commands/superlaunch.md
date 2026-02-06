@@ -129,18 +129,22 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
     "FINAL->COMPLETE": {"required":["S13-final-review.json"],"phase":"S13"}
   },
   "stages": {
-    "EXPLORE": {"status":"pending","phases":["S0"]},
-    "PLAN": {"status":"pending","phases":["S1","S2","S3"]},
-    "IMPLEMENT": {"status":"pending","phases":["S4","S5","S6"]},
-    "TEST": {"status":"pending","phases":["S7","S8","S9","S10","S11"]},
-    "FINAL": {"status":"pending","phases":["S12","S13","S14"]}
+    "EXPLORE": {"status":"pending","phases":["S0"],"restartCount":0},
+    "PLAN": {"status":"pending","phases":["S1","S2","S3"],"restartCount":0},
+    "IMPLEMENT": {"status":"pending","phases":["S4","S5","S6"],"restartCount":0},
+    "TEST": {"status":"pending","phases":["S7","S8","S9","S10","S11"],"restartCount":0},
+    "FINAL": {"status":"pending","phases":["S12","S13","S14"],"restartCount":0}
   },
   "reviewPolicy": {"maxFixAttempts": 10, "maxStageRestarts": 3},
   "supplementaryPolicy": "on-issues",
   "webSearch": true,
   "coverageThreshold": 90,
   "files": [],
-  "failure": null
+  "failure": null,
+  "fixAttempts": {},
+  "coverageLoop": {"iteration": 0},
+  "reviewFix": null,
+  "supplementaryRun": {}
 }
 ```
 
@@ -177,15 +181,17 @@ Gates:
 
 ## Step 3: Initialize Task List
 
-Create tasks for progress tracking:
+Create tasks for progress tracking. Each task tracks one pipeline stage:
 
-1. **TaskCreate:** "Execute EXPLORE stage" (activeForm: "Exploring codebase")
-2. **TaskCreate:** "Execute PLAN stage" (activeForm: "Planning implementation")
-3. **TaskCreate:** "Execute IMPLEMENT stage" (activeForm: "Implementing tasks")
-4. **TaskCreate:** "Execute TEST stage" (activeForm: "Testing implementation")
-5. **TaskCreate:** "Execute FINAL stage" (activeForm: "Finalizing and shipping")
+1. **TaskCreate:** subject: "Execute EXPLORE stage", description: "Phase S0 — Explore codebase", activeForm: "Exploring codebase"
+2. **TaskCreate:** subject: "Execute PLAN stage", description: "Phases S1-S3 — Brainstorm, Plan, Plan Review. Review may trigger fix cycles (up to maxFixAttempts) or stage restarts (up to maxStageRestarts).", activeForm: "Planning implementation"
+3. **TaskCreate:** subject: "Execute IMPLEMENT stage", description: "Phases S4-S6 — Implement, Simplify, Impl Review. Review may trigger fix cycles or stage restarts.", activeForm: "Implementing tasks"
+4. **TaskCreate:** subject: "Execute TEST stage", description: "Phases S7-S11 — Run Tests, Analyze, Develop Tests, Reviews. Includes coverage loop (S9-S11 repeats until threshold met) and review-fix cycles.", activeForm: "Testing implementation"
+5. **TaskCreate:** subject: "Execute FINAL stage", description: "Phases S12-S14 — Documentation, Final Review, Completion. Review may trigger fix cycles or stage restarts.", activeForm: "Finalizing and shipping"
 
 Set dependencies: PLAN blocked by EXPLORE, IMPLEMENT blocked by PLAN, TEST blocked by IMPLEMENT, FINAL blocked by TEST.
+
+Then mark "Execute EXPLORE stage" as **in_progress** since Step 4 dispatches S0 next.
 
 ## Step 4: Dispatch Phase S0 (Explore)
 
