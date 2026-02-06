@@ -1,7 +1,7 @@
 ---
 name: retrospective-analyst
 description: "Analyzes workflow metrics after completion — restart history, fix attempts, coverage loops — and writes project-specific learnings to CLAUDE.md"
-model: sonnet
+model: inherit
 color: purple
 tools: [Read, Write, Edit, Glob, Grep]
 disallowedTools: [Task]

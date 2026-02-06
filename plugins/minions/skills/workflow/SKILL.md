@@ -47,21 +47,21 @@ Repeat until SubagentStop marks workflow "completed" → Stop hook allows exit
 
 | Phase | subagent_type              | model    | Notes                                    |
 | ----- | -------------------------- | -------- | ---------------------------------------- |
-| 0     | minions:explorer           | config   | Parallel batch: dispatch 1-10 agents     |
-| 1.1   | minions:brainstormer       | config   | Single agent                             |
-| 1.2   | minions:planner            | config   | Parallel batch: dispatch 1-10 agents     |
+| 0     | `minions:explorer`         | inherit  | Parallel batch: dispatch 1-10 agents     |
+| 1.1   | `minions:brainstormer`     | inherit  | Single agent                             |
+| 1.2   | `minions:planner`          | inherit  | Parallel batch: dispatch 1-10 agents     |
 | 1.3   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
-| 2.1   | complexity-routed agents   | per-task | Easy→sonnet-task-agent, Medium→opus-task-agent, Hard→opus-task-agent |
-| 2.2   | minions:simplifier         | config   | Single agent                             |
+| 2.1   | `complexity-routed agents` | per-task | Easy→sonnet-task-agent, Medium→opus-task-agent |
+| 2.2   | `minions:simplifier`       | inherit  | Single agent                             |
 | 2.3   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
-| 3.1   | `state.testDeveloper`      | config   | Dynamic: test-developer                  |
-| 3.2   | `state.failureAnalyzer`    | config   | Dynamic: failure-analyzer                |
-| 3.3   | `state.testDeveloper`      | config   | Dynamic: test-developer                  |
-| 3.4   | `state.reviewer`           | review-tier | Dynamic: claude-reviewer              |
-| 3.5   | `state.reviewer`           | review-tier | Dynamic: claude-reviewer; coverage loop |
-| 4.1   | `state.docUpdater`         | config   | Dynamic: doc-updater                     |
+| 3.1   | `state.testDeveloper`      | inherit  | Dynamic: test-developer                  |
+| 3.2   | `state.failureAnalyzer`    | inherit  | Dynamic: failure-analyzer                |
+| 3.3   | `state.testDeveloper`      | inherit  | Dynamic: test-developer                  |
+| 3.4   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
+| 3.5   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer; coverage loop  |
+| 4.1   | `state.docUpdater`         | inherit  | Dynamic: doc-updater                     |
 | 4.2   | `state.reviewer`           | inherit  | Dynamic: claude-reviewer                 |
-| 4.3   | minions:completion-handler | config   | Single agent                             |
+| 4.3   | `minions:shipper`          | inherit  | Single agent                             |
 
 ## Prompt Construction
 

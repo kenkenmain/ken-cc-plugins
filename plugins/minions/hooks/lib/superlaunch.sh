@@ -136,7 +136,7 @@ get_sl_phase_agent() {
     3.2) state_get '.failureAnalyzer // "minions:failure-analyzer"' ;;
     3.3) state_get '.testDeveloper // "minions:test-developer"' ;;
     4.1) state_get '.docUpdater // "minions:doc-updater"' ;;
-    4.3) echo "minions:completion-handler" ;;
+    4.3) echo "minions:shipper" ;;
     *)   echo "" ;;
   esac
 }
@@ -148,19 +148,13 @@ get_sl_phase_agent() {
 get_sl_phase_model() {
   local phase="${1:?get_sl_phase_model requires a phase ID}"
 
-  local phase_type
-  phase_type="$(jq -r --arg p "$phase" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE" 2>/dev/null || echo "")"
-
-  if [[ "$phase_type" == "review" ]]; then
-    echo "opus"
-    return
-  fi
-
   case "$phase" in
-    0|1.1|1.2) echo "inherit" ;;
-    2.1)       echo "per-task" ;;
-    2.2)       echo "sonnet" ;;
-    *)         echo "sonnet" ;;
+    2.1)
+      echo "per-task"
+      ;;
+    *)
+      echo "inherit"
+      ;;
   esac
 }
 
@@ -178,17 +172,17 @@ _raw_sl_supplementary() {
       echo "minions:architecture-analyst"
       ;;
     2.3)
-      echo "minions:code-quality-reviewer"
-      echo "minions:error-handling-reviewer"
+      echo "minions:critic"
+      echo "minions:silent-failure-hunter"
       echo "minions:type-reviewer"
       ;;
     4.1)
       echo "minions:claude-md-updater"
       ;;
     4.2)
-      echo "minions:code-quality-reviewer"
-      echo "minions:test-coverage-reviewer"
-      echo "minions:comment-reviewer"
+      echo "minions:pedant"
+      echo "minions:security-reviewer"
+      echo "minions:silent-failure-hunter"
       ;;
     4.3)
       echo "minions:retrospective-analyst"
@@ -251,11 +245,11 @@ is_sl_supplementary_agent() {
   case "$agent_type" in
     minions:deep-explorer|\
     minions:architecture-analyst|\
-    minions:code-quality-reviewer|\
-    minions:error-handling-reviewer|\
+    minions:critic|\
+    minions:pedant|\
+    minions:security-reviewer|\
+    minions:silent-failure-hunter|\
     minions:type-reviewer|\
-    minions:test-coverage-reviewer|\
-    minions:comment-reviewer|\
     minions:claude-md-updater|\
     minions:retrospective-analyst)
       return 0
@@ -364,18 +358,17 @@ get_sl_agent_phases() {
     minions:claude-reviewer)      echo "1.3 2.3 3.4 3.5 4.2" ;;
     minions:sonnet-task-agent)    echo "2.1" ;;
     minions:opus-task-agent)      echo "2.1" ;;
-    minions:fix-dispatcher)       echo "1.3 2.3 3.4 3.5 4.2" ;;
     minions:simplifier)           echo "2.2" ;;
-    minions:code-quality-reviewer)   echo "2.3 4.2" ;;
-    minions:error-handling-reviewer) echo "2.3" ;;
+    minions:critic)                  echo "2.3" ;;
+    minions:silent-failure-hunter)   echo "2.3 4.2" ;;
     minions:type-reviewer)           echo "2.3" ;;
     minions:test-developer)       echo "3.1 3.3" ;;
     minions:failure-analyzer)     echo "3.2" ;;
-    minions:test-coverage-reviewer)  echo "4.2" ;;
-    minions:comment-reviewer)        echo "4.2" ;;
+    minions:pedant)                  echo "4.2" ;;
+    minions:security-reviewer)       echo "4.2" ;;
     minions:doc-updater)          echo "4.1" ;;
     minions:claude-md-updater)    echo "4.1" ;;
-    minions:completion-handler)   echo "4.3" ;;
+    minions:shipper)              echo "4.3" ;;
     minions:retrospective-analyst) echo "4.3" ;;
     *) echo "" ;;
   esac
@@ -457,7 +450,7 @@ You are the superlaunch orchestrator. Dispatch this phase as a subagent.
 ## Instructions
 
 1. Read \`.agents/tmp/state.json\` — extract \`.task\`, \`.webSearch\`
-2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, dispatch \`minions:fix-dispatcher\` instead.
+2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, apply the fixes directly (read the issues, fix each one, then clear \`state.reviewFix\`). The SubagentStop hook sets \`state.reviewFix\` and the Stop hook regenerates this prompt.
 3. Read the prompt template at \`prompts/superlaunch/${phase}-$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-').md\` for phase-specific instructions.
 4. Build a minimal dispatch prompt (format below)
 5. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
@@ -542,8 +535,9 @@ AGG
 
 ## Review-Fix Cycle
 
-When `state.reviewFix` exists, dispatch `minions:fix-dispatcher` instead of the reviewer.
-The SubagentStop hook tracks fix completion and clears `reviewFix` when done.
+When `state.reviewFix` exists, apply the fixes directly instead of dispatching the reviewer.
+Read the issues from the review output, fix each one in the codebase, then clear `state.reviewFix`.
+The SubagentStop hook sets `state.reviewFix` and the Stop hook regenerates this prompt.
 REVIEW
   fi
 

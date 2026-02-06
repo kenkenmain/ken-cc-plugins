@@ -80,9 +80,9 @@ claude plugin install minions@ken-cc-plugins
 
 **Launch Features:** Ralph-style hook-driven orchestration, parallel explorer pre-scan, 5 parallel reviewers (critic, pedant, witness, security-reviewer, silent-failure-hunter), automatic loop-back on issues (max 10 loops), feature branch creation
 
-**Superlaunch Pipeline:** Explore -> Plan (brainstorm + plan + review) -> Implement (build + simplify + review) -> Test (run + analyze + develop + review) -> Final (docs + review + completion) — 15 phases, 23 agents
+**Superlaunch Pipeline:** Explore -> Plan (brainstorm + plan + review) -> Implement (build + simplify + review) -> Test (run + analyze + develop + review) -> Final (docs + review + completion) — 15 phases, 22 agents
 
-**Superlaunch Features:** Structured review-fix cycles, coverage-driven test loops, parallel supplementary reviewers (code-quality, error-handling, type-design), high-stakes review criteria prompts
+**Superlaunch Features:** Structured review-fix cycles, coverage-driven test loops, parallel supplementary reviewers (critic, pedant, security-reviewer, silent-failure-hunter, type-reviewer), high-stakes review criteria prompts
 
 ### kenken
 

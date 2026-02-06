@@ -44,7 +44,7 @@ Phase 3.4 │ TEST      │ Test Dev Review         │ review    → claude-rev
 Phase 3.5 │ TEST      │ Test Review             │ review    → claude-reviewer
 Phase 4.1 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
 Phase 4.2 │ FINAL     │ Final Review            │ review    → claude-reviewer + supplementary
-Phase 4.3 │ FINAL     │ Completion              │ subagent  → completion-handler + retrospective
+Phase 4.3 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
 ```
 
 ## Stage Gates
@@ -79,9 +79,9 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
 |-------|---------------------|
 | 0 | `minions:deep-explorer` |
 | 1.2 | `minions:architecture-analyst` |
-| 2.3 | `minions:code-quality-reviewer`, `minions:error-handling-reviewer`, `minions:type-reviewer` |
+| 2.3 | `minions:critic`, `minions:silent-failure-hunter`, `minions:type-reviewer` |
 | 4.1 | `minions:claude-md-updater` |
-| 4.2 | `minions:code-quality-reviewer`, `minions:test-coverage-reviewer`, `minions:comment-reviewer` |
+| 4.2 | `minions:pedant`, `minions:security-reviewer`, `minions:silent-failure-hunter` |
 | 4.3 | `minions:retrospective-analyst` |
 
 ## State Schema (superlaunch)
@@ -124,7 +124,7 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
 | Aspect | launch | superlaunch |
 |--------|--------|-------------|
 | Phases | 4 (F1-F4) | 15 (0 through 4.3) |
-| Agents | `minions:*` (12 agents) | `minions:*` (23 superlaunch agents) |
+| Agents | `minions:*` (12 agents) | `minions:*` (22 superlaunch agents) |
 | Hooks | Same hooks, `launch` branch | Same hooks, `superlaunch` branch |
 | Codex | No | No |
 | Review | 5 parallel personality reviewers | Structured review-fix cycles |

@@ -6,7 +6,7 @@ argument-hint: <task description>
 
 # Minions Superlaunch
 
-You are launching a Claude-only 15-phase thorough development pipeline. This uses **minions plugin agents** (self-contained, 23 superlaunch agents) driven by **minions plugin hooks** (Ralph-style loop driver).
+You are launching a Claude-only 15-phase thorough development pipeline. This uses **minions plugin agents** (self-contained, 22 superlaunch agents) driven by **minions plugin hooks** (Ralph-style loop driver).
 
 Use the `superlaunch` skill for workflow reference documentation.
 
@@ -166,7 +166,7 @@ Phase 3.4 │ TEST      │ Test Dev Review         │ review    → claude-rev
 Phase 3.5 │ TEST      │ Test Review             │ review    → claude-reviewer
 Phase 4.1 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
 Phase 4.2 │ FINAL     │ Final Review            │ review    → claude-reviewer + supplementary
-Phase 4.3 │ FINAL     │ Completion              │ subagent  → completion-handler + retrospective
+Phase 4.3 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
 
 Gates:
   EXPLORE → PLAN:      requires 0-explore.md
@@ -220,4 +220,4 @@ After Phase 0 completes, the Stop hook (`on-stop.sh`) drives the orchestrator th
 | 3.5 | claude-reviewer | `minions:claude-reviewer` |
 | 4.1 | doc-updater + claude-md-updater | `minions:doc-updater` |
 | 4.2 | claude-reviewer + supplementary | `minions:claude-reviewer` |
-| 4.3 | completion-handler + retrospective | `minions:completion-handler` |
+| 4.3 | shipper + retrospective | `minions:shipper` |

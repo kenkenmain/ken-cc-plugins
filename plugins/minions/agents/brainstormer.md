@@ -1,7 +1,7 @@
 ---
 name: brainstormer
 description: "Analyzes explore findings and determines implementation approach with trade-offs. Use proactively after codebase exploration to evaluate strategies before planning."
-model: opus
+model: inherit
 color: magenta
 tools: [Read, Write]
 skills: [workflow]

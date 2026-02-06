@@ -1,7 +1,7 @@
 ---
 name: plan-aggregator
 description: "Aggregates parallel planner outputs and architecture blueprint into a unified implementation plan. Use after all planner and architecture-analyst agents have written their temp files."
-model: opus
+model: inherit
 color: green
 tools: [Read, Write, Glob]
 ---

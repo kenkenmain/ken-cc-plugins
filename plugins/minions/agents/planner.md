@@ -1,7 +1,7 @@
 ---
 name: planner
 description: "Creates detailed implementation plans with task decomposition. Use proactively to break down brainstorm results into executable tasks - dispatched as parallel batch (1-10 agents)."
-model: opus
+model: inherit
 color: green
 tools: [Read, Write, Glob, Grep]
 skills: [workflow]
