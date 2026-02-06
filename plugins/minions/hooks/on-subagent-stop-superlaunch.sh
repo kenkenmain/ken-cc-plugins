@@ -3,7 +3,7 @@
 # Invoked via exec from on-subagent-stop.sh when pipeline == "superlaunch".
 # Validates output, advances state, handles review-fix cycles and coverage loops.
 #
-# Receives the same stdin JSON as the parent hook (already validated).
+# Receives agent type via SL_AGENT_TYPE env var (stdin already consumed by parent hook).
 #
 # Exit codes:
 #   0 silent — allow (supplementary agent, aggregator, or non-superlaunch agent)
@@ -160,10 +160,6 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
 else
   # Non-review phase — validate output exists
   if [[ ! -f "${PHASES_DIR}/${OUTPUT_FILE}" ]]; then
-    if [[ "$OUTPUT_FILE" == *.md ]]; then
-      echo "Agent completed but ${OUTPUT_FILE} not found." >&2
-      exit 2
-    fi
     echo "Agent completed but ${OUTPUT_FILE} not found." >&2
     exit 2
   fi

@@ -2,9 +2,9 @@
 
 ## Subagent Config
 
-- **Primary:** subagents:explorer (parallel batch, 1-10 agents)
-- **Supplementary:** `subagents:deep-explorer` — deep architecture tracing (execution paths, layer mapping, dependencies)
-- **Aggregator:** `subagents:explore-aggregator`
+- **Primary:** minions:explorer (parallel batch, 1-10 agents)
+- **Supplementary:** `minions:deep-explorer` — deep architecture tracing (execution paths, layer mapping, dependencies)
+- **Aggregator:** `minions:explore-aggregator`
 - **Output:** `.agents/tmp/phases/0-explore.md` (written by aggregator, NOT by orchestrator)
 
 ## Dispatch Instructions
@@ -21,7 +21,7 @@
 
 ### Step 2: Dispatch Aggregator
 
-6. **After ALL Step 1 agents complete**, dispatch `subagents:explore-aggregator`
+6. **After ALL Step 1 agents complete**, dispatch `minions:explore-aggregator`
 7. The aggregator reads all `0-explore.*.tmp` files, merges them, and writes `0-explore.md`
 
 **Do NOT read any agent results.** The aggregator handles all merging and writing.

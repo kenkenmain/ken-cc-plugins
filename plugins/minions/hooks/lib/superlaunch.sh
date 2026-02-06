@@ -122,21 +122,21 @@ get_sl_phase_agent() {
 
   # Review phases use state.reviewer
   if [[ "$phase_type" == "review" ]]; then
-    state_get '.reviewer // "subagents:claude-reviewer"'
+    state_get '.reviewer // "minions:claude-reviewer"'
     return
   fi
 
   case "$phase" in
-    0)   echo "subagents:explorer" ;;
-    1.1) echo "subagents:brainstormer" ;;
-    1.2) echo "subagents:planner" ;;
-    2.1) echo "subagents:sonnet-task-agent" ;;
-    2.2) echo "subagents:simplifier" ;;
-    3.1) state_get '.testDeveloper // "subagents:test-developer"' ;;
-    3.2) state_get '.failureAnalyzer // "subagents:failure-analyzer"' ;;
-    3.3) state_get '.testDeveloper // "subagents:test-developer"' ;;
-    4.1) state_get '.docUpdater // "subagents:doc-updater"' ;;
-    4.3) echo "subagents:completion-handler" ;;
+    0)   echo "minions:explorer" ;;
+    1.1) echo "minions:brainstormer" ;;
+    1.2) echo "minions:planner" ;;
+    2.1) echo "minions:sonnet-task-agent" ;;
+    2.2) echo "minions:simplifier" ;;
+    3.1) state_get '.testDeveloper // "minions:test-developer"' ;;
+    3.2) state_get '.failureAnalyzer // "minions:failure-analyzer"' ;;
+    3.3) state_get '.testDeveloper // "minions:test-developer"' ;;
+    4.1) state_get '.docUpdater // "minions:doc-updater"' ;;
+    4.3) echo "minions:completion-handler" ;;
     *)   echo "" ;;
   esac
 }
@@ -172,26 +172,26 @@ _raw_sl_supplementary() {
   local phase="${1:?_raw_sl_supplementary requires a phase ID}"
   case "$phase" in
     0)
-      echo "subagents:deep-explorer"
+      echo "minions:deep-explorer"
       ;;
     1.2)
-      echo "subagents:architecture-analyst"
+      echo "minions:architecture-analyst"
       ;;
     2.3)
-      echo "subagents:code-quality-reviewer"
-      echo "subagents:error-handling-reviewer"
-      echo "subagents:type-reviewer"
+      echo "minions:code-quality-reviewer"
+      echo "minions:error-handling-reviewer"
+      echo "minions:type-reviewer"
       ;;
     4.1)
-      echo "subagents:claude-md-updater"
+      echo "minions:claude-md-updater"
       ;;
     4.2)
-      echo "subagents:code-quality-reviewer"
-      echo "subagents:test-coverage-reviewer"
-      echo "subagents:comment-reviewer"
+      echo "minions:code-quality-reviewer"
+      echo "minions:test-coverage-reviewer"
+      echo "minions:comment-reviewer"
       ;;
     4.3)
-      echo "subagents:retrospective-analyst"
+      echo "minions:retrospective-analyst"
       ;;
     *)
       # No supplementary agents
@@ -235,8 +235,8 @@ sl_phase_has_aggregator() {
 get_sl_phase_aggregator() {
   local phase="${1:?get_sl_phase_aggregator requires a phase ID}"
   case "$phase" in
-    0)   echo "subagents:explore-aggregator" ;;
-    1.2) echo "subagents:plan-aggregator" ;;
+    0)   echo "minions:explore-aggregator" ;;
+    1.2) echo "minions:plan-aggregator" ;;
     *)   echo "" ;;
   esac
 }
@@ -249,15 +249,15 @@ is_sl_supplementary_agent() {
   local agent_type="${1:-}"
   [[ -z "$agent_type" ]] && return 1
   case "$agent_type" in
-    subagents:deep-explorer|\
-    subagents:architecture-analyst|\
-    subagents:code-quality-reviewer|\
-    subagents:error-handling-reviewer|\
-    subagents:type-reviewer|\
-    subagents:test-coverage-reviewer|\
-    subagents:comment-reviewer|\
-    subagents:claude-md-updater|\
-    subagents:retrospective-analyst)
+    minions:deep-explorer|\
+    minions:architecture-analyst|\
+    minions:code-quality-reviewer|\
+    minions:error-handling-reviewer|\
+    minions:type-reviewer|\
+    minions:test-coverage-reviewer|\
+    minions:comment-reviewer|\
+    minions:claude-md-updater|\
+    minions:retrospective-analyst)
       return 0
       ;;
     *)
@@ -270,8 +270,8 @@ is_sl_aggregator_agent() {
   local agent_type="${1:-}"
   [[ -z "$agent_type" ]] && return 1
   case "$agent_type" in
-    subagents:explore-aggregator|\
-    subagents:plan-aggregator)
+    minions:explore-aggregator|\
+    minions:plan-aggregator)
       return 0
       ;;
     *)
@@ -342,41 +342,41 @@ validate_sl_gate() {
 # ===========================================================================
 
 get_sl_editable_stages() {
-  echo "IMPLEMENT FINAL"
+  echo "IMPLEMENT TEST FINAL"
 }
 
 # ===========================================================================
 # Agent-to-Phase Mapping (for task gate and subagent-stop)
 # ===========================================================================
 
-# Map a subagents agent type to the superlaunch phases it's allowed in.
+# Map a minions agent type to the superlaunch phases it's allowed in.
 # Returns space-separated list of phase IDs.
 get_sl_agent_phases() {
   local agent_type="${1:?get_sl_agent_phases requires an agent type}"
   case "$agent_type" in
-    subagents:explorer)             echo "0" ;;
-    subagents:deep-explorer)        echo "0" ;;
-    subagents:explore-aggregator)   echo "0" ;;
-    subagents:brainstormer)         echo "1.1" ;;
-    subagents:planner)              echo "1.2" ;;
-    subagents:architecture-analyst) echo "1.2" ;;
-    subagents:plan-aggregator)      echo "1.2" ;;
-    subagents:claude-reviewer)      echo "1.3 2.3 3.4 3.5 4.2" ;;
-    subagents:sonnet-task-agent)    echo "2.1" ;;
-    subagents:opus-task-agent)      echo "2.1" ;;
-    subagents:fix-dispatcher)       echo "1.3 2.3 3.4 3.5 4.2" ;;
-    subagents:simplifier)           echo "2.2" ;;
-    subagents:code-quality-reviewer)   echo "2.3 4.2" ;;
-    subagents:error-handling-reviewer) echo "2.3" ;;
-    subagents:type-reviewer)           echo "2.3" ;;
-    subagents:test-developer)       echo "3.1 3.3" ;;
-    subagents:failure-analyzer)     echo "3.2" ;;
-    subagents:test-coverage-reviewer)  echo "4.2" ;;
-    subagents:comment-reviewer)        echo "4.2" ;;
-    subagents:doc-updater)          echo "4.1" ;;
-    subagents:claude-md-updater)    echo "4.1" ;;
-    subagents:completion-handler)   echo "4.3" ;;
-    subagents:retrospective-analyst) echo "4.3" ;;
+    minions:explorer)             echo "0" ;;
+    minions:deep-explorer)        echo "0" ;;
+    minions:explore-aggregator)   echo "0" ;;
+    minions:brainstormer)         echo "1.1" ;;
+    minions:planner)              echo "1.2" ;;
+    minions:architecture-analyst) echo "1.2" ;;
+    minions:plan-aggregator)      echo "1.2" ;;
+    minions:claude-reviewer)      echo "1.3 2.3 3.4 3.5 4.2" ;;
+    minions:sonnet-task-agent)    echo "2.1" ;;
+    minions:opus-task-agent)      echo "2.1" ;;
+    minions:fix-dispatcher)       echo "1.3 2.3 3.4 3.5 4.2" ;;
+    minions:simplifier)           echo "2.2" ;;
+    minions:code-quality-reviewer)   echo "2.3 4.2" ;;
+    minions:error-handling-reviewer) echo "2.3" ;;
+    minions:type-reviewer)           echo "2.3" ;;
+    minions:test-developer)       echo "3.1 3.3" ;;
+    minions:failure-analyzer)     echo "3.2" ;;
+    minions:test-coverage-reviewer)  echo "4.2" ;;
+    minions:comment-reviewer)        echo "4.2" ;;
+    minions:doc-updater)          echo "4.1" ;;
+    minions:claude-md-updater)    echo "4.1" ;;
+    minions:completion-handler)   echo "4.3" ;;
+    minions:retrospective-analyst) echo "4.3" ;;
     *) echo "" ;;
   esac
 }
@@ -457,7 +457,7 @@ You are the superlaunch orchestrator. Dispatch this phase as a subagent.
 ## Instructions
 
 1. Read \`.agents/tmp/state.json\` — extract \`.task\`, \`.webSearch\`
-2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, dispatch \`subagents:fix-dispatcher\` instead.
+2. **Check for review-fix cycle:** If \`state.reviewFix\` exists, dispatch \`minions:fix-dispatcher\` instead.
 3. Read the prompt template at \`prompts/superlaunch/${phase}-$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-').md\` for phase-specific instructions.
 4. Build a minimal dispatch prompt (format below)
 5. Dispatch via Task tool: subagent_type=\`${subagent}\`, model=\`${model}\`
@@ -542,7 +542,7 @@ AGG
 
 ## Review-Fix Cycle
 
-When `state.reviewFix` exists, dispatch `subagents:fix-dispatcher` instead of the reviewer.
+When `state.reviewFix` exists, dispatch `minions:fix-dispatcher` instead of the reviewer.
 The SubagentStop hook tracks fix completion and clears `reviewFix` when done.
 REVIEW
   fi
@@ -568,9 +568,9 @@ Pick `subagent_type` based on each task's complexity:
 
 | Level  | subagent_type                | Execution                       |
 | ------ | ---------------------------- | ------------------------------- |
-| Easy   | `subagents:sonnet-task-agent` | Direct execution (model=sonnet) |
-| Medium | `subagents:opus-task-agent`   | Direct execution (model=opus)   |
-| Hard   | `subagents:opus-task-agent`   | Direct execution (model=opus)   |
+| Easy   | `minions:sonnet-task-agent` | Direct execution (model=sonnet) |
+| Medium | `minions:opus-task-agent`   | Direct execution (model=opus)   |
+| Hard   | `minions:opus-task-agent`   | Direct execution (model=opus)   |
 PERTASK
   fi
 

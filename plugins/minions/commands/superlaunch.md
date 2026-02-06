@@ -1,12 +1,12 @@
 ---
 name: minions:superlaunch
-description: Superlaunch — Claude-only 15-phase thorough pipeline with subagents agents and minions hooks
+description: Superlaunch — Claude-only 15-phase thorough pipeline with minions agents and minions hooks
 argument-hint: <task description>
 ---
 
 # Minions Superlaunch
 
-You are launching a Claude-only 15-phase thorough development pipeline. This uses **subagents plugin agents** (battle-tested, 49 agents) driven by **minions plugin hooks** (Ralph-style loop driver).
+You are launching a Claude-only 15-phase thorough development pipeline. This uses **minions plugin agents** (self-contained, 23 superlaunch agents) driven by **minions plugin hooks** (Ralph-style loop driver).
 
 Use the `superlaunch` skill for workflow reference documentation.
 
@@ -25,11 +25,11 @@ Phase 0   │ EXPLORE   │ Explore                 │ dispatch
 Phase 1.1 │ PLAN      │ Brainstorm              │ subagent
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch
 Phase 1.3 │ PLAN      │ Plan Review             │ review
-Phase 2.1 │ IMPLEMENT │ Task Execution          │ dispatch
+Phase 2.1 │ IMPLEMENT │ Implement               │ dispatch
 Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent
-Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review
-Phase 3.1 │ TEST      │ Run Tests & Analyze     │ subagent
-Phase 3.2 │ TEST      │ Analyze Failures        │ subagent
+Phase 2.3 │ IMPLEMENT │ Impl Review             │ review
+Phase 3.1 │ TEST      │ Run Tests               │ subagent
+Phase 3.2 │ TEST      │ Analyze                 │ subagent
 Phase 3.3 │ TEST      │ Develop Tests           │ subagent
 Phase 3.4 │ TEST      │ Test Dev Review         │ review
 Phase 3.5 │ TEST      │ Test Review             │ review
@@ -98,10 +98,10 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "currentPhase": "0",
   "currentStage": "EXPLORE",
   "codexAvailable": false,
-  "reviewer": "subagents:claude-reviewer",
-  "testDeveloper": "subagents:test-developer",
-  "failureAnalyzer": "subagents:failure-analyzer",
-  "docUpdater": "subagents:doc-updater",
+  "reviewer": "minions:claude-reviewer",
+  "testDeveloper": "minions:test-developer",
+  "failureAnalyzer": "minions:failure-analyzer",
+  "docUpdater": "minions:doc-updater",
   "ownerPpid": "<PPID value>",
   "sessionId": "<sessionId value>",
   "branch": "<BRANCH_NAME>",
@@ -110,11 +110,11 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
     {"phase":"1.1","stage":"PLAN","name":"Brainstorm","type":"subagent"},
     {"phase":"1.2","stage":"PLAN","name":"Plan","type":"dispatch"},
     {"phase":"1.3","stage":"PLAN","name":"Plan Review","type":"review"},
-    {"phase":"2.1","stage":"IMPLEMENT","name":"Task Execution","type":"dispatch"},
+    {"phase":"2.1","stage":"IMPLEMENT","name":"Implement","type":"dispatch"},
     {"phase":"2.2","stage":"IMPLEMENT","name":"Simplify","type":"subagent"},
-    {"phase":"2.3","stage":"IMPLEMENT","name":"Implementation Review","type":"review"},
-    {"phase":"3.1","stage":"TEST","name":"Run Tests & Analyze","type":"subagent"},
-    {"phase":"3.2","stage":"TEST","name":"Analyze Failures","type":"subagent"},
+    {"phase":"2.3","stage":"IMPLEMENT","name":"Impl Review","type":"review"},
+    {"phase":"3.1","stage":"TEST","name":"Run Tests","type":"subagent"},
+    {"phase":"3.2","stage":"TEST","name":"Analyze","type":"subagent"},
     {"phase":"3.3","stage":"TEST","name":"Develop Tests","type":"subagent"},
     {"phase":"3.4","stage":"TEST","name":"Test Dev Review","type":"review"},
     {"phase":"3.5","stage":"TEST","name":"Test Review","type":"review"},
@@ -156,11 +156,11 @@ Phase 0   │ EXPLORE   │ Explore                 │ dispatch  → explorers 
 Phase 1.1 │ PLAN      │ Brainstorm              │ subagent  → brainstormer
 Phase 1.2 │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
 Phase 1.3 │ PLAN      │ Plan Review             │ review    → claude-reviewer
-Phase 2.1 │ IMPLEMENT │ Task Execution          │ dispatch  → task agents (per complexity)
+Phase 2.1 │ IMPLEMENT │ Implement               │ dispatch  → task agents (per complexity)
 Phase 2.2 │ IMPLEMENT │ Simplify                │ subagent  → simplifier
-Phase 2.3 │ IMPLEMENT │ Implementation Review   │ review    → claude-reviewer + supplementary
-Phase 3.1 │ TEST      │ Run Tests & Analyze     │ subagent  → test-developer
-Phase 3.2 │ TEST      │ Analyze Failures        │ subagent  → failure-analyzer
+Phase 2.3 │ IMPLEMENT │ Impl Review             │ review    → claude-reviewer + supplementary
+Phase 3.1 │ TEST      │ Run Tests               │ subagent  → test-developer
+Phase 3.2 │ TEST      │ Analyze                 │ subagent  → failure-analyzer
 Phase 3.3 │ TEST      │ Develop Tests           │ subagent  → test-developer
 Phase 3.4 │ TEST      │ Test Dev Review         │ review    → claude-reviewer
 Phase 3.5 │ TEST      │ Test Review             │ review    → claude-reviewer
@@ -192,9 +192,9 @@ Set dependencies: PLAN blocked by EXPLORE, IMPLEMENT blocked by PLAN, TEST block
 
 Read the prompt template at `prompts/superlaunch/0-explore.md` for dispatch instructions.
 
-Dispatch the explore phase using `subagents:explorer` agents (parallel batch) and `subagents:deep-explorer` (supplementary).
+Dispatch the explore phase using `minions:explorer` agents (parallel batch) and `minions:deep-explorer` (supplementary).
 
-After all explorers complete, dispatch `subagents:explore-aggregator` to merge results into `.agents/tmp/phases/0-explore.md`.
+After all explorers complete, dispatch `minions:explore-aggregator` to merge results into `.agents/tmp/phases/0-explore.md`.
 
 After Phase 0 completes, the Stop hook (`on-stop.sh`) drives the orchestrator through all 15 phases automatically via schedule-driven prompt generation.
 
@@ -202,22 +202,22 @@ After Phase 0 completes, the Stop hook (`on-stop.sh`) drives the orchestrator th
 
 | Phase | Agent | subagent_type |
 |-------|-------|---------------|
-| 0 | explorer (batch) | `subagents:explorer` |
-| 0 | deep-explorer (supplementary) | `subagents:deep-explorer` |
-| 0 | explore-aggregator | `subagents:explore-aggregator` |
-| 1.1 | brainstormer | `subagents:brainstormer` |
-| 1.2 | planner (batch) | `subagents:planner` |
-| 1.2 | architecture-analyst (supplementary) | `subagents:architecture-analyst` |
-| 1.2 | plan-aggregator | `subagents:plan-aggregator` |
-| 1.3 | claude-reviewer | `subagents:claude-reviewer` |
-| 2.1 | sonnet-task-agent / opus-task-agent | `subagents:sonnet-task-agent` / `subagents:opus-task-agent` |
-| 2.2 | simplifier | `subagents:simplifier` |
-| 2.3 | claude-reviewer + supplementary | `subagents:claude-reviewer` |
-| 3.1 | test-developer | `subagents:test-developer` |
-| 3.2 | failure-analyzer | `subagents:failure-analyzer` |
-| 3.3 | test-developer | `subagents:test-developer` |
-| 3.4 | claude-reviewer | `subagents:claude-reviewer` |
-| 3.5 | claude-reviewer | `subagents:claude-reviewer` |
-| 4.1 | doc-updater + claude-md-updater | `subagents:doc-updater` |
-| 4.2 | claude-reviewer + supplementary | `subagents:claude-reviewer` |
-| 4.3 | completion-handler + retrospective | `subagents:completion-handler` |
+| 0 | explorer (batch) | `minions:explorer` |
+| 0 | deep-explorer (supplementary) | `minions:deep-explorer` |
+| 0 | explore-aggregator | `minions:explore-aggregator` |
+| 1.1 | brainstormer | `minions:brainstormer` |
+| 1.2 | planner (batch) | `minions:planner` |
+| 1.2 | architecture-analyst (supplementary) | `minions:architecture-analyst` |
+| 1.2 | plan-aggregator | `minions:plan-aggregator` |
+| 1.3 | claude-reviewer | `minions:claude-reviewer` |
+| 2.1 | sonnet-task-agent / opus-task-agent | `minions:sonnet-task-agent` / `minions:opus-task-agent` |
+| 2.2 | simplifier | `minions:simplifier` |
+| 2.3 | claude-reviewer + supplementary | `minions:claude-reviewer` |
+| 3.1 | test-developer | `minions:test-developer` |
+| 3.2 | failure-analyzer | `minions:failure-analyzer` |
+| 3.3 | test-developer | `minions:test-developer` |
+| 3.4 | claude-reviewer | `minions:claude-reviewer` |
+| 3.5 | claude-reviewer | `minions:claude-reviewer` |
+| 4.1 | doc-updater + claude-md-updater | `minions:doc-updater` |
+| 4.2 | claude-reviewer + supplementary | `minions:claude-reviewer` |
+| 4.3 | completion-handler + retrospective | `minions:completion-handler` |

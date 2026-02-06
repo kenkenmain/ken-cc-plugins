@@ -3,10 +3,10 @@
 # Invoked via exec from on-task-gate.sh when pipeline == "superlaunch".
 # Validates that the dispatched agent matches the current phase schedule.
 #
-# Receives the same stdin JSON as the parent hook (already validated).
+# Receives agent type via SL_AGENT_TYPE env var (stdin already consumed by parent hook).
 #
 # Exit codes:
-#   0 silent   — allow (non-subagents agent or agent valid for current phase)
+#   0 silent   — allow (non-minions agent or agent valid for current phase)
 #   0 with JSON — block with reason
 #   2 with stderr — error condition
 
@@ -19,10 +19,10 @@ source "$SCRIPT_DIR/lib/superlaunch.sh"
 # stdin was already consumed and validated by the parent hook — read from env
 AGENT_TYPE="${SL_AGENT_TYPE:?on-task-gate-superlaunch.sh requires SL_AGENT_TYPE}"
 
-# Allow non-subagents agents through
+# Allow non-minions agents through
 case "$AGENT_TYPE" in
-  subagents:*) ;; # check below
-  *) exit 0 ;;    # not a subagents agent, allow
+  minions:*) ;; # check below
+  *) exit 0 ;;    # not a minions agent, allow
 esac
 
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
