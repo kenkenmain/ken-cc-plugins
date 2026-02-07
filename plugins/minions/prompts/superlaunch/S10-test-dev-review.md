@@ -22,9 +22,8 @@ Review the tests and CI configuration written by the test-developer agent.
 ### Output
 
 Write JSON to `.agents/tmp/phases/S10-test-dev-review.json` with:
-- `status`: `approved | needs_revision`
+- `status`: `approved | needs_revision` (do NOT use `needs_coverage` or `blocked`)
 - `issues[]`
-- `coverageMet`
 - `summary`
 
 ### If Issues Found

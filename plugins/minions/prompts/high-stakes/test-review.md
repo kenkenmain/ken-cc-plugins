@@ -35,7 +35,7 @@ You are reviewing test coverage and quality for code produced by task agents.
 
 ```json
 {
-  "status": "approved" | "needs_revision" | "needs_coverage" | "blocked",
+  "status": "approved" | "needs_revision",
   "issues": [
     {
       "severity": "HIGH" | "MEDIUM" | "LOW",
@@ -46,9 +46,9 @@ You are reviewing test coverage and quality for code produced by task agents.
   ],
   "summary": "<one paragraph assessment>",
   "coverage": {
-    "current": 0,
-    "threshold": 0,
-    "met": true
+    "current": 85,
+    "threshold": 90,
+    "met": false
   }
 }
 ```
@@ -57,11 +57,15 @@ You are reviewing test coverage and quality for code produced by task agents.
 
 - **APPROVED**: Zero issues and coverage requirements met
 - **NEEDS_REVISION**: Quality issues found that require fixes
-- **NEEDS_COVERAGE**: Quality is acceptable, but coverage is below threshold (S11 only)
-- **BLOCKED**: Cannot proceed due to a hard blocker (S11 only)
+
+### S11 (Test Review) additional statuses
+
+S11 agents may also return these statuses. **WARNING: S10 agents must NOT return `needs_coverage` or `blocked` — the hook will reject them.**
+
+- **NEEDS_COVERAGE**: Quality is acceptable, but coverage is below threshold
+- **BLOCKED**: Cannot proceed due to a hard blocker
 
 ## Note
 
 Invoked by both `minions:test-dev-reviewer` (S10) and `minions:test-reviewer` (S11).
-- S10 should use `approved | needs_revision`.
-- S11 should use `approved | needs_coverage | blocked` and include `coverage`.
+The `coverage` object is required for S11 output.

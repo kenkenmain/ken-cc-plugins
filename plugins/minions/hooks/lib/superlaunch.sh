@@ -122,7 +122,7 @@ get_sl_phase_agent() {
 
   # Read phase type from schedule
   local phase_type
-  phase_type="$(jq -r --arg p "$phase" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE" 2>/dev/null || echo "")"
+  phase_type="$(jq -r --arg p "$phase" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE")"
 
   # Review phases — each has a dedicated reviewer agent
   if [[ "$phase_type" == "review" ]]; then
@@ -201,14 +201,14 @@ get_sl_supplementary() {
   local phase="${1:?get_sl_supplementary requires a phase ID}"
 
   local phase_type
-  phase_type="$(jq -r --arg p "$phase" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE" 2>/dev/null || echo "")"
+  phase_type="$(jq -r --arg p "$phase" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE")"
 
   if [[ "$phase_type" == "review" ]]; then
     local policy
-    policy="$(state_get '.supplementaryPolicy // "on-issues"' 2>/dev/null || echo "on-issues")"
+    policy="$(state_get '.supplementaryPolicy // "on-issues"')"
     if [[ "$policy" == "on-issues" ]]; then
       local supp_run
-      supp_run="$(state_get ".supplementaryRun[\"$phase\"] // false" 2>/dev/null || echo "false")"
+      supp_run="$(state_get ".supplementaryRun[\"$phase\"] // false")"
       if [[ "$supp_run" != "true" ]]; then
         return 0
       fi
@@ -312,7 +312,7 @@ validate_sl_gate() {
   local phases_dir="${2:?validate_sl_gate requires phases_dir}"
 
   local required_files
-  required_files="$(jq -r --arg g "$gate_name" '.gates[$g].required // [] | .[]' "$STATE_FILE" 2>/dev/null)"
+  required_files="$(jq -r --arg g "$gate_name" '.gates[$g].required // [] | .[]' "$STATE_FILE")"
 
   if [[ -z "$required_files" ]]; then
     # No gate defined for this transition

@@ -31,9 +31,11 @@ PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 
 # Recovery: advance state if output files exist but SubagentStop didn't fire.
 # F2→F3: if f2-tasks.json exists and valid, advance to F3
+# Note: 2>/dev/null is intentional — this is a best-effort recovery path.
+# If validation fails, we fall through to regenerate the F2 prompt below.
 if [[ "$CURRENT_PHASE" == "F2" && -f "${PHASES_DIR}/f2-tasks.json" ]]; then
   if validate_json_file "${PHASES_DIR}/f2-tasks.json" "f2-tasks.json" 2>/dev/null; then
-    if jq -e '.tasks and .files_changed and .all_complete == true' "${PHASES_DIR}/f2-tasks.json" >/dev/null 2>&1; then
+    if jq -e '.tasks and .files_changed and .all_complete == true' "${PHASES_DIR}/f2-tasks.json" >/dev/null; then
       if ! update_state '.currentPhase = "F3" | .updatedAt = $ts | .loops[-1].f2.status = "complete"'; then
         echo "ERROR: Failed to advance state from F2 to F3 in Stop hook." >&2
         exit 2
@@ -45,69 +47,78 @@ fi
 
 # F3→F4/loop: if f3-verdict.json exists and valid, advance based on verdict
 if [[ "$CURRENT_PHASE" == "F3" && -f "${PHASES_DIR}/f3-verdict.json" ]]; then
-  if validate_json_file "${PHASES_DIR}/f3-verdict.json" "f3-verdict.json" 2>/dev/null; then
-    VERDICT=$(jq -r '.overall_verdict // empty' "${PHASES_DIR}/f3-verdict.json" 2>/dev/null || echo "")
-    TOTAL_ISSUES=$(jq -r '
-      if (.total_issues? | type) == "number" then
-        (.total_issues | floor | tostring)
-      else
-        (
-          ((.critic.issues // 0)
-          + (.pedant.issues // 0)
-          + (.witness.issues // 0)
-          + (.security_reviewer.issues // 0)
-          + (.silent_failure_hunter.issues // 0)) | floor | tostring
-        )
-      end
-    ' "${PHASES_DIR}/f3-verdict.json" 2>/dev/null || echo "")
+  if ! validate_json_file "${PHASES_DIR}/f3-verdict.json" "f3-verdict.json"; then
+    echo "ERROR: f3-verdict.json exists but is invalid JSON. Cannot process F3 verdict." >&2
+    exit 2
+  fi
+  # Cross-validate verdict against issue counts to catch agents reporting clean with non-zero issues.
+  VERDICT=$(jq -r '.overall_verdict // empty' "${PHASES_DIR}/f3-verdict.json") || {
+    echo "ERROR: Failed to read overall_verdict from f3-verdict.json." >&2
+    exit 2
+  }
+  TOTAL_ISSUES=$(jq -r '
+    if (.total_issues? | type) == "number" then
+      (.total_issues | floor | tostring)
+    else
+      (
+        ((.critic.issues // 0)
+        + (.pedant.issues // 0)
+        + (.witness.issues // 0)
+        + (.security_reviewer.issues // 0)
+        + (.silent_failure_hunter.issues // 0)) | floor | tostring
+      )
+    end
+  ' "${PHASES_DIR}/f3-verdict.json") || {
+    echo "ERROR: Failed to compute total_issues from f3-verdict.json." >&2
+    exit 2
+  }
 
-    if ! [[ "$TOTAL_ISSUES" =~ ^[0-9]+$ ]]; then
-      echo "ERROR: f3-verdict.json has invalid total_issues value." >&2
+  if ! [[ "$TOTAL_ISSUES" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: f3-verdict.json has invalid total_issues value." >&2
+    exit 2
+  fi
+
+  # Fail-safe: issue counts take precedence over declared verdict.
+  if [[ "$VERDICT" == "clean" && "$TOTAL_ISSUES" -gt 0 ]]; then
+    echo "WARNING: f3-verdict.json reports clean with ${TOTAL_ISSUES} issues. Forcing issues_found." >&2
+    VERDICT="issues_found"
+  fi
+
+  if [[ "$VERDICT" != "clean" && "$VERDICT" != "issues_found" ]]; then
+    if [[ "$TOTAL_ISSUES" -gt 0 ]]; then
+      VERDICT="issues_found"
+    else
+      echo "ERROR: f3-verdict.json has unexpected overall_verdict '$VERDICT'." >&2
       exit 2
     fi
+  fi
 
-    # Fail-safe: issue counts take precedence over declared verdict.
-    if [[ "$VERDICT" == "clean" && "$TOTAL_ISSUES" -gt 0 ]]; then
-      echo "WARNING: f3-verdict.json reports clean with ${TOTAL_ISSUES} issues. Forcing issues_found." >&2
-      VERDICT="issues_found"
+  if [[ "$VERDICT" == "clean" ]]; then
+    if ! update_state --arg verdict "$VERDICT" \
+      '.currentPhase = "F4" | .updatedAt = $ts | .loops[-1].f3.status = "complete" | .loops[-1].f3.verdict = $verdict | .loops[-1].verdict = "clean"'; then
+      echo "ERROR: Failed to advance state from F3 to F4 in Stop hook." >&2
+      exit 2
     fi
-
-    if [[ "$VERDICT" != "clean" && "$VERDICT" != "issues_found" ]]; then
-      if [[ "$TOTAL_ISSUES" -gt 0 ]]; then
-        VERDICT="issues_found"
-      else
-        echo "ERROR: f3-verdict.json has unexpected overall_verdict '$VERDICT'." >&2
-        exit 2
-      fi
-    fi
-
-    if [[ "$VERDICT" == "clean" ]]; then
+    CURRENT_PHASE="F4"
+  elif [[ "$VERDICT" == "issues_found" ]]; then
+    NEXT_LOOP=$((LOOP + 1))
+    if [[ "$NEXT_LOOP" -gt "$MAX_LOOPS" ]]; then
       if ! update_state --arg verdict "$VERDICT" \
-        '.currentPhase = "F4" | .updatedAt = $ts | .loops[-1].f3.status = "complete" | .loops[-1].f3.verdict = $verdict | .loops[-1].verdict = "clean"'; then
-        echo "ERROR: Failed to advance state from F3 to F4 in Stop hook." >&2
+        '.status = "stopped" | .currentPhase = "STOPPED" | .updatedAt = $ts | .loops[-1].f3.status = "complete" | .loops[-1].f3.verdict = $verdict | .loops[-1].verdict = "issues_found" | .failure = "Max loops reached with unresolved issues"'; then
+        echo "ERROR: Failed to update state to STOPPED in Stop hook." >&2
         exit 2
       fi
-      CURRENT_PHASE="F4"
-    elif [[ "$VERDICT" == "issues_found" ]]; then
-      NEXT_LOOP=$((LOOP + 1))
-      if [[ "$NEXT_LOOP" -gt "$MAX_LOOPS" ]]; then
-        if ! update_state --arg verdict "$VERDICT" \
-          '.status = "stopped" | .currentPhase = "STOPPED" | .updatedAt = $ts | .loops[-1].f3.status = "complete" | .loops[-1].f3.verdict = $verdict | .loops[-1].verdict = "issues_found" | .failure = "Max loops reached with unresolved issues"'; then
-          echo "ERROR: Failed to update state to STOPPED in Stop hook." >&2
-          exit 2
-        fi
-        CURRENT_PHASE="STOPPED"
-      else
-        if ! update_state --arg verdict "$VERDICT" --argjson nextLoop "$NEXT_LOOP" \
-          '.currentPhase = "F1" | .loop = $nextLoop | .updatedAt = $ts | .loops[-1].f3.status = "complete" | .loops[-1].f3.verdict = $verdict | .loops[-1].verdict = "issues_found" | .loops += [{"loop": $nextLoop, "startedAt": $ts, "f1": {"status": "pending"}, "f2": {"status": "pending"}, "f3": {"status": "pending"}}]'; then
-          echo "ERROR: Failed to loop back to F1 in Stop hook." >&2
-          exit 2
-        fi
-        # Re-read updated loop for prompt generation
-        LOOP="$NEXT_LOOP"
-        PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
-        CURRENT_PHASE="F1"
+      CURRENT_PHASE="STOPPED"
+    else
+      if ! update_state --arg verdict "$VERDICT" --argjson nextLoop "$NEXT_LOOP" \
+        '.currentPhase = "F1" | .loop = $nextLoop | .updatedAt = $ts | .loops[-1].f3.status = "complete" | .loops[-1].f3.verdict = $verdict | .loops[-1].verdict = "issues_found" | .loops += [{"loop": $nextLoop, "startedAt": $ts, "f1": {"status": "pending"}, "f2": {"status": "pending"}, "f3": {"status": "pending"}}]'; then
+        echo "ERROR: Failed to loop back to F1 in Stop hook." >&2
+        exit 2
       fi
+      # Re-read updated loop for prompt generation
+      LOOP="$NEXT_LOOP"
+      PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
+      CURRENT_PHASE="F1"
     fi
   fi
 fi

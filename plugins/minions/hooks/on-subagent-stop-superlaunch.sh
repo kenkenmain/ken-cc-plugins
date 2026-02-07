@@ -6,9 +6,9 @@
 # Receives agent type via SL_AGENT_TYPE env var (stdin already consumed by parent hook).
 #
 # Exit codes:
-#   0 silent — allow (supplementary agent, aggregator, or non-superlaunch agent)
-#   0 with JSON — provide context to orchestrator
-#   2 with stderr — block, output file missing or corrupt
+#   0 silent — allow (supplementary agent, non-superlaunch agent, or lock contention)
+#   0 with JSON — provide context to orchestrator (block notice on workflow blocked)
+#   2 with stderr — block, output file missing/corrupt/invalid
 
 set -euo pipefail
 
@@ -46,7 +46,8 @@ lock_dir_mtime_epoch() {
     echo "$mtime"
     return 0
   fi
-  echo "0"
+  # Cannot determine mtime — treat lock as non-stale (fail-closed)
+  return 1
 }
 
 cleanup_phase_lock() {
@@ -70,7 +71,10 @@ acquire_phase_lock() {
   if [[ -d "$lock_dir" ]]; then
     local lock_age now mtime
     now=$(date +%s)
-    mtime="$(lock_dir_mtime_epoch "$lock_dir")"
+    if ! mtime="$(lock_dir_mtime_epoch "$lock_dir")"; then
+      # Cannot determine lock age — treat as non-stale (fail-closed)
+      return 1
+    fi
     lock_age=$((now - mtime))
     if [[ "$lock_age" -gt "$PHASE_LOCK_STALE_SECONDS" ]]; then
       echo "WARNING: Removing stale superlaunch phase lock $lock_dir (age: ${lock_age}s)." >&2
@@ -102,15 +106,18 @@ guard_locked_phase_context() {
   return 0
 }
 
-# Skip supplementary and aggregator agents — they don't drive phase advancement
+# Skip supplementary agents — they don't drive phase advancement
 if is_sl_supplementary_agent "$AGENT_TYPE"; then
   exit 0
 fi
+# Aggregator agents drive phase advancement after validating their output file.
 if is_sl_aggregator_agent "$AGENT_TYPE"; then
   if ! acquire_phase_lock "$CURRENT_PHASE"; then
+    echo "INFO: Phase lock for $CURRENT_PHASE held by another hook instance; skipping." >&2
     exit 0
   fi
   if ! guard_locked_phase_context "$CURRENT_PHASE"; then
+    echo "INFO: Phase $CURRENT_PHASE already advanced or workflow no longer in_progress; skipping." >&2
     exit 0
   fi
 
@@ -121,10 +128,10 @@ if is_sl_aggregator_agent "$AGENT_TYPE"; then
     exit 2
   fi
   if [[ ! -f "${PHASES_DIR}/${local_output}" ]]; then
-    echo "Aggregator completed but ${local_output} not found." >&2
+    echo "ERROR: Aggregator completed but ${local_output} not found." >&2
     exit 2
   fi
-  if [[ "$local_output" == *.json ]] && ! validate_json_file "${PHASES_DIR}/${local_output}" "$local_output" 2>/dev/null; then
+  if [[ "$local_output" == *.json ]] && ! validate_json_file "${PHASES_DIR}/${local_output}" "$local_output"; then
     echo "ERROR: ${local_output} is invalid JSON." >&2
     exit 2
   fi
@@ -146,6 +153,10 @@ if is_sl_aggregator_agent "$AGENT_TYPE"; then
   else
     local_next_phase=$(echo "$local_next_json" | jq -r '.phase')
     local_next_stage=$(echo "$local_next_json" | jq -r '.stage')
+    if [[ -z "$local_next_phase" || "$local_next_phase" == "null" || -z "$local_next_stage" || "$local_next_stage" == "null" ]]; then
+      echo "ERROR: Next phase entry is malformed (phase=$local_next_phase, stage=$local_next_stage)." >&2
+      exit 2
+    fi
 
     # Check gate if crossing stages
     if [[ "$local_next_stage" != "$local_current_stage" ]]; then
@@ -190,18 +201,27 @@ if sl_phase_has_aggregator "$CURRENT_PHASE"; then
 fi
 
 if ! acquire_phase_lock "$CURRENT_PHASE"; then
+  echo "INFO: Phase lock for $CURRENT_PHASE held by another hook instance; skipping." >&2
   exit 0
 fi
 if ! guard_locked_phase_context "$CURRENT_PHASE"; then
+  echo "INFO: Phase $CURRENT_PHASE already advanced or workflow no longer in_progress; skipping." >&2
   exit 0
 fi
 
 # For review phases, handle verdict
-PHASE_TYPE=$(jq -r --arg p "$CURRENT_PHASE" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE" 2>/dev/null || echo "")
+PHASE_TYPE=$(jq -r --arg p "$CURRENT_PHASE" '.schedule[] | select(.phase == $p) | .type // empty' "$STATE_FILE") || {
+  echo "ERROR: Failed to extract phase type for $CURRENT_PHASE from state schedule." >&2
+  exit 2
+}
+if [[ -z "$PHASE_TYPE" ]]; then
+  echo "ERROR: Phase $CURRENT_PHASE not found in state schedule or has no type." >&2
+  exit 2
+fi
 
 if [[ "$PHASE_TYPE" == "review" ]]; then
   if [[ ! -f "${PHASES_DIR}/${OUTPUT_FILE}" ]]; then
-    echo "Review agent completed but ${OUTPUT_FILE} not found." >&2
+    echo "ERROR: Review agent completed but ${OUTPUT_FILE} not found." >&2
     exit 2
   fi
   if ! validate_json_file "${PHASES_DIR}/${OUTPUT_FILE}" "$OUTPUT_FILE"; then
@@ -210,7 +230,7 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
   fi
 
   # Read review status
-  REVIEW_STATUS=$(jq -r '.status // empty' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "")
+  REVIEW_STATUS=$(jq -r '.status // empty' "${PHASES_DIR}/${OUTPUT_FILE}")
 
   case "$REVIEW_STATUS" in
     approved|needs_revision|needs_coverage|blocked) ;;
@@ -220,7 +240,7 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
       ;;
   esac
 
-  REVIEW_ISSUES="$(jq -r 'if (.issues? | type) == "array" then (.issues | length) else 0 end' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "")"
+  REVIEW_ISSUES="$(jq -r 'if (.issues? | type) == "array" then (.issues | length) else 0 end' "${PHASES_DIR}/${OUTPUT_FILE}")"
   if ! [[ "$REVIEW_ISSUES" =~ ^[0-9]+$ ]]; then
     echo "ERROR: ${OUTPUT_FILE} has invalid issues[] structure; expected an array." >&2
     exit 2
@@ -236,10 +256,10 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
       exit 2
     fi
 
-    COVERAGE_THRESHOLD="$(state_get '.coverageThreshold // 90' 2>/dev/null || echo "90")"
+    COVERAGE_THRESHOLD="$(state_get '.coverageThreshold // 90')"
     COVERAGE_THRESHOLD="$(require_int "$COVERAGE_THRESHOLD" "coverageThreshold")"
-    COVERAGE_CURRENT="$(jq -r 'if (.coverage.current? | type) == "number" then (.coverage.current | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "")"
-    COVERAGE_MET="$(jq -r 'if (.coverage.met? | type) == "boolean" then (.coverage.met | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "")"
+    COVERAGE_CURRENT="$(jq -r 'if (.coverage.current? | type) == "number" then (.coverage.current | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}")"
+    COVERAGE_MET="$(jq -r 'if (.coverage.met? | type) == "boolean" then (.coverage.met | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}")"
     if [[ -z "$COVERAGE_CURRENT" || ( "$COVERAGE_MET" != "true" && "$COVERAGE_MET" != "false" ) ]]; then
       echo "ERROR: ${OUTPUT_FILE} must include coverage.current (number) and coverage.met (boolean) for S11." >&2
       exit 2
@@ -248,39 +268,48 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
       echo "ERROR: ${OUTPUT_FILE} returned needs_coverage while coverage.met is true." >&2
       exit 2
     fi
+    # Cross-check: if coverage is actually at or above threshold, treat as approved
+    if ! COVERAGE_AT_OR_ABOVE="$(jq -r --argjson threshold "$COVERAGE_THRESHOLD" '.coverage.current >= $threshold' "${PHASES_DIR}/${OUTPUT_FILE}" 2>&1)"; then
+      echo "WARNING: Failed to cross-check coverage against threshold: $COVERAGE_AT_OR_ABOVE. Assuming not met." >&2
+      COVERAGE_AT_OR_ABOVE="false"
+    fi
+    if [[ "$COVERAGE_AT_OR_ABOVE" == "true" ]]; then
+      echo "WARNING: ${OUTPUT_FILE} reported needs_coverage but coverage.current >= ${COVERAGE_THRESHOLD}. Treating as approved." >&2
+      REVIEW_STATUS="approved"
+    else
+      COVERAGE_ITER=$(state_get '.coverageLoop.iteration // 0')
+      if [[ "$COVERAGE_ITER" -lt "$COVERAGE_MAX_ITERATIONS" ]]; then
+        # Loop back to S9
+        if ! update_state --argjson iter "$((COVERAGE_ITER + 1))" \
+          '.currentPhase = "S9" | .coverageLoop.iteration = $iter | .updatedAt = $ts'; then
+          echo "ERROR: Failed to loop back to S9 for coverage." >&2
+          exit 2
+        fi
+        # Delete stale S9-S11 output for clean re-run
+        rm -f "${PHASES_DIR}/S9-test-dev.json" "${PHASES_DIR}/S10-test-dev-review.json" "${PHASES_DIR}/S11-test-review.json" 2>/dev/null || true
+        exit 0
+      fi
 
-    COVERAGE_ITER=$(state_get '.coverageLoop.iteration // 0' 2>/dev/null || echo "0")
-    if [[ "$COVERAGE_ITER" -lt "$COVERAGE_MAX_ITERATIONS" ]]; then
-      # Loop back to S9
-      if ! update_state --argjson iter "$((COVERAGE_ITER + 1))" \
-        '.currentPhase = "S9" | .coverageLoop.iteration = $iter | .updatedAt = $ts'; then
-        echo "ERROR: Failed to loop back to S9 for coverage." >&2
+      if ! update_state --argjson max "$COVERAGE_MAX_ITERATIONS" \
+        '.status = "blocked" | .failure = ("Coverage threshold not met after " + ($max | tostring) + " iterations") | .updatedAt = $ts'; then
+        echo "ERROR: Failed to block workflow after max coverage loops." >&2
         exit 2
       fi
-      # Delete stale S9-S11 output for clean re-run
-      rm -f "${PHASES_DIR}/S9-test-dev.json" "${PHASES_DIR}/S10-test-dev-review.json" "${PHASES_DIR}/S11-test-review.json" 2>/dev/null || true
+      emit_block_notice "WORKFLOW BLOCKED: Coverage threshold not met after ${COVERAGE_MAX_ITERATIONS} iterations."
       exit 0
     fi
-
-    if ! update_state --argjson max "$COVERAGE_MAX_ITERATIONS" \
-      '.status = "blocked" | .failure = ("Coverage threshold not met after " + ($max | tostring) + " iterations") | .updatedAt = $ts'; then
-      echo "ERROR: Failed to block workflow after max coverage loops." >&2
-      exit 2
-    fi
-    emit_block_notice "WORKFLOW BLOCKED: Coverage threshold not met after ${COVERAGE_MAX_ITERATIONS} iterations."
-    exit 0
   fi
 
   if [[ "$REVIEW_STATUS" == "needs_revision" || "$REVIEW_STATUS" == "blocked" ]]; then
     # Check fix attempt limits
-    FIX_ATTEMPTS=$(state_get ".fixAttempts[\"$CURRENT_PHASE\"] // 0" 2>/dev/null || echo "0")
-    MAX_FIX=$(state_get '.reviewPolicy.maxFixAttempts // 10' 2>/dev/null || echo "10")
+    FIX_ATTEMPTS=$(state_get ".fixAttempts[\"$CURRENT_PHASE\"] // 0")
+    MAX_FIX=$(state_get '.reviewPolicy.maxFixAttempts // 10')
 
     if [[ "$FIX_ATTEMPTS" -ge "$MAX_FIX" ]]; then
       # Check stage restart limits
       CURRENT_STAGE=$(state_get '.currentStage // empty')
-      RESTART_COUNT=$(state_get ".stages[\"$CURRENT_STAGE\"].restartCount // 0" 2>/dev/null || echo "0")
-      MAX_RESTARTS=$(state_get '.reviewPolicy.maxStageRestarts // 3' 2>/dev/null || echo "3")
+      RESTART_COUNT=$(state_get ".stages[\"$CURRENT_STAGE\"].restartCount // 0")
+      MAX_RESTARTS=$(state_get '.reviewPolicy.maxStageRestarts // 3')
 
       if [[ "$RESTART_COUNT" -ge "$MAX_RESTARTS" ]]; then
         # Both tiers exhausted — block
@@ -296,34 +325,36 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
       fi
 
       # Restart stage from first phase
-      FIRST_PHASE=$(jq -r --arg s "$CURRENT_STAGE" '.stages[$s].phases[0] // empty' "$STATE_FILE" 2>/dev/null || echo "")
-      if [[ -n "$FIRST_PHASE" ]]; then
-        if ! update_state --arg phase "$FIRST_PHASE" --arg stage "$CURRENT_STAGE" --argjson rc "$((RESTART_COUNT + 1))" \
-          '.currentPhase = $phase
-          | .currentStage = $stage
-          | .updatedAt = $ts
-          | .stages[$stage].restartCount = $rc
-          | .fixAttempts = {}
-          | .coverageLoop.iteration = 0
-          | del(.reviewFix)
-          | del(.supplementaryRun)'; then
-          echo "ERROR: Failed to restart stage $CURRENT_STAGE." >&2
-          exit 2
-        fi
-        # Remove stale outputs from the restarted stage to avoid false validation.
-        STAGE_PHASES=$(jq -r --arg s "$CURRENT_STAGE" '.stages[$s].phases[]? // empty' "$STATE_FILE" 2>/dev/null || echo "")
-        if [[ -n "$STAGE_PHASES" ]]; then
-          while IFS= read -r phase; do
-            [[ -z "$phase" ]] && continue
-            output_file=$(get_sl_phase_output "$phase")
-            [[ -z "$output_file" ]] && continue
-            rm -f "${PHASES_DIR}/${output_file}" 2>/dev/null || true
-            case "$phase" in
-              S0) rm -f "${PHASES_DIR}/S0-explore."*.tmp 2>/dev/null || true ;;
-              S2) rm -f "${PHASES_DIR}/S2-plan."*.tmp 2>/dev/null || true ;;
-            esac
-          done <<< "$STAGE_PHASES"
-        fi
+      FIRST_PHASE=$(jq -r --arg s "$CURRENT_STAGE" '.stages[$s].phases[0] // empty' "$STATE_FILE")
+      if [[ -z "$FIRST_PHASE" ]]; then
+        echo "ERROR: Cannot restart stage $CURRENT_STAGE — no phases defined in state." >&2
+        exit 2
+      fi
+      if ! update_state --arg phase "$FIRST_PHASE" --arg stage "$CURRENT_STAGE" --argjson rc "$((RESTART_COUNT + 1))" \
+        '.currentPhase = $phase
+        | .currentStage = $stage
+        | .updatedAt = $ts
+        | .stages[$stage].restartCount = $rc
+        | .fixAttempts = {}
+        | .coverageLoop.iteration = 0
+        | del(.reviewFix)
+        | del(.supplementaryRun)'; then
+        echo "ERROR: Failed to restart stage $CURRENT_STAGE." >&2
+        exit 2
+      fi
+      # Remove stale outputs from the restarted stage to avoid false validation.
+      STAGE_PHASES=$(jq -r --arg s "$CURRENT_STAGE" '.stages[$s].phases[]? // empty' "$STATE_FILE")
+      if [[ -n "$STAGE_PHASES" ]]; then
+        while IFS= read -r phase; do
+          [[ -z "$phase" ]] && continue
+          output_file=$(get_sl_phase_output "$phase")
+          [[ -z "$output_file" ]] && continue
+          rm -f "${PHASES_DIR}/${output_file}" 2>/dev/null || true
+          case "$phase" in
+            S0) rm -f "${PHASES_DIR}/S0-explore."*.tmp 2>/dev/null || true ;;
+            S2) rm -f "${PHASES_DIR}/S2-plan."*.tmp 2>/dev/null || true ;;
+          esac
+        done <<< "$STAGE_PHASES"
       fi
     else
       # Start fix cycle — set reviewFix and supplementaryRun so re-review dispatches supplementary agents
@@ -336,23 +367,26 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
     exit 0
   fi
 
-  # Review approved — check for coverage loop (phase S11)
+  # Review approved — but for S11, cross-validate coverage.met against threshold before advancing
   if [[ "$CURRENT_PHASE" == "S11" ]]; then
-    COVERAGE_THRESHOLD="$(state_get '.coverageThreshold // 90' 2>/dev/null || echo "90")"
+    COVERAGE_THRESHOLD="$(state_get '.coverageThreshold // 90')"
     COVERAGE_THRESHOLD="$(require_int "$COVERAGE_THRESHOLD" "coverageThreshold")"
-    COVERAGE_CURRENT="$(jq -r 'if (.coverage.current? | type) == "number" then (.coverage.current | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "")"
-    COVERAGE_MET="$(jq -r 'if (.coverage.met? | type) == "boolean" then (.coverage.met | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "")"
+    COVERAGE_CURRENT="$(jq -r 'if (.coverage.current? | type) == "number" then (.coverage.current | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}")"
+    COVERAGE_MET="$(jq -r 'if (.coverage.met? | type) == "boolean" then (.coverage.met | tostring) else "" end' "${PHASES_DIR}/${OUTPUT_FILE}")"
     if [[ -z "$COVERAGE_CURRENT" || ( "$COVERAGE_MET" != "true" && "$COVERAGE_MET" != "false" ) ]]; then
       echo "ERROR: ${OUTPUT_FILE} must include coverage.current (number) and coverage.met (boolean) for S11." >&2
       exit 2
     fi
-    COVERAGE_AT_OR_ABOVE="$(jq -r --argjson threshold "$COVERAGE_THRESHOLD" '.coverage.current >= $threshold' "${PHASES_DIR}/${OUTPUT_FILE}" 2>/dev/null || echo "false")"
+    if ! COVERAGE_AT_OR_ABOVE="$(jq -r --argjson threshold "$COVERAGE_THRESHOLD" '.coverage.current >= $threshold' "${PHASES_DIR}/${OUTPUT_FILE}" 2>&1)"; then
+      echo "WARNING: Failed to cross-check coverage against threshold: $COVERAGE_AT_OR_ABOVE. Assuming not met." >&2
+      COVERAGE_AT_OR_ABOVE="false"
+    fi
     if [[ "$COVERAGE_MET" == "true" && "$COVERAGE_AT_OR_ABOVE" != "true" ]]; then
       echo "WARNING: ${OUTPUT_FILE} has coverage.met=true below threshold ${COVERAGE_THRESHOLD}. Forcing loopback." >&2
       COVERAGE_MET="false"
     fi
     if [[ "$COVERAGE_MET" == "false" ]]; then
-      COVERAGE_ITER=$(state_get '.coverageLoop.iteration // 0' 2>/dev/null || echo "0")
+      COVERAGE_ITER=$(state_get '.coverageLoop.iteration // 0')
       if [[ "$COVERAGE_ITER" -lt "$COVERAGE_MAX_ITERATIONS" ]]; then
         # Loop back to S9
         if ! update_state --argjson iter "$((COVERAGE_ITER + 1))" \
@@ -377,7 +411,7 @@ if [[ "$PHASE_TYPE" == "review" ]]; then
 else
   # Non-review phase — validate output exists
   if [[ ! -f "${PHASES_DIR}/${OUTPUT_FILE}" ]]; then
-    echo "Agent completed but ${OUTPUT_FILE} not found." >&2
+    echo "ERROR: Agent completed but ${OUTPUT_FILE} not found." >&2
     exit 2
   fi
   # Validate JSON outputs
@@ -393,8 +427,10 @@ else
 fi
 
 # Clear reviewFix if set (fix cycle completed successfully)
-if state_get '.reviewFix // empty' 2>/dev/null | grep -q .; then
-  update_state 'del(.reviewFix) | .updatedAt = $ts' 2>/dev/null || true
+if state_get '.reviewFix // empty' | grep -q .; then
+  if ! update_state 'del(.reviewFix) | .updatedAt = $ts'; then
+    echo "WARNING: Failed to clear reviewFix from state. Fix cycle may repeat unnecessarily." >&2
+  fi
 fi
 
 # Advance to next phase
@@ -410,6 +446,10 @@ if [[ "$NEXT_JSON" == "null" ]]; then
 else
   NEXT_PHASE=$(echo "$NEXT_JSON" | jq -r '.phase')
   NEXT_STAGE=$(echo "$NEXT_JSON" | jq -r '.stage')
+  if [[ -z "$NEXT_PHASE" || "$NEXT_PHASE" == "null" || -z "$NEXT_STAGE" || "$NEXT_STAGE" == "null" ]]; then
+    echo "ERROR: Next phase entry is malformed (phase=$NEXT_PHASE, stage=$NEXT_STAGE)." >&2
+    exit 2
+  fi
 
   # Check gate if crossing stages
   if [[ "$NEXT_STAGE" != "$CURRENT_STAGE" ]]; then
