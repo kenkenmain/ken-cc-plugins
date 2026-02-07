@@ -112,13 +112,18 @@ case "$AGENT" in
       if ! mkdir "$F2_LOCK_DIR" 2>/dev/null; then
         # Check if lock is stale (older than threshold) — prevents deadlock if hook crashes
         if [[ -d "$F2_LOCK_DIR" ]]; then
-          f2_lock_age=$(( $(date +%s) - $(stat -c %Y "$F2_LOCK_DIR" 2>/dev/null || stat -f %m "$F2_LOCK_DIR" 2>/dev/null || echo "0") ))
-          if [[ "$f2_lock_age" -gt "$F2_LOCK_STALE_SECONDS" ]]; then
-            echo "WARNING: Removing stale F2 lock directory (age: ${f2_lock_age}s)" >&2
-            rm -rf "$F2_LOCK_DIR"
-            mkdir "$F2_LOCK_DIR" 2>/dev/null || exit 0
+          local f2_lock_mtime
+          if f2_lock_mtime=$(lock_dir_mtime_epoch "$F2_LOCK_DIR"); then
+            f2_lock_age=$(( $(date +%s) - f2_lock_mtime ))
+            if [[ "$f2_lock_age" -gt "$F2_LOCK_STALE_SECONDS" ]]; then
+              echo "WARNING: Removing stale F2 lock directory (age: ${f2_lock_age}s)" >&2
+              rm -rf "$F2_LOCK_DIR"
+              mkdir "$F2_LOCK_DIR" 2>/dev/null || exit 0
+            else
+              exit 0
+            fi
           else
-            exit 0
+            exit 0  # Cannot determine age, fail-closed
           fi
         else
           exit 0
@@ -156,13 +161,18 @@ case "$AGENT" in
     if ! mkdir "$LOCK_DIR" 2>/dev/null; then
       # Check if lock is stale (older than 60 seconds)
       if [[ -d "$LOCK_DIR" ]]; then
-        lock_age=$(( $(date +%s) - $(stat -c %Y "$LOCK_DIR" 2>/dev/null || stat -f %m "$LOCK_DIR" 2>/dev/null || echo "0") ))
-        if [[ "$lock_age" -gt 60 ]]; then
-          echo "WARNING: Removing stale F3 lock directory (age: ${lock_age}s)" >&2
-          rm -rf "$LOCK_DIR"
-          mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+        local f3_lock_mtime
+        if f3_lock_mtime=$(lock_dir_mtime_epoch "$LOCK_DIR"); then
+          lock_age=$(( $(date +%s) - f3_lock_mtime ))
+          if [[ "$lock_age" -gt 60 ]]; then
+            echo "WARNING: Removing stale F3 lock directory (age: ${lock_age}s)" >&2
+            rm -rf "$LOCK_DIR"
+            mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+          else
+            exit 0
+          fi
         else
-          exit 0
+          exit 0  # Cannot determine age, fail-closed
         fi
       else
         exit 0

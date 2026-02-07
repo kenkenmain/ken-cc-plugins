@@ -139,6 +139,24 @@ update_state() {
   ) 200>"${STATE_FILE}.lock"
 }
 
+# Get the mtime of a directory as epoch seconds (cross-platform).
+# Returns 0 on success with mtime on stdout, 1 on failure (fail-closed: caller should skip stale check).
+# Usage: if mtime=$(lock_dir_mtime_epoch "$dir"); then ... fi
+lock_dir_mtime_epoch() {
+  local lock_dir="$1"
+  local mtime
+  if mtime=$(stat -c %Y "$lock_dir" 2>/dev/null); then
+    echo "$mtime"
+    return 0
+  fi
+  if mtime=$(stat -f %m "$lock_dir" 2>/dev/null); then
+    echo "$mtime"
+    return 0
+  fi
+  # Cannot determine mtime — treat lock as non-stale (fail-closed)
+  return 1
+}
+
 # Validate a JSON file exists and is valid JSON.
 # Usage: validate_json_file "/path/to/file.json" ["description"]
 validate_json_file() {

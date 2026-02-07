@@ -35,20 +35,7 @@ emit_block_notice() {
   echo "$jq_out"
 }
 
-lock_dir_mtime_epoch() {
-  local lock_dir="$1"
-  local mtime
-  if mtime=$(stat -c %Y "$lock_dir" 2>/dev/null); then
-    echo "$mtime"
-    return 0
-  fi
-  if mtime=$(stat -f %m "$lock_dir" 2>/dev/null); then
-    echo "$mtime"
-    return 0
-  fi
-  # Cannot determine mtime — treat lock as non-stale (fail-closed)
-  return 1
-}
+# lock_dir_mtime_epoch() is now in lib/state.sh (shared by launch and superlaunch)
 
 cleanup_phase_lock() {
   if [[ -n "${PHASE_LOCK_DIR:-}" ]]; then
