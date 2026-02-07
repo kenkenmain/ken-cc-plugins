@@ -86,9 +86,10 @@ if [[ "$CURRENT_PHASE" == "F3" && -f "${PHASES_DIR}/f3-verdict.json" ]]; then
 
   if [[ "$VERDICT" != "clean" && "$VERDICT" != "issues_found" ]]; then
     if [[ "$TOTAL_ISSUES" -gt 0 ]]; then
+      echo "WARNING: f3-verdict.json has unexpected overall_verdict '${VERDICT}'. Inferred issues_found from ${TOTAL_ISSUES} issues." >&2
       VERDICT="issues_found"
     else
-      echo "ERROR: f3-verdict.json has unexpected overall_verdict '$VERDICT'." >&2
+      echo "ERROR: f3-verdict.json has unexpected overall_verdict '$VERDICT' and no issues to infer from." >&2
       exit 2
     fi
   fi

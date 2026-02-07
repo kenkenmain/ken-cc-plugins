@@ -21,7 +21,7 @@ AGENT_TYPE="${SL_AGENT_TYPE:?on-subagent-stop-superlaunch.sh requires SL_AGENT_T
 
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
 PHASES_DIR=".agents/tmp/phases"
-COVERAGE_MAX_ITERATIONS=20
+COVERAGE_MAX_ITERATIONS=$(state_get '.reviewPolicy.maxCoverageLoops // 20')
 PHASE_LOCK_STALE_SECONDS=120
 PHASE_LOCK_DIR=""
 
