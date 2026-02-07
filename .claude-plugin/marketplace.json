@@ -44,7 +44,7 @@
       "name": "minions",
       "source": "./plugins/minions",
       "description": "Personality-driven 4-phase workflow (launch) and Claude-only 15-phase thorough pipeline (superlaunch)",
-      "version": "0.11.0",
+      "version": "0.11.2",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

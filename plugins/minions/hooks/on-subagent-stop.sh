@@ -184,11 +184,6 @@ case "$AGENT" in
       fi
     done
 
-    OVERALL="clean"
-    if [[ "$CRITIC_VERDICT" == "issues_found" || "$PEDANT_VERDICT" == "issues_found" || "$WITNESS_VERDICT" == "issues_found" || "$SECURITY_VERDICT" == "issues_found" || "$SILENT_VERDICT" == "issues_found" ]]; then
-      OVERALL="issues_found"
-    fi
-
     # Count issues — sanitized to integers
     CRITIC_ISSUES=$(_issue_count "$CRITIC_FILE")
     PEDANT_ISSUES=$(_issue_count "$PEDANT_FILE")
@@ -196,6 +191,11 @@ case "$AGENT" in
     SECURITY_ISSUES=$(_issue_count "$SECURITY_FILE")
     SILENT_ISSUES=$(_issue_count "$SILENT_FILE")
     TOTAL_ISSUES=$((CRITIC_ISSUES + PEDANT_ISSUES + WITNESS_ISSUES + SECURITY_ISSUES + SILENT_ISSUES))
+
+    OVERALL="clean"
+    if [[ "$CRITIC_VERDICT" == "issues_found" || "$PEDANT_VERDICT" == "issues_found" || "$WITNESS_VERDICT" == "issues_found" || "$SECURITY_VERDICT" == "issues_found" || "$SILENT_VERDICT" == "issues_found" || "$TOTAL_ISSUES" -gt 0 ]]; then
+      OVERALL="issues_found"
+    fi
 
     # Write f3-verdict.json (required by F4 gate)
     # Use separate statements (not &&) so set -e catches failures

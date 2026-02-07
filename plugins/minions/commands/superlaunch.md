@@ -48,24 +48,11 @@ Create directories and write state file inline. No init agent needed.
 
 ```bash
 mkdir -p .agents/tmp/phases
-rm -f .agents/tmp/phases/*.tmp
+rm -rf .agents/tmp/phases
+mkdir -p .agents/tmp/phases
 ```
 
-### 1b. Capture session PID and generate sessionId
-
-```bash
-echo $PPID
-```
-
-Store the output as `ownerPpid`.
-
-```bash
-head -c 8 /dev/urandom | xxd -p
-```
-
-Store the output as `sessionId`.
-
-### 1c. Create feature branch
+### 1b. Create feature branch
 
 Create a feature branch from main for this workflow. Generate a slug from the task description:
 
@@ -82,9 +69,9 @@ git checkout -b "$BRANCH_NAME"
 
 Store `BRANCH_NAME` for state.json.
 
-### 1d. Write state.json
+### 1c. Write state.json
 
-Write `.agents/tmp/state.json` with the following structure. Use Bash with jq for atomic write (write to tmp file, then mv):
+Write `.agents/tmp/state.json` with the following structure. Use Bash with jq for atomic write (write to tmp file, then mv). Generate `ownerPpid` from `$PPID` and `sessionId` from `head -c 8 /dev/urandom | xxd -p` inline in the jq command:
 
 ```json
 {

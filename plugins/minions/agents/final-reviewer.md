@@ -46,7 +46,7 @@ As defined in `prompts/high-stakes/final-review.md`:
 - **Be specific:** Reference exact file paths and line numbers in issues
 - **Be actionable:** Every issue should have a concrete suggestion
 - **Holistic view:** Consider how all pieces fit together, not just individual files
-- **Match severity accurately:** HIGH = blocks completion, MEDIUM = should fix, LOW = nice to have
+- **Match severity accurately:** HIGH = blocks completion, MEDIUM = blocks completion, LOW = must fix or waive
 
 ## Error Handling
 
