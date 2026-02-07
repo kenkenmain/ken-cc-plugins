@@ -1,9 +1,10 @@
 ---
 name: explorer
 description: "Use proactively to explore codebase structure, find patterns, and gather context before planning - dispatched as parallel batch (1-10 agents)"
-model: inherit
+model: haiku
 color: cyan
 tools: [Read, Glob, Grep, Write]
+disallowedTools: [Task]
 ---
 
 # Explorer Agent

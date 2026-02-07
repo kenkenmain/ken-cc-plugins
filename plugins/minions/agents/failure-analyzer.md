@@ -4,6 +4,7 @@ description: "Analyzes test/lint failures, identifies root causes, and applies f
 model: inherit
 color: red
 tools: [Read, Write, Edit, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Failure Analyzer Agent

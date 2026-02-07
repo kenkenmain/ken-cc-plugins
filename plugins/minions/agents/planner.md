@@ -4,6 +4,7 @@ description: "Creates detailed implementation plans with task decomposition. Use
 model: inherit
 color: green
 tools: [Read, Write, Glob, Grep]
+disallowedTools: [Task]
 skills: [workflow]
 ---
 

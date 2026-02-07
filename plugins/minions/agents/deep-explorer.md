@@ -1,9 +1,10 @@
 ---
 name: deep-explorer
 description: "Deep architecture tracing — execution paths, layer mapping, dependency analysis. Complements breadth-first explorer agents."
-model: inherit
+model: haiku
 color: cyan
 tools: [Read, Glob, Grep, Write]
+disallowedTools: [Task]
 ---
 
 # Deep Explorer Agent

@@ -4,6 +4,7 @@ description: "Reviews newly developed test code for correctness and coverage qua
 model: inherit
 color: blue
 tools: [Read, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Test Development Reviewer Agent

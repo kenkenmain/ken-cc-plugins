@@ -1,9 +1,10 @@
 ---
 name: claude-md-updater
 description: "Reviews session for learnings and updates CLAUDE.md with concise context for future sessions."
-model: inherit
+model: sonnet
 color: green
 tools: [Read, Write, Edit, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # CLAUDE.md Updater Agent

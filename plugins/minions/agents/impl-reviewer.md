@@ -4,6 +4,7 @@ description: "Deep code review of implementation for correctness, security, and 
 model: inherit
 color: blue
 tools: [Read, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Implementation Reviewer Agent

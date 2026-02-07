@@ -112,7 +112,7 @@ case "$AGENT" in
       if ! mkdir "$F2_LOCK_DIR" 2>/dev/null; then
         # Check if lock is stale (older than threshold) — prevents deadlock if hook crashes
         if [[ -d "$F2_LOCK_DIR" ]]; then
-          local f2_lock_mtime
+          f2_lock_mtime=""
           if f2_lock_mtime=$(lock_dir_mtime_epoch "$F2_LOCK_DIR"); then
             f2_lock_age=$(( $(date +%s) - f2_lock_mtime ))
             if [[ "$f2_lock_age" -gt "$F2_LOCK_STALE_SECONDS" ]]; then
@@ -161,7 +161,7 @@ case "$AGENT" in
     if ! mkdir "$LOCK_DIR" 2>/dev/null; then
       # Check if lock is stale (older than 60 seconds)
       if [[ -d "$LOCK_DIR" ]]; then
-        local f3_lock_mtime
+        f3_lock_mtime=""
         if f3_lock_mtime=$(lock_dir_mtime_epoch "$LOCK_DIR"); then
           lock_age=$(( $(date +%s) - f3_lock_mtime ))
           if [[ "$lock_age" -gt 60 ]]; then
@@ -291,7 +291,7 @@ case "$AGENT" in
     rm -rf "$LOCK_DIR" 2>/dev/null || true
 
     # Restore original ERR trap (overridden at lock acquisition for cleanup)
-    trap 'echo "ERROR: ${BASH_SOURCE[1]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
+    trap 'echo "ERROR: ${BASH_SOURCE[0]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
     ;;
 
   shipper)

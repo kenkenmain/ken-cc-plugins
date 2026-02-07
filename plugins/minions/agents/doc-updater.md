@@ -1,9 +1,10 @@
 ---
 name: doc-updater
 description: "Updates documentation to reflect implemented changes. Use proactively after implementation to keep docs in sync."
-model: inherit
+model: sonnet
 color: blue
 tools: [Read, Write, Edit, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Documentation Updater Agent

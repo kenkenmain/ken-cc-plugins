@@ -15,7 +15,7 @@ description: |
   </example>
 
 model: haiku
-permissionMode: acceptEdits
+permissionMode: plan
 color: lightblue
 tools:
   - Read

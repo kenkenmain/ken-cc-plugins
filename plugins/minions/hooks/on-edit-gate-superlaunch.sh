@@ -3,7 +3,7 @@
 # Invoked via exec from on-edit-gate.sh when pipeline == "superlaunch".
 # Allows edits only during IMPLEMENT, TEST, and FINAL stages.
 #
-# Note: .agents/ path check and file_path validation already done by parent hook.
+# Note: .agents/ path, external path, and file_path validation already done by parent hook.
 #
 # Exit codes:
 #   0 silent    — allow (editable stage)

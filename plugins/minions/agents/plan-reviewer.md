@@ -4,6 +4,7 @@ description: "Reviews implementation plans for completeness, feasibility, and ri
 model: inherit
 color: blue
 tools: [Read, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Plan Reviewer Agent

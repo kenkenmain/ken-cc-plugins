@@ -4,6 +4,7 @@ description: "Reviews overall test coverage and determines if coverage is suffic
 model: inherit
 color: blue
 tools: [Read, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Test Coverage Reviewer Agent
