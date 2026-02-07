@@ -3,8 +3,6 @@
 # Detects existing workflow state and injects resume/clean prompts when appropriate.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
 STATE_FILE=".agents/tmp/state.json"
 
 # ── Guard: require jq ────────────────────────────────────────────────────────
@@ -38,7 +36,7 @@ fi
 if ! jq -e 'type == "object"' "$STATE_FILE" >/dev/null 2>&1; then
   # Corrupt state file — inject warning and let launch decide
   CONTEXT="WARNING: Existing .agents/tmp/state.json is corrupt (not valid JSON).
-Consider running: rm -rf .agents/tmp && mkdir -p .agents/tmp/phases
+Consider running: rm -rf .agents/tmp/phases && mkdir -p .agents/tmp/phases
 Then retry minions:launch."
 
   jq -n --arg ctx "$CONTEXT" '{
@@ -129,8 +127,8 @@ CONTEXT="NOTICE: Found stale workflow state from a previous session that did not
 Options:
 1. RESUME: Continue from ${EXISTING_PHASE} by updating ownerPpid to current session
    (Read state, analyze progress, dispatch current phase)
-2. CLEAN: Remove stale state and start fresh with new task
-   (rm -rf .agents/tmp && mkdir -p .agents/tmp/phases)
+2. CLEAN: Remove stale phase outputs and start fresh with new task
+   (rm -rf .agents/tmp/phases && mkdir -p .agents/tmp/phases)
 
 Ask the user which option they prefer before proceeding."
 

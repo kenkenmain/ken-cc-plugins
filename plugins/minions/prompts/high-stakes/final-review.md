@@ -32,7 +32,7 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 ### 4. State Consistency
 
 - [ ] `.agents/tmp/state.json` reflects completion
-- [ ] All phase statuses are "completed"
+- [ ] Stage records and `currentPhase` are internally consistent
 - [ ] No orphaned locks or temporary files
 
 ### 5. Git Readiness
@@ -47,8 +47,8 @@ This review covers the ENTIRE implementation, not just individual tasks. Conside
 | Severity | Action                                        |
 | -------- | --------------------------------------------- |
 | HIGH     | Block. Cannot proceed to commit.              |
-| MEDIUM   | Warn. Proceed with documented acknowledgment. |
-| LOW      | Note. Log for future improvement.             |
+| MEDIUM   | Block. Must be fixed before completion.       |
+| LOW      | Block. Must be fixed or explicitly waived.    |
 
 ## Output Format
 

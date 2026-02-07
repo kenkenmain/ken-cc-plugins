@@ -47,6 +47,40 @@ fi
 if [[ "$CURRENT_PHASE" == "F3" && -f "${PHASES_DIR}/f3-verdict.json" ]]; then
   if validate_json_file "${PHASES_DIR}/f3-verdict.json" "f3-verdict.json" 2>/dev/null; then
     VERDICT=$(jq -r '.overall_verdict // empty' "${PHASES_DIR}/f3-verdict.json" 2>/dev/null || echo "")
+    TOTAL_ISSUES=$(jq -r '
+      if (.total_issues? | type) == "number" then
+        (.total_issues | floor | tostring)
+      else
+        (
+          ((.critic.issues // 0)
+          + (.pedant.issues // 0)
+          + (.witness.issues // 0)
+          + (.security_reviewer.issues // 0)
+          + (.silent_failure_hunter.issues // 0)) | floor | tostring
+        )
+      end
+    ' "${PHASES_DIR}/f3-verdict.json" 2>/dev/null || echo "")
+
+    if ! [[ "$TOTAL_ISSUES" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: f3-verdict.json has invalid total_issues value." >&2
+      exit 2
+    fi
+
+    # Fail-safe: issue counts take precedence over declared verdict.
+    if [[ "$VERDICT" == "clean" && "$TOTAL_ISSUES" -gt 0 ]]; then
+      echo "WARNING: f3-verdict.json reports clean with ${TOTAL_ISSUES} issues. Forcing issues_found." >&2
+      VERDICT="issues_found"
+    fi
+
+    if [[ "$VERDICT" != "clean" && "$VERDICT" != "issues_found" ]]; then
+      if [[ "$TOTAL_ISSUES" -gt 0 ]]; then
+        VERDICT="issues_found"
+      else
+        echo "ERROR: f3-verdict.json has unexpected overall_verdict '$VERDICT'." >&2
+        exit 2
+      fi
+    fi
+
     if [[ "$VERDICT" == "clean" ]]; then
       if ! update_state --arg verdict "$VERDICT" \
         '.currentPhase = "F4" | .updatedAt = $ts | .loops[-1].f3.status = "complete" | .loops[-1].f3.verdict = $verdict | .loops[-1].verdict = "clean"'; then

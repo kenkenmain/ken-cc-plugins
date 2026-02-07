@@ -48,7 +48,8 @@ Create directories and write state file inline. No init agent needed.
 
 ```bash
 mkdir -p .agents/tmp/phases
-rm -f .agents/tmp/phases/*.tmp
+rm -rf .agents/tmp/phases
+mkdir -p .agents/tmp/phases
 ```
 
 ### 1b. Capture session PID and generate sessionId
