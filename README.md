@@ -74,6 +74,7 @@ claude plugin install minions@ken-cc-plugins
 
 /minions:launch <task>        # Standard 4-phase workflow
 /minions:superlaunch <task>   # Claude-only 15-phase thorough pipeline
+/minions:review <task>        # Review-fix iteration pipeline
 ```
 
 **Launch Pipeline:** Explore (4x parallel haiku) -> F1 Scout -> F2 Build -> F3 Review (5 parallel reviewers) -> F4 Ship
@@ -83,6 +84,10 @@ claude plugin install minions@ken-cc-plugins
 **Superlaunch Pipeline:** Explore -> Plan (brainstorm + plan + review) -> Implement (build + simplify + review) -> Test (run + analyze + develop + review) -> Final (docs + review + completion) — 15 phases, 25 agents
 
 **Superlaunch Features:** Structured review-fix cycles, coverage-driven test loops, parallel supplementary reviewers (critic, pedant, security-reviewer, silent-failure-hunter, type-reviewer), high-stakes review criteria prompts
+
+**Review Pipeline:** R1 Review (critic || pedant || witness || security-reviewer || silent-failure-hunter, parallel) -> R2 Fix (review-fixer) -> R1 re-review loop (max 5 iterations)
+
+**Review Features:** Fixes all severities (critical, warning, info), early termination only when review reports zero issues, hook-driven phase gating for review-only and fix-only stages
 
 ### kenken
 
