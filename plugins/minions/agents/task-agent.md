@@ -2,8 +2,22 @@
 name: task-agent
 description: "Task executor for superlaunch implementation — reads codebase, writes code, writes tests, simplifies. Dispatched per-task during Phase S4."
 model: inherit
+permissionMode: acceptEdits
 color: yellow
 tools: [Read, Write, Edit, Bash, Glob, Grep, WebSearch]
+disallowedTools: [Task]
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: "bash -c 'INPUT=$(cat); CMD=$(printf \"%s\" \"$INPUT\" | jq -r \".tool_input.command // empty\"); if printf \"%s\" \"$CMD\" | grep -qE \"\\bgit\\b\"; then echo \"Blocked: git commands not allowed in task-agent\" >&2; exit 2; fi; exit 0'"
+          timeout: 5
+  Stop:
+    - hooks:
+        - type: prompt
+          prompt: "Evaluate if the task-agent implementation is complete. Check ALL criteria: 1) All task requirements addressed, 2) Code compiles/lints clean, 3) Tests pass if applicable, 4) No incomplete TODOs or placeholder code, 5) Output JSON is valid with required fields. Return {\"ok\": true} ONLY if ALL criteria met."
+          timeout: 30
 ---
 
 # Task Agent

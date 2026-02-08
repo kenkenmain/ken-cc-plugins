@@ -4,6 +4,12 @@
 
 STATE_FILE=".agents/tmp/state.json"
 
+# Dependency check — jq is required by all hooks that source this file
+if ! command -v jq &>/dev/null; then
+  echo "ERROR: jq is required but not installed" >&2
+  exit 2
+fi
+
 # ERR trap — convert unexpected failures into informative exit-2 errors.
 # Note: does NOT fire for arithmetic expansion or set -u violations (bash limitation).
 trap 'echo "ERROR: ${BASH_SOURCE[1]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
@@ -137,6 +143,24 @@ update_state() {
       return 1
     fi
   ) 200>"${STATE_FILE}.lock"
+}
+
+# Get the mtime of a directory as epoch seconds (cross-platform).
+# Returns 0 on success with mtime on stdout, 1 on failure (fail-closed: caller should skip stale check).
+# Usage: if mtime=$(lock_dir_mtime_epoch "$dir"); then ... fi
+lock_dir_mtime_epoch() {
+  local lock_dir="$1"
+  local mtime
+  if mtime=$(stat -c %Y "$lock_dir" 2>/dev/null); then
+    echo "$mtime"
+    return 0
+  fi
+  if mtime=$(stat -f %m "$lock_dir" 2>/dev/null); then
+    echo "$mtime"
+    return 0
+  fi
+  # Cannot determine mtime — treat lock as non-stale (fail-closed)
+  return 1
 }
 
 # Validate a JSON file exists and is valid JSON.

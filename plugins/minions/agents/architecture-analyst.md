@@ -4,6 +4,7 @@ description: "Analyzes existing codebase patterns and conventions, provides arch
 model: inherit
 color: magenta
 tools: [Read, Write, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Architecture Analyst Agent

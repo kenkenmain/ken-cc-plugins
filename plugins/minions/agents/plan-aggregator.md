@@ -1,9 +1,10 @@
 ---
 name: plan-aggregator
 description: "Aggregates parallel planner outputs and architecture blueprint into a unified implementation plan. Use after all planner and architecture-analyst agents have written their temp files."
-model: inherit
+model: haiku
 color: green
 tools: [Read, Write, Glob]
+disallowedTools: [Task]
 ---
 
 # Plan Aggregator Agent

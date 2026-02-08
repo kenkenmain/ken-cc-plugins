@@ -74,7 +74,8 @@ case "$EXPECTED_PHASE" in
     fi
     validate_err=$(validate_json_file "${PHASES_DIR}/f2-tasks.json" "f2-tasks.json" 2>&1) || {
       echo "WARNING: f2-tasks.json validation: $validate_err" >&2
-      jq -n '{"decision":"block","reason":"Cannot start F3 (review): f2-tasks.json is invalid JSON."}'
+      jq -n --arg err "$validate_err" \
+        '{"decision":"block","reason":("Cannot start F3 (review): f2-tasks.json is invalid JSON. Details: " + $err)}'
       exit 0
     }
     ;;

@@ -56,10 +56,17 @@ MAX_LOOPS=$(require_int "$MAX_LOOPS" "maxLoops")
 
 PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 
-# Helper to safely extract issue count as integer from a review file
+# Helper to safely extract issue count as integer from a review file.
+# Expected schema: { "summary": { "critical": N, "warning": N, "info": N } }
 _issue_count() {
   local file="$1"
   local raw
+
+  # Validate schema: check that .summary exists and has expected fields
+  if ! jq -e '.summary | has("critical") and has("warning") and has("info")' "$file" >/dev/null 2>&1; then
+    echo "WARNING: $(basename "$file") missing expected .summary.{critical,warning,info} fields. Issue count may be inaccurate." >&2
+  fi
+
   raw=$(jq -r '((.summary.critical // 0) + (.summary.warning // 0) + (.summary.info // 0)) | floor' "$file" 2>/dev/null || echo "")
   # Sanitize: strip decimals, ensure integer
   raw="${raw%%.*}"
@@ -101,8 +108,26 @@ case "$AGENT" in
       fi
       # Use mkdir lock to prevent duplicate advancement (same pattern as F3)
       F2_LOCK_DIR="${PHASES_DIR}/.f2-advance.lock"
+      F2_LOCK_STALE_SECONDS=60
       if ! mkdir "$F2_LOCK_DIR" 2>/dev/null; then
-        exit 0  # Another hook instance is already advancing
+        # Check if lock is stale (older than threshold) — prevents deadlock if hook crashes
+        if [[ -d "$F2_LOCK_DIR" ]]; then
+          f2_lock_mtime=""
+          if f2_lock_mtime=$(lock_dir_mtime_epoch "$F2_LOCK_DIR"); then
+            f2_lock_age=$(( $(date +%s) - f2_lock_mtime ))
+            if [[ "$f2_lock_age" -gt "$F2_LOCK_STALE_SECONDS" ]]; then
+              echo "WARNING: Removing stale F2 lock directory (age: ${f2_lock_age}s)" >&2
+              rm -rf "$F2_LOCK_DIR"
+              mkdir "$F2_LOCK_DIR" 2>/dev/null || exit 0
+            else
+              exit 0
+            fi
+          else
+            exit 0  # Cannot determine age, fail-closed
+          fi
+        else
+          exit 0
+        fi
       fi
       # Idempotency: only advance if still in F2
       CURRENT=$(jq -r '.currentPhase // empty' "$STATE_FILE" 2>/dev/null || echo "")
@@ -136,13 +161,18 @@ case "$AGENT" in
     if ! mkdir "$LOCK_DIR" 2>/dev/null; then
       # Check if lock is stale (older than 60 seconds)
       if [[ -d "$LOCK_DIR" ]]; then
-        lock_age=$(( $(date +%s) - $(stat -c %Y "$LOCK_DIR" 2>/dev/null || echo "0") ))
-        if [[ "$lock_age" -gt 60 ]]; then
-          echo "WARNING: Removing stale F3 lock directory (age: ${lock_age}s)" >&2
-          rm -rf "$LOCK_DIR"
-          mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+        f3_lock_mtime=""
+        if f3_lock_mtime=$(lock_dir_mtime_epoch "$LOCK_DIR"); then
+          lock_age=$(( $(date +%s) - f3_lock_mtime ))
+          if [[ "$lock_age" -gt 60 ]]; then
+            echo "WARNING: Removing stale F3 lock directory (age: ${lock_age}s)" >&2
+            rm -rf "$LOCK_DIR"
+            mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+          else
+            exit 0
+          fi
         else
-          exit 0
+          exit 0  # Cannot determine age, fail-closed
         fi
       else
         exit 0
@@ -261,7 +291,7 @@ case "$AGENT" in
     rm -rf "$LOCK_DIR" 2>/dev/null || true
 
     # Restore original ERR trap (overridden at lock acquisition for cleanup)
-    trap 'echo "ERROR: ${BASH_SOURCE[1]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
+    trap 'echo "ERROR: ${BASH_SOURCE[0]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
     ;;
 
   shipper)

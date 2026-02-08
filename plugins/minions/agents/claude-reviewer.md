@@ -4,6 +4,7 @@ description: "Use proactively to review plans, implementation, tests, and final 
 model: inherit
 color: blue
 tools: [Read, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Claude Reviewer Agent

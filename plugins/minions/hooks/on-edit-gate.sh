@@ -37,7 +37,14 @@ if [[ -z "$FILE_PATH" ]]; then
 fi
 
 # Allow .agents/ writes in any phase (workflow output files)
-if [[ "$FILE_PATH" == *"/.agents/"* || "$FILE_PATH" == ".agents/"* ]]; then
+if [[ "$FILE_PATH" =~ (^|/)\.agents/ ]]; then
+  exit 0
+fi
+
+# Allow writes to external paths (outside project directory)
+# The gate only protects project source files — temp files, scratchpads, etc. are fine
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
+if [[ "$FILE_PATH" == /* ]] && [[ "$FILE_PATH" != "$PROJECT_DIR"/* ]]; then
   exit 0
 fi
 

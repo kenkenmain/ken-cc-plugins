@@ -4,6 +4,7 @@ description: "Comprehensive final review of the entire implementation before com
 model: inherit
 color: blue
 tools: [Read, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Final Reviewer Agent

@@ -1,9 +1,10 @@
 ---
 name: type-reviewer
 description: "Analyzes type design quality — encapsulation, invariant expression, type safety."
-model: inherit
+model: sonnet
 color: blue
 tools: [Read, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Type Reviewer Agent

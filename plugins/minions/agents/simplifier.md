@@ -3,7 +3,8 @@ name: simplifier
 description: "Reviews implemented code for simplification opportunities and applies improvements. Use proactively after implementation to reduce complexity."
 model: inherit
 color: yellow
-tools: [Read, Write, Edit, Grep]
+tools: [Read, Write, Edit, Glob, Grep]
+disallowedTools: [Task]
 ---
 
 # Simplifier Agent

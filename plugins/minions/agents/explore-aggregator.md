@@ -1,9 +1,10 @@
 ---
 name: explore-aggregator
 description: "Aggregates parallel explorer outputs into a single exploration report. Use after all explorer and deep-explorer agents have written their temp files."
-model: inherit
+model: haiku
 color: cyan
 tools: [Read, Write, Glob]
+disallowedTools: [Task]
 ---
 
 # Explore Aggregator Agent
