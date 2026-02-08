@@ -51,6 +51,7 @@ fi
 # Delegate to pipeline-specific handlers
 [[ "$(state_get '.pipeline // "launch"')" == "cursor" ]] && exec "$SCRIPT_DIR/on-edit-gate-cursor.sh"
 [[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]] && exec "$SCRIPT_DIR/on-edit-gate-superlaunch.sh"
+[[ "$(state_get '.pipeline // "launch"')" == "review" ]] && exec "$SCRIPT_DIR/on-edit-gate-review.sh"
 
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
 

@@ -33,6 +33,10 @@ if [[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]]; then
   export SL_AGENT_TYPE="$AGENT_TYPE"
   exec "$SCRIPT_DIR/on-task-gate-superlaunch.sh"
 fi
+if [[ "$(state_get '.pipeline // "launch"')" == "review" ]]; then
+  export REVIEW_AGENT_TYPE="$AGENT_TYPE"
+  exec "$SCRIPT_DIR/on-task-gate-review.sh"
+fi
 
 # Map agent type to expected phase
 case "$AGENT_TYPE" in

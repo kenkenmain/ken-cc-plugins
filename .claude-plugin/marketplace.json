@@ -43,8 +43,8 @@
     {
       "name": "minions",
       "source": "./plugins/minions",
-      "description": "Personality-driven 4-phase workflow (launch), Claude-only 15-phase thorough pipeline (superlaunch), and Cursor-inspired pipeline (cursor)",
-      "version": "0.13.0",
+      "description": "Personality-driven 4-phase workflow (launch), Claude-only 15-phase thorough pipeline (superlaunch), Cursor-inspired pipeline (cursor), and review-fix iteration pipeline (review)",
+      "version": "0.14.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

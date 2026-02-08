@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# on-launch-init.sh -- UserPromptSubmit hook for minions:launch and minions:superlaunch commands.
+# on-launch-init.sh -- UserPromptSubmit hook for minions:launch, minions:superlaunch, and minions:review commands.
 # Detects existing workflow state and injects resume/clean prompts when appropriate.
 set -euo pipefail
 
@@ -20,10 +20,10 @@ fi
 
 PROMPT="$(echo "$INPUT" | jq -r '.prompt // ""')"
 
-# ── Only act on minions:launch and minions:superlaunch commands ──────────────
-# Match /minions:launch or /minions:superlaunch at the start of the prompt.
+# ── Only act on minions:launch, minions:superlaunch, and minions:review ──────
+# Match /minions:launch, /minions:superlaunch, or /minions:review at prompt start.
 # Anchored to avoid triggering on prompts that merely mention the command in text.
-if ! echo "$PROMPT" | grep -qiE '^\s*/?minions:(launch|superlaunch)\b'; then
+if ! echo "$PROMPT" | grep -qiE '^\s*/?minions:(launch|superlaunch|review)\b'; then
   exit 0
 fi
 
@@ -37,7 +37,7 @@ if ! jq -e 'type == "object"' "$STATE_FILE" >/dev/null 2>&1; then
   # Corrupt state file — inject warning and let launch decide
   CONTEXT="WARNING: Existing .agents/tmp/state.json is corrupt (not valid JSON).
 Consider running: rm -rf .agents/tmp/phases && mkdir -p .agents/tmp/phases
-Then retry minions:launch."
+Then retry your minions command."
 
   jq -n --arg ctx "$CONTEXT" '{
     "hookSpecificOutput": {
@@ -53,7 +53,7 @@ EXISTING_STATUS="$(jq -r '.status // empty' "$STATE_FILE" 2>/dev/null)" || true
 EXISTING_PPID="$(jq -r '.ownerPpid // empty' "$STATE_FILE" 2>/dev/null)" || true
 EXISTING_PLUGIN="$(jq -r '.plugin // empty' "$STATE_FILE" 2>/dev/null)" || true
 EXISTING_TASK="$(jq -r '.task // empty' "$STATE_FILE" 2>/dev/null)" || true
-EXISTING_LOOP="$(jq -r '.loop // 1' "$STATE_FILE" 2>/dev/null)" || true
+EXISTING_LOOP="$(jq -r '.loop // .iteration // 1' "$STATE_FILE" 2>/dev/null)" || true
 EXISTING_PHASE="$(jq -r '.currentPhase // empty' "$STATE_FILE" 2>/dev/null)" || true
 
 # ── Non-minions plugin: warn but allow ───────────────────────────────────────

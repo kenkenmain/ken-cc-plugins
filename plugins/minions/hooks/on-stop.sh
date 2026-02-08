@@ -18,6 +18,7 @@ check_workflow_active
 # Delegate to pipeline-specific handlers
 [[ "$(state_get '.pipeline // "launch"')" == "cursor" ]] && exec "$SCRIPT_DIR/on-stop-cursor.sh"
 [[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]] && exec "$SCRIPT_DIR/on-stop-superlaunch.sh"
+[[ "$(state_get '.pipeline // "launch"')" == "review" ]] && exec "$SCRIPT_DIR/on-stop-review.sh"
 
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
 LOOP=$(state_get '.loop')
