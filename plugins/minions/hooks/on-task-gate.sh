@@ -51,6 +51,7 @@ case "$AGENT_TYPE" in
   witness|minions:witness) EXPECTED_PHASE="F3" ;;
   security-reviewer|minions:security-reviewer) EXPECTED_PHASE="F3" ;;
   silent-failure-hunter|minions:silent-failure-hunter) EXPECTED_PHASE="F3" ;;
+  judgement-agent|minions:judgement-agent) EXPECTED_PHASE="F3" ;;
   shipper|minions:shipper) EXPECTED_PHASE="F4" ;;
   *) exit 0 ;; # Not a minions agent, allow
 esac
@@ -63,7 +64,7 @@ PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 # Check phase matches
 if [[ "$CURRENT_PHASE" != "$EXPECTED_PHASE" ]]; then
   jq -n --arg agent "$AGENT_TYPE" --arg expected "$EXPECTED_PHASE" --arg current "$CURRENT_PHASE" \
-    '{"decision":"block","reason":("Cannot dispatch " + $agent + " during phase " + $current + ". Expected phase: " + $expected + ". Follow the workflow order: F1 (scout) → F2 (builder) → F3 (critic/pedant/witness/security-reviewer/silent-failure-hunter) → F4 (shipper).")}'
+    '{"decision":"block","reason":("Cannot dispatch " + $agent + " during phase " + $current + ". Expected phase: " + $expected + ". Follow the workflow order: F1 (scout) → F2 (builder) → F3 (critic/pedant/witness/security-reviewer/silent-failure-hunter/judgement-agent) → F4 (shipper).")}'
   exit 0
 fi
 

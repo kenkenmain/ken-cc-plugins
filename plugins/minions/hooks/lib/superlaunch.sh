@@ -175,15 +175,26 @@ _raw_sl_supplementary() {
     S2)
       echo "minions:architecture-analyst"
       ;;
+    S3)
+      echo "minions:judgement-agent"
+      ;;
     S6)
+      echo "minions:judgement-agent"
       echo "minions:critic"
       echo "minions:silent-failure-hunter"
       echo "minions:type-reviewer"
+      ;;
+    S10)
+      echo "minions:judgement-agent"
+      ;;
+    S11)
+      echo "minions:judgement-agent"
       ;;
     S12)
       echo "minions:claude-md-updater"
       ;;
     S13)
+      echo "minions:judgement-agent"
       echo "minions:pedant"
       echo "minions:security-reviewer"
       echo "minions:silent-failure-hunter"
@@ -249,6 +260,7 @@ is_sl_supplementary_agent() {
   case "$agent_type" in
     minions:deep-explorer|\
     minions:architecture-analyst|\
+    minions:judgement-agent|\
     minions:critic|\
     minions:pedant|\
     minions:security-reviewer|\
@@ -360,6 +372,7 @@ get_sl_agent_phases() {
     minions:architecture-analyst) echo "S2" ;;
     minions:plan-aggregator)      echo "S2" ;;
     minions:plan-reviewer)        echo "S3" ;;
+    minions:judgement-agent)      echo "S3 S6 S10 S11 S13" ;;
     minions:impl-reviewer)        echo "S6" ;;
     minions:test-dev-reviewer)    echo "S10" ;;
     minions:test-reviewer)        echo "S11" ;;

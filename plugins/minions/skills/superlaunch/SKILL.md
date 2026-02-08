@@ -33,15 +33,15 @@ superlaunch.md initializes state (pipeline: "superlaunch", 15-phase schedule)
 Phase S0  │ EXPLORE   │ Explore                 │ dispatch  → explorers + aggregator
 Phase S1  │ PLAN      │ Brainstorm              │ subagent  → brainstormer
 Phase S2  │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
-Phase S3  │ PLAN      │ Plan Review             │ review    → plan-reviewer
+Phase S3  │ PLAN      │ Plan Review             │ review    → plan-reviewer + supplementary
 Phase S4  │ IMPLEMENT │ Implement               │ dispatch  → task-agent (parallel batch)
 Phase S5  │ IMPLEMENT │ Simplify                │ subagent  → simplifier
 Phase S6  │ IMPLEMENT │ Impl Review             │ review    → impl-reviewer + supplementary
 Phase S7  │ TEST      │ Run Tests               │ subagent  → test-developer
 Phase S8  │ TEST      │ Analyze                 │ subagent  → failure-analyzer
 Phase S9  │ TEST      │ Develop Tests           │ subagent  → test-developer
-Phase S10 │ TEST      │ Test Dev Review         │ review    → test-dev-reviewer
-Phase S11 │ TEST      │ Test Review             │ review    → test-reviewer
+Phase S10 │ TEST      │ Test Dev Review         │ review    → test-dev-reviewer + supplementary
+Phase S11 │ TEST      │ Test Review             │ review    → test-reviewer + supplementary
 Phase S12 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
 Phase S13 │ FINAL     │ Final Review            │ review    → final-reviewer + supplementary
 Phase S14 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
@@ -79,9 +79,12 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
 |-------|---------------------|
 | S0 | `minions:deep-explorer` |
 | S2 | `minions:architecture-analyst` |
-| S6 | `minions:critic`, `minions:silent-failure-hunter`, `minions:type-reviewer` |
+| S3 | `minions:judgement-agent` |
+| S6 | `minions:judgement-agent`, `minions:critic`, `minions:silent-failure-hunter`, `minions:type-reviewer` |
+| S10 | `minions:judgement-agent` |
+| S11 | `minions:judgement-agent` |
 | S12 | `minions:claude-md-updater` |
-| S13 | `minions:pedant`, `minions:security-reviewer`, `minions:silent-failure-hunter` |
+| S13 | `minions:judgement-agent`, `minions:pedant`, `minions:security-reviewer`, `minions:silent-failure-hunter` |
 | S14 | `minions:retrospective-analyst` |
 
 ## State Schema (superlaunch)
@@ -134,7 +137,7 @@ Dispatched in parallel with primary agents (controlled by `supplementaryPolicy`)
 | Aspect | launch | superlaunch |
 |--------|--------|-------------|
 | Phases | 4 (F1-F4) | 15 (S0 through S14) |
-| Agents | `minions:*` (12 agents) | `minions:*` (25 superlaunch agents) |
+| Agents | `minions:*` (12 agents) | `minions:*` (26 superlaunch agents) |
 | Hooks | Same hooks, `launch` branch | Same hooks, `superlaunch` branch |
 | Codex | No | No |
 | Review | 5 parallel personality reviewers | Structured review-fix cycles |

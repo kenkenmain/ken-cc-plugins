@@ -1,6 +1,6 @@
 {
   "name": "minions",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Personality-driven 4-phase workflow (launch), Claude-only 15-phase thorough pipeline (superlaunch), Cursor-inspired pipeline (cursor), and review-fix iteration pipeline (review)",
   "author": {
     "name": "Kennard Ng",

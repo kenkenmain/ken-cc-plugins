@@ -67,7 +67,8 @@ if [[ "$CURRENT_PHASE" == "F3" && -f "${PHASES_DIR}/f3-verdict.json" ]]; then
         + (.pedant.issues // 0)
         + (.witness.issues // 0)
         + (.security_reviewer.issues // 0)
-        + (.silent_failure_hunter.issues // 0)) | floor | tostring
+        + (.silent_failure_hunter.issues // 0)
+        + (.judgement_agent.issues // 0)) | floor | tostring
       )
     end
   ' "${PHASES_DIR}/f3-verdict.json") || {
@@ -143,6 +144,7 @@ case "$CURRENT_PHASE" in
 - .agents/tmp/phases/loop-${PREV}/f3-witness.json
 - .agents/tmp/phases/loop-${PREV}/f3-security-reviewer.json
 - .agents/tmp/phases/loop-${PREV}/f3-silent-failure-hunter.json
+- .agents/tmp/phases/loop-${PREV}/f3-judgement-agent.json
 
 Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     fi
@@ -193,13 +195,14 @@ The aggregated file should be a JSON object with:
 Read .agents/tmp/state.json to confirm currentPhase is F3.
 Read .agents/tmp/phases/loop-${LOOP}/f2-tasks.json for the list of changed files.
 
-Dispatch these 5 agents IN PARALLEL:
+Dispatch these 6 agents IN PARALLEL:
 
 1. **critic** (subagent_type: minions:critic) — correctness review
 2. **pedant** (subagent_type: minions:pedant) — quality review
 3. **witness** (subagent_type: minions:witness) — runtime verification
 4. **security-reviewer** (subagent_type: minions:security-reviewer) — deep security review
 5. **silent-failure-hunter** (subagent_type: minions:silent-failure-hunter) — error handling review
+6. **judgement-agent** (subagent_type: minions:judgement-agent) — holistic judgment review
 
 Pass each agent the list of changed files from f2-tasks.json.
 
@@ -209,8 +212,9 @@ Each agent writes its output to:
 - .agents/tmp/phases/loop-${LOOP}/f3-witness.json
 - .agents/tmp/phases/loop-${LOOP}/f3-security-reviewer.json
 - .agents/tmp/phases/loop-${LOOP}/f3-silent-failure-hunter.json
+- .agents/tmp/phases/loop-${LOOP}/f3-judgement-agent.json
 
-After ALL 5 complete, aggregate their verdicts into:
+After ALL 6 complete, aggregate their verdicts into:
 .agents/tmp/phases/loop-${LOOP}/f3-verdict.json
 
 {
@@ -219,6 +223,7 @@ After ALL 5 complete, aggregate their verdicts into:
   \"witness\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
   \"security_reviewer\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
   \"silent_failure_hunter\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
+  \"judgement_agent\": { \"verdict\": \"clean|issues_found\", \"issues\": N },
   \"overall_verdict\": \"clean|issues_found\",
   \"total_issues\": N
 }"
