@@ -48,7 +48,8 @@ if [[ "$FILE_PATH" == /* ]] && [[ "$FILE_PATH" != "$PROJECT_DIR"/* ]]; then
   exit 0
 fi
 
-# Delegate to superlaunch handler if applicable
+# Delegate to pipeline-specific handlers
+[[ "$(state_get '.pipeline // "launch"')" == "cursor" ]] && exec "$SCRIPT_DIR/on-edit-gate-cursor.sh"
 [[ "$(state_get '.pipeline // "launch"')" == "superlaunch" ]] && exec "$SCRIPT_DIR/on-edit-gate-superlaunch.sh"
 
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
