@@ -1,7 +1,7 @@
 {
   "name": "minions",
-  "version": "0.12.0",
-  "description": "Personality-driven 4-phase workflow (launch) and Claude-only 15-phase thorough pipeline (superlaunch)",
+  "version": "0.13.0",
+  "description": "Personality-driven 4-phase workflow (launch), Claude-only 15-phase thorough pipeline (superlaunch), and Cursor-inspired pipeline (cursor)",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
@@ -9,5 +9,5 @@
   "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
   "repository": "https://github.com/kenkenmain/ken-cc-plugins",
   "license": "MIT",
-  "keywords": ["minions", "workflow", "agents", "loop", "review"]
+  "keywords": ["minions", "workflow", "agents", "loop", "review", "cursor", "judge"]
 }
