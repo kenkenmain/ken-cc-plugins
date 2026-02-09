@@ -14,6 +14,7 @@ description: |
   </commentary>
   </example>
 
+model: sonnet
 permissionMode: plan
 color: blue
 tools:

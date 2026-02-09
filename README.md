@@ -77,13 +77,13 @@ claude plugin install minions@ken-cc-plugins
 /minions:review <task>        # Review-fix iteration pipeline
 ```
 
-**Launch Pipeline:** Explore (4x parallel haiku) -> F1 Scout -> F2 Build -> F3 Review (5 parallel reviewers) -> F4 Ship
+**Launch Pipeline:** Explore (4x parallel haiku) -> F1 Scout -> F2 Build -> F3 Review (6 parallel reviewers) -> F4 Ship
 
-**Launch Features:** Ralph-style hook-driven orchestration, parallel explorer pre-scan, 5 parallel reviewers (critic, pedant, witness, security-reviewer, silent-failure-hunter), automatic loop-back on issues (max 10 loops), feature branch creation
+**Launch Features:** Ralph-style hook-driven orchestration, parallel explorer pre-scan, 6 parallel reviewers (critic, pedant, witness, security-reviewer, silent-failure-hunter, judgement-agent), automatic loop-back on issues (max 10 loops), feature branch creation
 
-**Superlaunch Pipeline:** Explore -> Plan (brainstorm + plan + review) -> Implement (build + simplify + review) -> Test (run + analyze + develop + review) -> Final (docs + review + completion) — 15 phases, 25 agents
+**Superlaunch Pipeline:** Explore -> Plan (brainstorm + plan + review) -> Implement (build + simplify + review) -> Test (run + analyze + develop + review) -> Final (docs + review + completion) — 15 phases, 26 agents
 
-**Superlaunch Features:** Structured review-fix cycles, coverage-driven test loops, parallel supplementary reviewers (critic, pedant, security-reviewer, silent-failure-hunter, type-reviewer), high-stakes review criteria prompts
+**Superlaunch Features:** Structured review-fix cycles, coverage-driven test loops, parallel supplementary reviewers (judgement-agent, critic, pedant, security-reviewer, silent-failure-hunter, type-reviewer), high-stakes review criteria prompts
 
 **Review Pipeline:** R1 Review (critic || pedant || witness || security-reviewer || silent-failure-hunter, parallel) -> R2 Fix (review-fixer) -> R1 re-review loop (max 5 iterations)
 

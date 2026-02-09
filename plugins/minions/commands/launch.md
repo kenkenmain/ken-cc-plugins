@@ -17,7 +17,7 @@ Parse from $ARGUMENTS to extract the task description.
 ## Pipeline
 
 ```
-Explorers (4x haiku, parallel) → F1 (scout) → F2 (builder) → F3 (critic ∥ pedant ∥ witness ∥ security-reviewer ∥ silent-failure-hunter)
+Explorers (4x haiku, parallel) → F1 (scout) → F2 (builder) → F3 (critic ∥ pedant ∥ witness ∥ security-reviewer ∥ silent-failure-hunter ∥ judgement-agent)
                                       ↑                              │
                                       └──────── if any issues ───────┘
                                                 (max 10 loops)
@@ -104,7 +104,7 @@ Minions Launch — 4-Phase Workflow
 Pre-F1    │ Explore  │ 4x parallel haiku explorers         │ dispatch
 Phase F1  │ Scout    │ Explore + brainstorm + plan       │ subagent
 Phase F2  │ Build    │ Implement tasks (parallel)         │ dispatch
-Phase F3  │ Review   │ critic ∥ pedant ∥ witness ∥ sec ∥ silent │ dispatch
+Phase F3  │ Review   │ critic ∥ pedant ∥ witness ∥ sec ∥ silent ∥ judgement │ dispatch
 Phase F4  │ Ship     │ Docs + commit + PR                 │ subagent
 
 Loop: F1 → F2 → F3 (if issues, back to F1, max 10 loops)
@@ -208,4 +208,5 @@ After scout completes, the Stop hook (`on-stop.sh`) drives the orchestrator to d
 | F3 | witness | `minions:witness` |
 | F3 | security-reviewer | `minions:security-reviewer` |
 | F3 | silent-failure-hunter | `minions:silent-failure-hunter` |
+| F3 | judgement-agent | `minions:judgement-agent` |
 | F4 | shipper | `minions:shipper` |

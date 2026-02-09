@@ -6,7 +6,7 @@ argument-hint: <task description>
 
 # Minions Superlaunch
 
-You are launching a Claude-only 15-phase thorough development pipeline. This uses **minions plugin agents** (self-contained, 25 superlaunch agents) driven by **minions plugin hooks** (Ralph-style loop driver).
+You are launching a Claude-only 15-phase thorough development pipeline. This uses **minions plugin agents** (self-contained, 26 superlaunch agents) driven by **minions plugin hooks** (Ralph-style loop driver).
 
 Use the `superlaunch` skill for workflow reference documentation.
 
@@ -145,15 +145,15 @@ Minions Superlaunch — 15-Phase Thorough Pipeline (Claude-only)
 Phase S0  │ EXPLORE   │ Explore                 │ dispatch  → explorers + aggregator
 Phase S1  │ PLAN      │ Brainstorm              │ subagent  → brainstormer
 Phase S2  │ PLAN      │ Plan                    │ dispatch  → planners + aggregator
-Phase S3  │ PLAN      │ Plan Review             │ review    → plan-reviewer
+Phase S3  │ PLAN      │ Plan Review             │ review    → plan-reviewer + judgement-agent
 Phase S4  │ IMPLEMENT │ Implement               │ dispatch  → task-agent (parallel batch)
 Phase S5  │ IMPLEMENT │ Simplify                │ subagent  → simplifier
 Phase S6  │ IMPLEMENT │ Impl Review             │ review    → impl-reviewer + supplementary
 Phase S7  │ TEST      │ Run Tests               │ subagent  → test-developer
 Phase S8  │ TEST      │ Analyze                 │ subagent  → failure-analyzer
 Phase S9  │ TEST      │ Develop Tests           │ subagent  → test-developer
-Phase S10 │ TEST      │ Test Dev Review         │ review    → test-dev-reviewer
-Phase S11 │ TEST      │ Test Review             │ review    → test-reviewer
+Phase S10 │ TEST      │ Test Dev Review         │ review    → test-dev-reviewer + judgement-agent
+Phase S11 │ TEST      │ Test Review             │ review    → test-reviewer + judgement-agent
 Phase S12 │ FINAL     │ Documentation           │ subagent  → doc-updater + claude-md-updater
 Phase S13 │ FINAL     │ Final Review            │ review    → final-reviewer + supplementary
 Phase S14 │ FINAL     │ Completion              │ subagent  → shipper + retrospective
@@ -201,15 +201,15 @@ After Phase S0 completes, the Stop hook (`on-stop.sh`) drives the orchestrator t
 | S2 | planner (batch) | `minions:planner` |
 | S2 | architecture-analyst (supplementary) | `minions:architecture-analyst` |
 | S2 | plan-aggregator | `minions:plan-aggregator` |
-| S3 | plan-reviewer | `minions:plan-reviewer` |
+| S3 | plan-reviewer + judgement-agent | `minions:plan-reviewer` |
 | S4 | task-agent (batch) | `minions:task-agent` |
 | S5 | simplifier | `minions:simplifier` |
 | S6 | impl-reviewer + supplementary | `minions:impl-reviewer` |
 | S7 | test-developer | `minions:test-developer` |
 | S8 | failure-analyzer | `minions:failure-analyzer` |
 | S9 | test-developer | `minions:test-developer` |
-| S10 | test-dev-reviewer | `minions:test-dev-reviewer` |
-| S11 | test-reviewer | `minions:test-reviewer` |
+| S10 | test-dev-reviewer + judgement-agent | `minions:test-dev-reviewer` |
+| S11 | test-reviewer + judgement-agent | `minions:test-reviewer` |
 | S12 | doc-updater + claude-md-updater | `minions:doc-updater` |
 | S13 | final-reviewer + supplementary | `minions:final-reviewer` |
 | S14 | shipper + retrospective | `minions:shipper` |
