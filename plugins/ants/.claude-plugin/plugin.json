@@ -1,0 +1,13 @@
+{
+  "name": "ants",
+  "version": "0.1.0",
+  "description": "Ant-colony themed swarm workflow with dual-track parallel build and quality execution",
+  "author": {
+    "name": "Kennard Ng",
+    "email": "kennard.ng.pool.hua@gmail.com"
+  },
+  "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
+  "repository": "https://github.com/kenkenmain/ken-cc-plugins",
+  "license": "MIT",
+  "keywords": ["ants", "swarm", "workflow", "agents", "dual-track", "colony"]
+}
