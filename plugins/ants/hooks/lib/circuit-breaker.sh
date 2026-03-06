@@ -54,8 +54,9 @@ cb_init() {
 # ===========================================================================
 
 # Record a failure. Increments consecutiveFailures.
-# Returns 0 normally, returns 1 if the circuit breaker is now tripped.
-# Usage: if ! cb_record_failure; then echo "TRIPPED"; fi
+# Returns 0 if the circuit breaker is now tripped, 1 if still healthy (delegates to cb_is_tripped).
+# On state update error, returns 1 and logs an error.
+# Usage: if cb_record_failure; then echo "TRIPPED"; fi
 cb_record_failure() {
   if ! update_state \
     '.circuitBreaker.consecutiveFailures = ((.circuitBreaker.consecutiveFailures // 0) + 1)'; then

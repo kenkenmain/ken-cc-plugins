@@ -56,19 +56,16 @@ Write your output to: .agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json
 {
   "verdict": "clean|issues_found",
   "loop": 1,
-  "buildTrack": {
-    "totalTasks": 3,
-    "completedTasks": 3,
-    "failedTasks": 0,
-    "status": "complete"
+  "buildTrackSummary": {
+    "status": "complete",
+    "filesChanged": ["src/auth.ts", "src/db.ts"],
+    "testsAdded": 3
   },
-  "qualityTrack": {
-    "source": "arbiter",
-    "sentinelsCompleted": ["correctness", "security", "perf"],
-    "criticalCount": 0,
-    "warningCount": 1,
-    "infoCount": 3,
-    "unresolvedIssues": []
+  "qualityTrackSummary": {
+    "verdict": "clean",
+    "critical": 0,
+    "warning": 1,
+    "info": 3
   },
   "circuitBreaker": {
     "loopBudgetRemaining": true,
@@ -76,7 +73,7 @@ Write your output to: .agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json
     "consecutiveFailuresRemaining": 5
   },
   "summary": "Build complete. 1 warning (minor naming convention) does not warrant a loop-back.",
-  "recommendation": "ship"
+  "recommendation": "clean"
 }
 ```
 

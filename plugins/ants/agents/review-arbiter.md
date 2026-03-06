@@ -7,7 +7,7 @@ description: |
 
   <example>
   Context: All 3 sentinels completed, arbiter consolidates findings
-  user: "Consolidate sentinel reviews for wave 1 into unified verdict"
+  user: "Consolidate sentinel reviews into unified verdict"
   assistant: "Spawning review-arbiter to cross-reference and deduplicate sentinel findings"
   <commentary>
   A3 quality track. Arbiter runs after all 3 sentinels finish. Produces the authoritative quality verdict.

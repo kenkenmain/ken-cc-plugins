@@ -33,7 +33,7 @@ PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 
 # A3->A4: if A3-build.json exists and valid, advance to A4
 if [[ "$CURRENT_PHASE" == "A3" && -f "${PHASES_DIR}/A3-build.json" ]]; then
-  if validate_json_file "${PHASES_DIR}/A3-build.json" "A3-build.json" 2>/dev/null; then
+  if validate_json_file "${PHASES_DIR}/A3-build.json" "A3-build.json"; then
     if jq -e '.tasks and .files_changed and .all_complete == true' "${PHASES_DIR}/A3-build.json" >/dev/null 2>&1; then
       echo "INFO: Recovery path triggered -- advancing A3->A4 in Stop hook (SubagentStop may not have fired)" >&2
       if ! update_state '.currentPhase = "A4" | .updatedAt = $ts | .phases.A3.status = "complete"'; then
@@ -64,7 +64,9 @@ if [[ "$CURRENT_PHASE" == "A4" && -f "${PHASES_DIR}/A4-queen-verdict.json" ]]; t
   if [[ "$RESULT_PHASE" == "BLOCKED" ]]; then
     exit 0  # Allow stop -- workflow is now blocked
   elif [[ "$RESULT_PHASE" == "A1" ]]; then
-    LOOP=$((LOOP + 1))
+    # Re-read LOOP from state.json (handle_a4_verdict already incremented it)
+    LOOP=$(state_get '.loop' --required)
+    LOOP=$(require_int "$LOOP" "loop")
     PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
   fi
 fi

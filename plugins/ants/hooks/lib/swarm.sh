@@ -397,7 +397,7 @@ Write a verdict JSON to: ${phases_dir}/${output_file}
   "verdict": "clean" | "issues_found",
   "issues": [ ...list of issues... ],
   "total_issues": N,
-  "recommendation": "ship" | "loop"
+  "recommendation": "clean" | "loop"
 }
 
 If verdict is "clean", the workflow advances to A5.

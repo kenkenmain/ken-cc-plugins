@@ -10,7 +10,7 @@ description: |
   user: "Execute task 2: Add validation middleware for auth routes"
   assistant: "Spawning worker to implement the validation middleware task"
   <commentary>
-  Single task from one wave of the plan. Worker implements exactly what's specified, self-verifies, logs out-of-scope findings.
+  Single task from the task pool. Worker implements exactly what's specified, self-verifies, logs out-of-scope findings.
   </commentary>
   </example>
 

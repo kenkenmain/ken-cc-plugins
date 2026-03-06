@@ -89,8 +89,8 @@ case "$EXPECTED_PHASE" in
     }
     # Quality track output is expected for dual-track design but not strictly required
     # (sentinel results may be embedded in A3-build.json). Log a warning if missing.
-    if [[ ! -f "${PHASES_DIR}/A3-quality.json" ]] && [[ ! -f "${PHASES_DIR}/A3-review.json" ]]; then
-      echo "WARNING: No quality track output found (A3-quality.json or A3-review.json). Queen will proceed with build track output only." >&2
+    if [[ ! -f "${PHASES_DIR}/A3-quality.json" ]]; then
+      echo "WARNING: No quality track output found (A3-quality.json). Queen will proceed with build track output only." >&2
     fi
     ;;
   A5)
