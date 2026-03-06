@@ -74,15 +74,18 @@ get_phase_input() {
 # Phase Agent Routing
 # ===========================================================================
 
+# Returns all agents for a phase as a space-delimited list.
+# For single-agent phases, returns one agent. For multi-agent phases (A0, A3, A5),
+# returns all agents. The first agent listed is the primary agent used in prompts.
 get_phase_agent() {
   local phase="${1:?get_phase_agent requires a phase ID}"
   case "$phase" in
-    A0) echo "ants:forager" ;;
+    A0) echo "ants:forager ants:cartographer ants:explore-aggregator" ;;
     A1) echo "ants:architect" ;;
     A2) echo "ants:blueprint-reviewer" ;;
-    A3) echo "ants:worker" ;;
+    A3) echo "ants:worker ants:sentinel ants:guardian" ;;
     A4) echo "ants:queen" ;;
-    A5) echo "ants:nurse" ;;
+    A5) echo "ants:nurse ants:drone" ;;
     *)  echo "" ;;
   esac
 }
@@ -131,8 +134,10 @@ advance_build_wave() {
 is_a3_complete() {
   local current_wave
   current_wave="$(state_get '.currentWave // 1')"
+  current_wave=$(require_int "$current_wave" "currentWave")
   local total_waves
   total_waves="$(state_get '.totalWaves // 1')"
+  total_waves=$(require_int "$total_waves" "totalWaves")
 
   [[ "$current_wave" -ge "$total_waves" ]]
 }
@@ -188,17 +193,28 @@ generate_swarm_prompt() {
   loop="$(state_get '.loop // 1')"
   loop=$(require_int "$loop" "loop")
   local max_loops
-  max_loops="$(state_get '.maxLoops // 3')"
+  max_loops="$(state_get '.maxLoops // 5')"
   max_loops=$(require_int "$max_loops" "maxLoops")
 
+  local all_agents
+  all_agents="$(get_phase_agent "$phase")"
+  # Primary agent is first in the list (used for dispatch instruction)
   local agent
-  agent="$(get_phase_agent "$phase")"
+  agent="${all_agents%% *}"
   local output_file
   output_file="$(get_phase_output "$phase")"
   local input_files
   input_files="$(get_phase_input "$phase")"
+  # Substitute {LOOP} placeholders with actual loop number
+  input_files="${input_files//\{LOOP\}/${loop}}"
 
-  local phases_dir=".agents/tmp/phases/loop-${loop}"
+  # A0 is top-level (not loop-scoped); all other phases use loop directories
+  local phases_dir
+  if [[ "$phase" == "A0" ]]; then
+    phases_dir=".agents/tmp/phases"
+  else
+    phases_dir=".agents/tmp/phases/loop-${loop}"
+  fi
 
   # Build previous-loop context for A1 when looping back
   local prev_context=""

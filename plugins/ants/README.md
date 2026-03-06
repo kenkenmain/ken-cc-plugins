@@ -43,7 +43,7 @@ This launches a 6-phase pipeline that explores the codebase, plans the implement
 The key innovation is **Phase A3: Dual-Track Execution**. Instead of building everything then reviewing everything (sequential), ants runs two parallel tracks:
 
 - **Build track:** Workers implement tasks in waves (Wave 1 foundation, then Wave 2 dependent work)
-- **Quality track:** Soldiers review each wave as it completes
+- **Quality track:** Sentinels review each wave as it completes
 
 This catches issues per-wave rather than at the end, and the queen synthesizes both tracks before deciding to ship or loop.
 
@@ -83,18 +83,18 @@ Build Track              Quality Track
 -----------              -------------
 Wave 1 workers           (wait)
     |
-    barrier -----------> Soldiers review Wave 1
+    barrier -----------> Sentinels review Wave 1
     |
 Wave 2 workers           (wait)
     |
-    barrier -----------> Soldiers review Wave 2
+    barrier -----------> Sentinels review Wave 2
     |
     both complete -----> Phase A4
 ```
 
 Workers in the same wave run in parallel. Each worker implements exactly one task, self-verifies (tests, lint, typecheck), and reports results. Workers cannot use git (blocked by hook).
 
-Soldiers run sentinel reviews after each wave, checking correctness, coverage, and integration risks.
+Sentinels run reviews after each wave, checking correctness, coverage, and integration risks.
 
 ### Loop-Back
 

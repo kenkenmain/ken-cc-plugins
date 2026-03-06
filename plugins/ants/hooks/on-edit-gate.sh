@@ -36,6 +36,12 @@ if [[ -z "$FILE_PATH" ]]; then
   exit 2
 fi
 
+# Canonicalize path to prevent traversal bypasses (e.g., /../.agents/../../etc/passwd)
+# realpath -m works even if the file does not exist yet (needed for Write creating new files)
+if command -v realpath &>/dev/null; then
+  FILE_PATH=$(realpath -m "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
+fi
+
 # Allow .agents/ writes in any phase (workflow output files)
 if [[ "$FILE_PATH" =~ (^|/)\.agents/ ]]; then
   exit 0
@@ -44,6 +50,9 @@ fi
 # Allow writes to external paths (outside project directory)
 # The gate only protects project source files — temp files, scratchpads, etc. are fine
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
+if command -v realpath &>/dev/null; then
+  PROJECT_DIR=$(realpath -m "$PROJECT_DIR" 2>/dev/null || echo "$PROJECT_DIR")
+fi
 if [[ "$FILE_PATH" == /* ]] && [[ "$FILE_PATH" != "$PROJECT_DIR"/* ]]; then
   exit 0
 fi

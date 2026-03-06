@@ -103,6 +103,11 @@ require_int() {
 # Usage: update_state [jq_args...] 'jq_filter'
 # The last argument is always the jq filter. All preceding arguments are passed to jq.
 # Automatically provides $ts (current timestamp) as a jq variable.
+#
+# Locking strategy:
+#   - Uses flock when available (Linux, macOS with util-linux)
+#   - Falls back to mkdir-based locking on stock macOS (flock unavailable)
+#   - mkdir fallback includes stale lock detection (30s timeout)
 update_state() {
   local args=()
   while [[ $# -gt 1 ]]; do
@@ -113,39 +118,101 @@ update_state() {
   local timestamp
   timestamp=$(date -Iseconds)
 
-  (
-    flock -x -w 5 200 || {
-      echo "ERROR: Could not acquire state lock after 5 seconds" >&2
-      return 1
-    }
-
-    local tmp_file
-    tmp_file=$(mktemp "${STATE_FILE}.XXXXXX")
-
-    local jq_err_file
-    jq_err_file=$(mktemp "${STATE_FILE}.err.XXXXXX")
-
-    # Clean up temp files on any exit from this subshell
-    trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' EXIT
-
-    if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
-      if jq empty "$tmp_file" 2>/dev/null; then
-        mv "$tmp_file" "$STATE_FILE"
-        rm -f "$jq_err_file"
-        return 0
-      else
-        echo "ERROR: State update produced invalid JSON" >&2
-        rm -f "$tmp_file" "$jq_err_file"
+  if command -v flock &>/dev/null; then
+    # flock-based locking (Linux, macOS with util-linux)
+    (
+      flock -x -w 5 200 || {
+        echo "ERROR: Could not acquire state lock after 5 seconds" >&2
         return 1
+      }
+
+      _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
+    ) 200>"${STATE_FILE}.lock"
+  else
+    # mkdir-based locking fallback (stock macOS without flock)
+    local lock_dir="${STATE_FILE}.lockdir"
+    local lock_stale_seconds=30
+    local lock_acquired=false
+    local attempt
+
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+      if mkdir "$lock_dir" 2>/dev/null; then
+        lock_acquired=true
+        break
       fi
+
+      # Check for stale lock
+      if [[ -d "$lock_dir" ]]; then
+        local lock_mtime
+        if lock_mtime=$(lock_dir_mtime_epoch "$lock_dir"); then
+          local lock_age
+          lock_age=$(( $(date +%s) - lock_mtime ))
+          if [[ "$lock_age" -gt "$lock_stale_seconds" ]]; then
+            echo "WARNING: Removing stale state lock (age: ${lock_age}s)" >&2
+            rm -rf "$lock_dir"
+            if mkdir "$lock_dir" 2>/dev/null; then
+              lock_acquired=true
+              break
+            fi
+          fi
+        fi
+      fi
+
+      # Brief sleep between attempts (total wait ~5s max)
+      sleep 0.5
+    done
+
+    if [[ "$lock_acquired" != "true" ]]; then
+      echo "ERROR: Could not acquire state lock after 5 seconds (mkdir fallback)" >&2
+      return 1
+    fi
+
+    # Ensure lock is released on exit
+    trap 'rm -rf "$lock_dir" 2>/dev/null' EXIT
+
+    _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
+    local rc=$?
+
+    rm -rf "$lock_dir" 2>/dev/null
+    trap - EXIT
+    return $rc
+  fi
+}
+
+# Internal helper for update_state — performs the actual jq transform and atomic write.
+# Usage: _update_state_inner "$timestamp" "$filter" [jq_args...]
+_update_state_inner() {
+  local timestamp="$1"
+  local filter="$2"
+  shift 2
+  local args=("$@")
+
+  local tmp_file
+  tmp_file=$(mktemp "${STATE_FILE}.XXXXXX")
+
+  local jq_err_file
+  jq_err_file=$(mktemp "${STATE_FILE}.err.XXXXXX")
+
+  # Clean up temp files on any exit
+  trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' RETURN
+
+  if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
+    if jq empty "$tmp_file" 2>/dev/null; then
+      mv "$tmp_file" "$STATE_FILE"
+      rm -f "$jq_err_file"
+      return 0
     else
-      local jq_err
-      jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")
-      echo "ERROR: jq state update failed: $jq_err" >&2
+      echo "ERROR: State update produced invalid JSON" >&2
       rm -f "$tmp_file" "$jq_err_file"
       return 1
     fi
-  ) 200>"${STATE_FILE}.lock"
+  else
+    local jq_err
+    jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")
+    echo "ERROR: jq state update failed: $jq_err" >&2
+    rm -f "$tmp_file" "$jq_err_file"
+    return 1
+  fi
 }
 
 # Get the mtime of a directory as epoch seconds (cross-platform: macOS/Linux).

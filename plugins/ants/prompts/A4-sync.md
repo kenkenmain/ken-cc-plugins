@@ -9,7 +9,7 @@ Dispatch the **queen** agent to merge build track and quality track results and 
 
 ## Prerequisites
 
-- A2 (Build Track) must have completed: `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` exists
+- A3 (Build Track) must have completed: `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` exists
 - A3 (Quality Track) must have completed: `.agents/tmp/phases/loop-{{LOOP}}/A3-quality.json` exists
 
 ## Process
@@ -17,8 +17,8 @@ Dispatch the **queen** agent to merge build track and quality track results and 
 1. Read build track output from `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json`
 2. Read quality track output from `.agents/tmp/phases/loop-{{LOOP}}/A3-quality.json`
 3. Cross-reference issues against implementation
-4. Render verdict: `ship` or `loop`
-5. Write output to `.agents/tmp/phases/loop-{{LOOP}}/A4-sync.json`
+4. Render verdict: `clean` or `issues_found`
+5. Write output to `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json`
 
 ## Prompt Template
 
@@ -31,23 +31,23 @@ Read:
 - .agents/tmp/phases/loop-{{LOOP}}/A3-build.json (build track output)
 - .agents/tmp/phases/loop-{{LOOP}}/A3-quality.json (quality track output)
 
-Cross-reference all issues against the implementation. Decide: ship or loop.
+Cross-reference all issues against the implementation. Decide: clean or issues_found.
 
-Write your output to: .agents/tmp/phases/loop-{{LOOP}}/A4-sync.json
+Write your output to: .agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json
 ```
 
 ## Decision Rules
 
 | Condition | Verdict | Next Phase |
 |-----------|---------|------------|
-| Quality clean, build complete | `ship` | A5 (Ship) |
-| Only `info` issues, build complete | `ship` | A5 (Ship) |
-| Any `critical` or `warning` unresolved | `loop` | A1 (Plan) |
-| Build track incomplete | `loop` | A1 (Plan) |
-| Loop count = max loops | `stop` | Workflow ends with report |
+| Quality clean, build complete | `clean` | A5 (Ship) |
+| Only `info` issues, build complete | `clean` | A5 (Ship) |
+| Any `critical` or `warning` unresolved | `issues_found` | A1 (Plan) |
+| Build track incomplete | `issues_found` | A1 (Plan) |
+| Loop count = max loops | `issues_found` | Workflow ends with report |
 
 ## Gate
 
-Output required: `.agents/tmp/phases/loop-{{LOOP}}/A4-sync.json` with `verdict: "ship"` to advance.
+Output required: `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` with `verdict: "clean"` to advance.
 
-Next phase: A5 (Ship) if verdict is `ship`, or A1 (Plan) if verdict is `loop`.
+Next phase: A5 (Ship) if verdict is `clean`, or A1 (Plan) if verdict is `issues_found`.

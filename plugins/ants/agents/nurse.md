@@ -51,7 +51,7 @@ Update documentation to reflect the changes made during this iteration.
 Read these to understand what changed:
 
 - `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` — what was built
-- `.agents/tmp/phases/loop-{{LOOP}}/A4-sync.json` — synchronization summary
+- `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` — synchronization summary
 
 ## Process
 

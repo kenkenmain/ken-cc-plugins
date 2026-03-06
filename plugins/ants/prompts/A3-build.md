@@ -36,7 +36,7 @@ Workers within a wave run in parallel. Guardian and sentinel run in parallel aft
 
 ### 1. Read the Plan
 
-Read the plan from `.agents/tmp/phases/A1-plan.json` (or loop-specific path if iterating).
+Read the plan from `.agents/tmp/phases/loop-{{LOOP}}/A1-plan.md` (loop-scoped path).
 
 Expected plan structure:
 ```json
@@ -133,7 +133,7 @@ After quality track completes, evaluate the wave:
 
 After all waves complete, write:
 
-`.agents/tmp/phases/A3-build.json`
+`.agents/tmp/phases/loop-{{LOOP}}/A3-build.json`
 
 ```json
 {
@@ -199,6 +199,6 @@ If some but not all tasks in a wave complete:
 
 ## Gate
 
-Output required: `.agents/tmp/phases/A3-build.json` with `overallStatus: "complete"`
+Output required: `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` with `overallStatus: "complete"`
 
 All waves must pass their quality gates for the phase to succeed.

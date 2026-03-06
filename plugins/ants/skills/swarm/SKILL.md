@@ -112,7 +112,7 @@ Sentinel review agents run **per wave**, reviewing the output of each wave as it
 - After Wave 1 completes: sentinels review Wave 1 implementation
 - After Wave 2 completes: sentinels review Wave 2 implementation
 
-Soldiers check:
+Sentinels check:
 - Code correctness and adherence to acceptance criteria
 - Integration risks between tasks
 - Test coverage gaps
@@ -125,11 +125,11 @@ Build Track              Quality Track
 -----------              -------------
 Wave 1 workers (parallel)
     |
-    +-- barrier ----------> Soldiers review Wave 1
+    +-- barrier ----------> Sentinels review Wave 1
     |                           |
 Wave 2 workers (parallel)       |
     |                           |
-    +-- barrier ----------> Soldiers review Wave 2
+    +-- barrier ----------> Sentinels review Wave 2
     |                           |
     +-- both tracks --------+---+
              |
@@ -143,12 +143,12 @@ Quality track output: `.agents/tmp/phases/loop-{LOOP}/A3-quality.json`
 
 Single `ants:queen` agent (sonnet, read-only) merges results from both tracks and renders a verdict:
 
-- **ship**: Quality track clean (or info-only issues) AND build track completed successfully
-- **loop**: Any critical or warning issue unresolved, OR build track incomplete
+- **clean**: Quality track clean (or info-only issues) AND build track completed successfully
+- **issues_found**: Any critical or warning issue unresolved, OR build track incomplete
 
 The queen cross-references quality issues against the build implementation to determine which issues are actually still valid.
 
-Output: `.agents/tmp/phases/loop-{LOOP}/A4-sync.json`
+Output: `.agents/tmp/phases/loop-{LOOP}/A4-queen-verdict.json`
 
 ### Phase A5: Documentation + Ship
 
@@ -157,15 +157,16 @@ Two sub-steps:
 1. **Nurse** (sonnet): Updates project documentation to reflect implementation changes (README.md, CLAUDE.md, etc.)
 2. **Drone**: Commits changes and opens a PR
 
-Output: `.agents/tmp/phases/loop-{LOOP}/A5-docs.json`
+Nurse output: `.agents/tmp/phases/loop-{LOOP}/A5-docs.json`
+Drone output: `.agents/tmp/phases/loop-{LOOP}/A5-ship.json`
 
 ## Loop-Back Logic
 
 The queen's verdict drives progression:
 
 ```
-A4 verdict == "ship"  -->  Advance to A5 (ship)
-A4 verdict == "loop"  -->  Return to A1 (re-plan fixes)
+A4 verdict == "clean"         -->  Advance to A5 (ship)
+A4 verdict == "issues_found"  -->  Return to A1 (re-plan fixes)
 ```
 
 ### Loop Limits
@@ -178,7 +179,7 @@ A4 verdict == "loop"  -->  Return to A1 (re-plan fixes)
 ### Loop Context
 
 On loop 2+:
-- A1 architect reads previous loop's A3-quality.json and A4-sync.json
+- A1 architect reads previous loop's A3-quality.json and A4-queen-verdict.json
 - Architect plans **targeted fixes**, not full re-plans
 - Previous loop's files are preserved in `loop-{N}/` directories
 
@@ -217,7 +218,7 @@ On loop 2+:
     "EXPLORE->PLAN": ["A0-explore.md"],
     "PLAN->BUILD": ["loop-{LOOP}/A1-plan.md", "A2-review approved"],
     "BUILD->SYNC": ["loop-{LOOP}/A3-build.json", "loop-{LOOP}/A3-quality.json"],
-    "SYNC->SHIP": ["loop-{LOOP}/A4-sync.json with verdict=ship"]
+    "SYNC->SHIP": ["loop-{LOOP}/A4-queen-verdict.json with verdict=clean"]
   },
   "waves": {
     "current": 0,
@@ -242,8 +243,9 @@ All outputs live under `.agents/tmp/phases/`:
 | A2 | `loop-{L}/A2-review.json` | JSON | Blueprint review verdict |
 | A3 | `loop-{L}/A3-build.json` | JSON | Build track worker results |
 | A3 | `loop-{L}/A3-quality.json` | JSON | Quality track sentinel results |
-| A4 | `loop-{L}/A4-sync.json` | JSON | Queen synchronization verdict |
-| A5 | `loop-{L}/A5-docs.json` | JSON | Documentation update summary |
+| A4 | `loop-{L}/A4-queen-verdict.json` | JSON | Queen synchronization verdict |
+| A5 | `loop-{L}/A5-docs.json` | JSON | Nurse documentation update summary |
+| A5 | `loop-{L}/A5-ship.json` | JSON | Drone commit/PR output |
 
 ## Stage Gates
 
@@ -252,7 +254,7 @@ All outputs live under `.agents/tmp/phases/`:
 | EXPLORE -> PLAN | `A0-explore.md` (soft -- continues if missing) | After Phase A0 |
 | PLAN -> BUILD | `loop-{L}/A1-plan.md` + A2 review approved | After Phase A2 |
 | BUILD -> SYNC | `loop-{L}/A3-build.json` + `loop-{L}/A3-quality.json` | After Phase A3 |
-| SYNC -> SHIP | `loop-{L}/A4-sync.json` with verdict `ship` | After Phase A4 |
+| SYNC -> SHIP | `loop-{L}/A4-queen-verdict.json` with verdict `clean` | After Phase A4 |
 
 ## Difference from Minions
 

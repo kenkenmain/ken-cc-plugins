@@ -18,7 +18,7 @@ check_ants_workflow
 
 CURRENT_PHASE=$(state_get '.currentPhase' --required)
 LOOP=$(state_get '.loop // 1')
-MAX_LOOPS=$(state_get '.maxLoops // 3')
+MAX_LOOPS=$(state_get '.maxLoops // 5')
 
 # Validate integers
 LOOP=$(require_int "$LOOP" "loop")
@@ -28,10 +28,11 @@ PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 
 # Recovery: advance state if output files exist but SubagentStop didn't fire.
 
-# A3->A4: if a3-build.json exists and valid, advance to A4
-if [[ "$CURRENT_PHASE" == "A3" && -f "${PHASES_DIR}/a3-build.json" ]]; then
-  if validate_json_file "${PHASES_DIR}/a3-build.json" "a3-build.json" 2>/dev/null; then
-    if jq -e '.tasks and .files_changed and .all_complete == true' "${PHASES_DIR}/a3-build.json" >/dev/null 2>&1; then
+# A3->A4: if A3-build.json exists and valid, advance to A4
+if [[ "$CURRENT_PHASE" == "A3" && -f "${PHASES_DIR}/A3-build.json" ]]; then
+  if validate_json_file "${PHASES_DIR}/A3-build.json" "A3-build.json" 2>/dev/null; then
+    if jq -e '.tasks and .files_changed and .all_complete == true' "${PHASES_DIR}/A3-build.json" >/dev/null 2>&1; then
+      echo "INFO: Recovery path triggered -- advancing A3->A4 in Stop hook (SubagentStop may not have fired)" >&2
       if ! update_state '.currentPhase = "A4" | .updatedAt = $ts | .phases.A3.status = "complete"'; then
         echo "ERROR: Failed to advance state from A3 to A4 in Stop hook." >&2
         exit 2
@@ -41,15 +42,16 @@ if [[ "$CURRENT_PHASE" == "A3" && -f "${PHASES_DIR}/a3-build.json" ]]; then
   fi
 fi
 
-# A4->A5/loop: if a4-queen-verdict.json exists and valid, advance based on verdict
-if [[ "$CURRENT_PHASE" == "A4" && -f "${PHASES_DIR}/a4-queen-verdict.json" ]]; then
-  if ! validate_json_file "${PHASES_DIR}/a4-queen-verdict.json" "a4-queen-verdict.json"; then
-    echo "ERROR: a4-queen-verdict.json exists but is invalid JSON." >&2
+# A4->A5/loop: if A4-queen-verdict.json exists and valid, advance based on verdict
+if [[ "$CURRENT_PHASE" == "A4" && -f "${PHASES_DIR}/A4-queen-verdict.json" ]]; then
+  echo "INFO: Recovery path triggered -- processing A4 verdict in Stop hook (SubagentStop may not have fired)" >&2
+  if ! validate_json_file "${PHASES_DIR}/A4-queen-verdict.json" "A4-queen-verdict.json"; then
+    echo "ERROR: A4-queen-verdict.json exists but is invalid JSON." >&2
     exit 2
   fi
 
   # VERDICT and TOTAL_ISSUES are set by parse_queen_verdict in caller scope
-  parse_queen_verdict "${PHASES_DIR}/a4-queen-verdict.json"
+  parse_queen_verdict "${PHASES_DIR}/A4-queen-verdict.json"
 
   if [[ "$VERDICT" == "clean" ]]; then
     if ! update_state --arg verdict "$VERDICT" \

@@ -74,7 +74,7 @@ EXPLORE ──> PLAN ──> BUILD ──> SYNC ──> SHIP
 | A0 | EXPLORE | forager x2-4, cartographer x1, explore-aggregator x1 | Parallel codebase exploration |
 | A1 | PLAN | architect x1 | Structured plan with wave assignments |
 | A2 | PLAN | blueprint-reviewer x1 | Plan validation |
-| A3 | BUILD | worker xN (per wave), sentinel xN (per wave) | Dual-track parallel execution |
+| A3 | BUILD | worker xN (per wave), guardian xN (per wave), sentinel xN (per wave) | Dual-track parallel execution |
 | A4 | SYNC | queen x1 | Merge tracks, ship/loop verdict |
 | A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
 
@@ -84,7 +84,7 @@ Phase A3 is the core innovation. Two tracks run in coordinated waves:
 
 **Build Track:** Workers implement tasks in waves according to the architect's plan. Wave 1 (foundation) runs first, then Wave 2 (dependent tasks) after a completion barrier.
 
-**Quality Track:** Soldier agents review each wave's output as it completes. They run sentinel reviews checking correctness, test coverage, integration risks, and acceptance criteria adherence.
+**Quality Track:** Sentinel agents review each wave's output as it completes. They run sentinel reviews checking correctness, test coverage, integration risks, and acceptance criteria adherence.
 
 **Wave synchronization:** Workers in the same wave run in parallel. After all workers in a wave complete, sentinels review that wave. Only after sentinel review completes does the next wave start.
 
@@ -163,9 +163,10 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 │   │   ├── A1-plan.md                   # Architect's plan
 │   │   ├── A2-review.json              # Blueprint review
 │   │   ├── A3-build.json              # Worker results
-│   │   ├── A3-quality.json            # Soldier results
-│   │   ├── A4-sync.json              # Queen verdict
-│   │   └── A5-docs.json              # Nurse summary
+│   │   ├── A3-quality.json            # Sentinel results
+│   │   ├── A4-queen-verdict.json     # Queen verdict
+│   │   ├── A5-docs.json              # Nurse documentation summary
+│   │   └── A5-ship.json              # Drone commit/PR output
 │   ├── loop-2/                        # If looped back
 │   │   └── ...
 ```

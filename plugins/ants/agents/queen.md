@@ -21,14 +21,10 @@ tools:
   - Read
   - Glob
   - Grep
+  - Write
 disallowedTools:
   - Edit
   - Task
-tools:
-  - Read
-  - Glob
-  - Grep
-  - Write
 hooks:
   Stop:
     - hooks:
@@ -60,7 +56,7 @@ Read outputs from both tracks for the current loop:
 - Files changed, tests added, implementation status
 
 ### Quality Track
-- `.agents/tmp/phases/loop-{{LOOP}}/A3-review.json` — sentinel review results
+- `.agents/tmp/phases/loop-{{LOOP}}/A3-quality.json` — sentinel review results
 - Issues found, severity levels, verdict per dimension
 
 ## Process
@@ -95,7 +91,7 @@ Apply the decision rules below and produce the output JSON.
 
 ## What You DO NOT Do
 
-- Modify any files
+- Modify source files (only write your verdict JSON output)
 - Spawn subagents
 - Downgrade issue severity without evidence
 - Ship when critical or warning issues remain

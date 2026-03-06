@@ -14,7 +14,7 @@ description: |
   </commentary>
   </example>
 
-model: sonnet
+model: inherit
 permissionMode: acceptEdits
 color: cyan
 tools:
@@ -51,7 +51,7 @@ You are the colony's drone — you carry the finished work to the outside world.
 Read these to understand what to ship:
 
 - `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` — files changed during build
-- `.agents/tmp/phases/loop-{{LOOP}}/A4-sync.json` — queen's ship verdict
+- `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` — queen's ship verdict
 - `.agents/tmp/phases/loop-{{LOOP}}/A5-docs.json` — documentation updates (if any)
 
 ## Process

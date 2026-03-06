@@ -31,16 +31,21 @@ case "$AGENT_TYPE" in
     AGENT="explorer" ;;
   architect|ants:architect)     AGENT="planner" ;;
   blueprint-reviewer|ants:blueprint-reviewer)   AGENT="reviewer" ;;
+  # All A3 agents (worker, sentinel, guardian) share the builder completion path.
+  # Guardian writes tests (builder-like) and sentinel reviews code -- both produce
+  # per-wave outputs that the orchestrator aggregates into A3-build.json.
   worker|ants:worker|sentinel|ants:sentinel|guardian|ants:guardian)
     AGENT="builder" ;;
   queen|ants:queen)         AGENT="queen" ;;
-  nurse|ants:nurse|drone|ants:drone)
-    AGENT="shipper" ;;
+  nurse|ants:nurse)
+    AGENT="nurse" ;;
+  drone|ants:drone)
+    AGENT="drone" ;;
   *) exit 0 ;; # Not an ants agent, allow
 esac
 
 LOOP=$(state_get '.loop // 1')
-MAX_LOOPS=$(state_get '.maxLoops // 3')
+MAX_LOOPS=$(state_get '.maxLoops // 5')
 LOOP=$(require_int "$LOOP" "loop")
 MAX_LOOPS=$(require_int "$MAX_LOOPS" "maxLoops")
 
@@ -86,10 +91,33 @@ case "$AGENT" in
       exit 2
     fi
 
-    # Advance to A3
-    if ! update_state '.currentPhase = "A3" | .updatedAt = $ts | .phases.A2.status = "complete"'; then
-      echo "ERROR: Failed to advance state from A2 to A3." >&2
-      exit 2
+    # Check if blueprint review requires revision
+    local review_status
+    review_status=$(jq -r '.status // .verdict // empty' "${PHASES_DIR}/A2-review.json" 2>/dev/null || echo "")
+    local high_count
+    high_count=$(jq -r '[.issues[]? | select(.severity == "HIGH" or .severity == "critical")] | length' "${PHASES_DIR}/A2-review.json" 2>/dev/null || echo "0")
+
+    if [[ "$review_status" == "needs_revision" && "$high_count" -gt 0 ]]; then
+      echo "INFO: Blueprint review needs revision with ${high_count} HIGH/critical issues -- looping back to A1." >&2
+      NEXT_LOOP=$((LOOP + 1))
+      if [[ "$NEXT_LOOP" -gt "$MAX_LOOPS" ]]; then
+        if ! update_state '.status = "stopped" | .currentPhase = "STOPPED" | .updatedAt = $ts | .phases.A2.status = "complete" | .failure = "Max loops reached: blueprint review has unresolved HIGH issues"'; then
+          echo "ERROR: Failed to update state to STOPPED after blueprint review failure." >&2
+          exit 2
+        fi
+      else
+        if ! update_state --argjson nextLoop "$NEXT_LOOP" \
+          '.currentPhase = "A1" | .loop = $nextLoop | .updatedAt = $ts | .phases.A2.status = "complete" | .loops += [{"loop": $nextLoop, "startedAt": $ts}]'; then
+          echo "ERROR: Failed to loop back to A1 after blueprint review failure." >&2
+          exit 2
+        fi
+      fi
+    else
+      # Advance to A3
+      if ! update_state '.currentPhase = "A3" | .updatedAt = $ts | .phases.A2.status = "complete"'; then
+        echo "ERROR: Failed to advance state from A2 to A3." >&2
+        exit 2
+      fi
     fi
     ;;
 
@@ -118,11 +146,16 @@ case "$AGENT" in
             if [[ "$a3_lock_age" -gt "$A3_LOCK_STALE_SECONDS" ]]; then
               echo "WARNING: Removing stale A3 lock directory (age: ${a3_lock_age}s)" >&2
               rm -rf "$A3_LOCK_DIR"
-              mkdir "$A3_LOCK_DIR" 2>/dev/null || exit 0
+              mkdir "$A3_LOCK_DIR" 2>/dev/null || {
+                echo "INFO: A3 lock contention after stale removal, deferring to other process" >&2
+                exit 0
+              }
             else
+              echo "INFO: A3 lock held by another process (age: ${a3_lock_age}s), deferring advancement" >&2
               exit 0
             fi
           else
+            echo "WARNING: Cannot determine A3 lock age, deferring advancement" >&2
             exit 0  # Cannot determine age, fail-closed
           fi
         else
@@ -188,18 +221,29 @@ case "$AGENT" in
     fi
     ;;
 
-  shipper)
-    # Validate A5 output exists
+  nurse)
+    # Validate nurse documentation output (A5-docs.json)
+    # Nurse completing does not advance phase -- drone still needs to run.
+    if [[ -f "${PHASES_DIR}/A5-docs.json" ]]; then
+      if ! validate_json_file "${PHASES_DIR}/A5-docs.json" "A5-docs.json"; then
+        echo "WARNING: A5-docs.json exists but is invalid JSON. Drone can still proceed." >&2
+      fi
+    fi
+    # No state change -- nurse is the first sub-step of A5, drone is second.
+    ;;
+
+  drone)
+    # Validate A5 ship output exists (drone writes this)
     if [[ ! -f "${PHASES_DIR}/A5-ship.json" ]]; then
-      echo "Shipper completed but A5-ship.json not found." >&2
+      echo "Drone completed but A5-ship.json not found." >&2
       exit 2
     fi
     if ! validate_json_file "${PHASES_DIR}/A5-ship.json" "A5-ship.json"; then
       echo "ERROR: A5-ship.json is invalid JSON." >&2
       exit 2
     fi
-    if ! jq -e '.commit_sha and .docs_updated' "${PHASES_DIR}/A5-ship.json" >/dev/null 2>&1; then
-      echo "ERROR: A5-ship.json missing required fields (commit_sha, docs_updated)." >&2
+    if ! jq -e '.commit_sha' "${PHASES_DIR}/A5-ship.json" >/dev/null 2>&1; then
+      echo "ERROR: A5-ship.json missing required field (commit_sha)." >&2
       exit 2
     fi
 
