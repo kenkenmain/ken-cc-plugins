@@ -56,45 +56,16 @@ if [[ "$CURRENT_PHASE" == "A4" && -f "${PHASES_DIR}/A4-queen-verdict.json" ]]; t
   # VERDICT is set by parse_queen_verdict in caller scope
   parse_queen_verdict "${PHASES_DIR}/A4-queen-verdict.json"
 
-  if [[ "$VERDICT" == "clean" ]]; then
-    if ! update_state --arg verdict "$VERDICT" \
-      '.currentPhase = "A5" | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict'; then
-      echo "ERROR: Failed to advance state from A4 to A5 in Stop hook." >&2
-      exit 2
-    fi
-    CURRENT_PHASE="A5"
-  elif [[ "$VERDICT" == "issues_found" ]]; then
-    NEXT_LOOP=$((LOOP + 1))
-    if [[ "$NEXT_LOOP" -gt "$MAX_LOOPS" ]]; then
-      if ! update_state --arg verdict "$VERDICT" \
-        '.status = "stopped" | .currentPhase = "STOPPED" | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .failure = "Max loops reached with unresolved issues"'; then
-        echo "ERROR: Failed to update state to STOPPED in Stop hook." >&2
-        exit 2
-      fi
-      CURRENT_PHASE="STOPPED"
-    else
-      if ! update_state --arg verdict "$VERDICT" --argjson nextLoop "$NEXT_LOOP" \
-        '.currentPhase = "A1" | .loop = $nextLoop | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .loops += [{"loop": $nextLoop, "startedAt": $ts}]'; then
-        echo "ERROR: Failed to loop back to A1 in Stop hook." >&2
-        exit 2
-      fi
-      if ! reset_phases_for_loop; then
-        echo "ERROR: Failed to reset phases for loop-back from A4 in Stop hook" >&2
-        exit 2
-      fi
-      cb_increment_stage_restarts || {
-        echo "WARNING: Stage restart budget exhausted in Stop hook recovery." >&2
-        if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"'; then
-          echo "ERROR: Failed to set blocked status after stage restart budget exhaustion." >&2
-          exit 2
-        fi
-        exit 0  # Allow stop -- workflow is now blocked
-      }
-      cb_reset_for_loop
-      LOOP="$NEXT_LOOP"
-      PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
-      CURRENT_PHASE="A1"
-    fi
+  # Use shared verdict handler (defined in swarm.sh)
+  RESULT_PHASE=""
+  handle_a4_verdict "$VERDICT" "$LOOP" "$MAX_LOOPS"
+  CURRENT_PHASE="$RESULT_PHASE"
+
+  if [[ "$RESULT_PHASE" == "BLOCKED" ]]; then
+    exit 0  # Allow stop -- workflow is now blocked
+  elif [[ "$RESULT_PHASE" == "A1" ]]; then
+    LOOP=$((LOOP + 1))
+    PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
   fi
 fi
 

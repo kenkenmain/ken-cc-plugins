@@ -138,7 +138,7 @@ update_state() {
   else
     # mkdir-based locking fallback (stock macOS without flock)
     local lock_dir="${STATE_FILE}.lockdir"
-    local lock_stale_seconds=30
+    local lock_stale_seconds=5
     local lock_acquired=false
     local attempt
 

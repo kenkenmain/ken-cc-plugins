@@ -323,48 +323,17 @@ case "$AGENT" in
     # VERDICT is set by parse_queen_verdict in caller scope
     parse_queen_verdict "${PHASES_DIR}/A4-queen-verdict.json"
 
-    if [[ "$VERDICT" == "clean" ]]; then
-      # Advance to A5
-      if ! update_state --arg verdict "$VERDICT" \
-        '.currentPhase = "A5" | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict'; then
-        echo "ERROR: Failed to advance state from A4 to A5." >&2
-        exit 2
-      fi
-    else
-      # Issues found — loop back to A1 or stop
-      NEXT_LOOP=$((LOOP + 1))
-      if [[ "$NEXT_LOOP" -gt "$MAX_LOOPS" ]]; then
-        if ! update_state --arg verdict "$VERDICT" \
-          '.status = "stopped" | .currentPhase = "STOPPED" | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .failure = "Max loops reached with unresolved issues"'; then
-          echo "ERROR: Failed to update state to STOPPED." >&2
-          exit 2
-        fi
+    # Use shared verdict handler (defined in swarm.sh)
+    RESULT_PHASE=""
+    handle_a4_verdict "$VERDICT" "$LOOP" "$MAX_LOOPS"
 
-        # Intentional: decision:block in SubagentStop injects context into the orchestrator
-        # to surface the max-loops-reached message. The queen already finished.
-        jq -n --arg reason "WORKFLOW STOPPED: Maximum loops (${MAX_LOOPS}) reached with unresolved issues. Review the latest A4 outputs in .agents/tmp/phases/loop-${LOOP}/ for remaining issues." \
-          '{"decision":"block","reason":$reason}'
-        exit 0
-      else
-        if ! update_state --arg verdict "$VERDICT" --argjson nextLoop "$NEXT_LOOP" \
-          '.currentPhase = "A1" | .loop = $nextLoop | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .loops += [{"loop": $nextLoop, "startedAt": $ts}]'; then
-          echo "ERROR: Failed to loop back to A1." >&2
-          exit 2
-        fi
-        if ! reset_phases_for_loop; then
-          echo "ERROR: Failed to reset phases for loop-back from A4" >&2
-          exit 2
-        fi
-        cb_increment_stage_restarts || {
-          echo "WARNING: Stage restart budget exhausted after queen loop-back." >&2
-          if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"'; then
-            echo "ERROR: Failed to set blocked status after stage restart budget exhaustion." >&2
-            exit 2
-          fi
-          exit 0  # Allow subagent stop -- workflow is now blocked
-        }
-        cb_reset_for_loop
-      fi
+    if [[ "$RESULT_PHASE" == "STOPPED" ]]; then
+      # Surface max-loops message to orchestrator via decision:block
+      jq -n --arg reason "WORKFLOW STOPPED: Maximum loops (${MAX_LOOPS}) reached with unresolved issues. Review the latest A4 outputs in .agents/tmp/phases/loop-${LOOP}/ for remaining issues." \
+        '{"decision":"block","reason":$reason}'
+      exit 0
+    elif [[ "$RESULT_PHASE" == "BLOCKED" ]]; then
+      exit 0  # Allow subagent stop -- workflow is now blocked
     fi
     ;;
 

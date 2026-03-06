@@ -212,26 +212,21 @@ pool_claim_task() {
 pool_complete_task() {
   local task_id="${1:?pool_complete_task requires a task ID}"
 
-  # Verify task exists and is claimed
-  local current_status
-  current_status=$(jq -r --arg tid "$task_id" '
-    .taskPool[] | select(.id == $tid) | .status // empty
-  ' "$STATE_FILE")
-
-  if [[ -z "$current_status" ]]; then
-    echo "ERROR: Task $task_id not found in pool" >&2
-    return 1
-  fi
-
-  if [[ "$current_status" != "claimed" ]]; then
-    echo "WARNING: Task $task_id has status '$current_status', expected 'claimed'. Completing anyway." >&2
-  fi
-
+  # Atomic status check + update inside update_state to avoid TOCTOU race.
+  # The jq filter validates status is "claimed" before completing.
   if ! update_state --arg tid "$task_id" '
-    .taskPool |= map(
-      if .id == $tid then .status = "complete"
-      else . end
-    )
+    if (.taskPool | map(select(.id == $tid)) | length) == 0 then
+      error("Task \($tid) not found in pool")
+    else
+      .taskPool |= map(
+        if .id == $tid then
+          if .status == "claimed" then .status = "complete"
+          elif .status == "complete" then .  # idempotent
+          else .status = "complete"  # warn but complete
+          end
+        else . end
+      )
+    end
   '; then
     echo "ERROR: Failed to complete task $task_id" >&2
     return 1

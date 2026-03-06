@@ -132,6 +132,73 @@ parse_queen_verdict() {
 }
 
 # ===========================================================================
+# Verdict Handling (shared between on-subagent-stop.sh and on-stop.sh)
+# ===========================================================================
+
+# Handle A4 verdict result: advance to A5 (clean) or loop back to A1 (issues_found).
+# This function centralizes the verdict logic to avoid duplication.
+#
+# Arguments:
+#   $1 — VERDICT value ("clean" or "issues_found")
+#   $2 — LOOP (current loop number)
+#   $3 — MAX_LOOPS
+#   $4 — PHASES_DIR (current loop phases directory)
+#
+# Returns: 0 on success, exits 2 on failure.
+# Side effects: updates state.json, may call reset_phases_for_loop and circuit breaker functions.
+# Sets RESULT_PHASE in caller scope to the new phase ("A5", "A1", "STOPPED", "BLOCKED").
+handle_a4_verdict() {
+  local verdict="${1:?handle_a4_verdict requires VERDICT}"
+  local loop="${2:?handle_a4_verdict requires LOOP}"
+  local max_loops="${3:?handle_a4_verdict requires MAX_LOOPS}"
+
+  if [[ "$verdict" == "clean" ]]; then
+    if ! update_state --arg verdict "$verdict" \
+      '.currentPhase = "A5" | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict'; then
+      echo "ERROR: Failed to advance state from A4 to A5." >&2
+      exit 2
+    fi
+    RESULT_PHASE="A5"
+    return 0
+  fi
+
+  # issues_found — loop back or stop
+  local next_loop=$((loop + 1))
+  if [[ "$next_loop" -gt "$max_loops" ]]; then
+    if ! update_state --arg verdict "$verdict" \
+      '.status = "stopped" | .currentPhase = "STOPPED" | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .failure = "Max loops reached with unresolved issues"'; then
+      echo "ERROR: Failed to update state to STOPPED." >&2
+      exit 2
+    fi
+    RESULT_PHASE="STOPPED"
+    return 0
+  fi
+
+  # Loop back to A1
+  if ! update_state --arg verdict "$verdict" --argjson nextLoop "$next_loop" \
+    '.currentPhase = "A1" | .loop = $nextLoop | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .loops += [{"loop": $nextLoop, "startedAt": $ts}]'; then
+    echo "ERROR: Failed to loop back to A1." >&2
+    exit 2
+  fi
+  if ! reset_phases_for_loop; then
+    echo "ERROR: Failed to reset phases for loop-back from A4" >&2
+    exit 2
+  fi
+  cb_increment_stage_restarts || {
+    echo "WARNING: Stage restart budget exhausted." >&2
+    if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"'; then
+      echo "ERROR: Failed to set blocked status." >&2
+      exit 2
+    fi
+    RESULT_PHASE="BLOCKED"
+    return 0
+  }
+  cb_reset_for_loop || echo "WARNING: Failed to reset circuit breaker for loop" >&2
+  RESULT_PHASE="A1"
+  return 0
+}
+
+# ===========================================================================
 # Pool-Aware Prompt Generation
 # ===========================================================================
 
