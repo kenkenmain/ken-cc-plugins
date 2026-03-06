@@ -40,6 +40,10 @@ fi
 # realpath -m works even if the file does not exist yet (needed for Write creating new files)
 if command -v realpath &>/dev/null; then
   FILE_PATH=$(realpath -m "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
+elif [[ "$FILE_PATH" == *".."* ]]; then
+  # Fail-closed: block edits with traversal sequences when realpath is unavailable
+  echo "ERROR: Path contains '..' and realpath is not available for canonicalization -- blocking edit." >&2
+  exit 2
 fi
 
 # Allow .agents/ writes in any phase (workflow output files)
@@ -67,13 +71,13 @@ case "$CURRENT_PHASE" in
     if [[ "$has_pool" == "yes" ]]; then
       source "$SCRIPT_DIR/lib/task-pool.sh"
       if owner_json=$(pool_get_file_owner "$FILE_PATH"); then
-        # File has an owner -- warn if it does not match the current worker
-        # We cannot determine the current worker identity in the edit gate
-        # (it fires for the orchestrator, not the subagent), so we log a warning
-        # that the file is owned by a specific task for diagnostic purposes.
+        # File has an owner -- advisory logging only.
+        # The edit gate fires for the orchestrator context, not the subagent,
+        # so we cannot determine the current worker identity to enforce ownership.
+        # File ownership is enforced at the worker prompt level (workers are told
+        # which files they own), not at the hook level.
         owner_task=$(echo "$owner_json" | jq -r '.task_id // "unknown"')
-        owner_claimer=$(echo "$owner_json" | jq -r '.claimed_by // "unknown"')
-        echo "INFO: File ${FILE_PATH} is owned by task ${owner_task} (claimed by ${owner_claimer})" >&2
+        echo "INFO: File ${FILE_PATH} is owned by task ${owner_task} (advisory -- ownership enforced at worker prompt level)" >&2
       fi
     fi
     exit 0

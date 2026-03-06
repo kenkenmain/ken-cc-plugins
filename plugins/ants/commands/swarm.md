@@ -22,7 +22,7 @@ Parse from $ARGUMENTS to extract the task description.
 Phase A0  │ EXPLORE     │ Forage         │ 3-5 parallel foragers + cartographer → aggregator
 Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (parallel waves) + sentinels + guardians
+Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + sentinels + guardians
 Phase A4  │ SYNC        │ Queen          │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
 
@@ -69,19 +69,18 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "startedAt": "<ISO timestamp>",
   "updatedAt": "<ISO timestamp>",
   "currentPhase": "A0",
-  "currentStage": "EXPLORE",
   "ownerPpid": "<PPID>",
   "sessionId": "<random hex>",
   "branch": "<BRANCH_NAME>",
   "maxLoops": 5,
   "loop": 1,
   "schedule": [
-    {"phase":"A0","stage":"EXPLORE","name":"Forage","type":"dispatch"},
-    {"phase":"A1","stage":"PLAN","name":"Architect","type":"subagent"},
-    {"phase":"A2","stage":"PLAN-REVIEW","name":"Blueprint Review","type":"review"},
-    {"phase":"A3","stage":"BUILD+QUAL","name":"Dual-Track Build","type":"dispatch"},
-    {"phase":"A4","stage":"SYNC","name":"Synchronize","type":"subagent"},
-    {"phase":"A5","stage":"SHIP","name":"Ship","type":"subagent"}
+    {"phase":"A0","stage":"EXPLORE","label":"Forage","type":"dispatch"},
+    {"phase":"A1","stage":"PLAN","label":"Architect","type":"subagent"},
+    {"phase":"A2","stage":"PLAN-REVIEW","label":"Blueprint Review","type":"review"},
+    {"phase":"A3","stage":"BUILD+QUAL","label":"Dual-Track Build","type":"dispatch"},
+    {"phase":"A4","stage":"SYNC","label":"Synchronize","type":"subagent"},
+    {"phase":"A5","stage":"SHIP","label":"Ship","type":"subagent"}
   ],
   "phases": {
     "A0": {"status": "pending"},
@@ -102,16 +101,6 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "taskPool": [],
   "dispatchMode": "subagent",
   "agentTeamsAvailable": false,
-  "buildTrack": {
-    "waves": [],
-    "currentWave": 0,
-    "totalWaves": 0
-  },
-  "qualityTrack": {
-    "reviews": [],
-    "criticalIssues": 0
-  },
-  "files": [],
   "failure": null
 }
 ```
@@ -124,7 +113,7 @@ Ants Swarm — 6-Phase Dual-Track Pipeline
 Phase A0  │ EXPLORE     │ Forage         │ dispatch  → foragers + cartographer + aggregator
 Phase A1  │ PLAN        │ Architect      │ subagent  → architect
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ review    → blueprint-reviewer
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ dispatch  → workers + sentinels + guardians (waves)
+Phase A3  │ BUILD+QUAL  │ Dual-Track     │ dispatch  → workers + sentinels + guardians (task pool)
 Phase A4  │ SYNC        │ Queen          │ subagent  → queen (ship/loop verdict)
 Phase A5  │ SHIP        │ Ship           │ subagent  → nurse (docs) + drone (commit + PR)
 ```

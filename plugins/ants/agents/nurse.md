@@ -15,6 +15,7 @@ description: |
   </example>
 
 model: sonnet
+permissionMode: acceptEdits
 color: green
 tools:
   - Read

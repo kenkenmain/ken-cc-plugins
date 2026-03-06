@@ -45,8 +45,10 @@ plugins/ants/
 ├── prompts/                       # Phase prompt templates
 │   ├── A0-explore.md              # Colony exploration dispatch
 │   ├── A1-plan.md                 # Architect plan dispatch
+│   ├── A2-review.md               # Blueprint review dispatch
 │   ├── A3-build.md                # Dual-track build dispatch
-│   └── A4-sync.md                 # Queen synchronization dispatch
+│   ├── A4-sync.md                 # Queen synchronization dispatch
+│   └── A5-ship.md                 # Documentation + ship dispatch
 ├── skills/                        # Workflow documentation
 │   ├── swarm/SKILL.md             # Swarm pipeline reference
 │   └── workflow/SKILL.md          # Ralph Loop mechanics
@@ -276,7 +278,6 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
   "currentPhase": "A0|A1|A2|A3|A4|A5|DONE|STOPPED",
   "loop": 1,
   "maxLoops": 5,
-  "webSearch": true,
   "dispatchMode": "subagent",
   "startedAt": "ISO timestamp",
   "schedule": [
@@ -294,19 +295,6 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
     "A3": {"status": "pending"},
     "A4": {"status": "pending"},
     "A5": {"status": "pending"}
-  },
-  "stages": {
-    "EXPLORE": {"status": "pending", "phases": ["A0"]},
-    "PLAN": {"status": "pending", "phases": ["A1", "A2"]},
-    "BUILD": {"status": "pending", "phases": ["A3"]},
-    "SYNC": {"status": "pending", "phases": ["A4"]},
-    "SHIP": {"status": "pending", "phases": ["A5"]}
-  },
-  "gates": {
-    "EXPLORE->PLAN": ["A0-explore.md"],
-    "PLAN->BUILD": ["loop-{LOOP}/A1-plan.md", "A2-review approved"],
-    "BUILD->SYNC": ["loop-{LOOP}/A3-build.json", "loop-{LOOP}/A3-quality.json"],
-    "SYNC->SHIP": ["loop-{LOOP}/A4-queen-verdict.json with verdict=clean"]
   },
   "taskPool": [],
   "circuitBreaker": {

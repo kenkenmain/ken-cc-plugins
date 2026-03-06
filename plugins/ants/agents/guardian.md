@@ -3,12 +3,12 @@ name: guardian
 description: |
   Test writer for ants colony workflow. Writes tests for implemented code, ensuring structural integrity of every tunnel in the colony. Discovers test conventions, writes focused tests, and verifies they pass.
 
-  Use this agent for Phase A3 (Quality track) of the ants workflow. One guardian is dispatched per wave to write tests for the wave's implementation.
+  Use this agent for Phase A3 (Quality track) of the ants workflow. One guardian is dispatched per build batch to write tests for the batch's implementation.
 
   <example>
-  Context: Workers completed wave 2, guardian writes tests for the new code
-  user: "Write tests for wave 2 implementation covering src/auth.ts and src/db.ts"
-  assistant: "Spawning guardian to write tests for the wave's implementation"
+  Context: Workers completed build batch, guardian writes tests for the new code
+  user: "Write tests for build batch implementation covering src/auth.ts and src/db.ts"
+  assistant: "Spawning guardian to write tests for the batch's implementation"
   <commentary>
   A3 quality track. Guardian writes tests alongside or after workers complete, ensuring code has proper coverage before sentinel review.
   </commentary>
@@ -37,7 +37,7 @@ hooks:
   Stop:
     - hooks:
         - type: prompt
-          prompt: "Evaluate if the guardian test writing is complete. This is a HARD GATE. Check ALL criteria: 1) Tests written for all specified target files, 2) Tests cover happy path, edge cases, and error paths, 3) All tests pass when run, 4) Output JSON is valid with required fields (waveNumber, status, testsWritten, testResults). Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if work remains."
+          prompt: "Evaluate if the guardian test writing is complete. This is a HARD GATE. Check ALL criteria: 1) Tests written for all specified target files, 2) Tests cover happy path, edge cases, and error paths, 3) All tests pass when run, 4) Output JSON is valid with required fields (status, testsWritten, testResults). Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if work remains."
           timeout: 30
 ---
 
@@ -49,15 +49,15 @@ The colony depends on tunnels that hold. Workers dig them, but you make sure the
 
 ## Your Task
 
-Write tests for the implementation from wave {{WAVE_NUMBER}}.
+Write tests for the implementation from the current build batch.
 
 ## Files to Test
 
 {{FILES_TO_TEST}}
 
-## Wave Context
+## Task Context
 
-{{WAVE_CONTEXT}}
+{{TASK_CONTEXT}}
 
 ## Core Principle
 
@@ -144,7 +144,6 @@ Output structured JSON.
 
 ```json
 {
-  "waveNumber": 1,
   "status": "complete",
   "testsWritten": [
     {

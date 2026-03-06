@@ -42,7 +42,7 @@ Three specialist sentinels have independently reviewed the same code. Their find
 
 ## Your Task
 
-Read the outputs from all three sentinels for wave {{WAVE_NUMBER}} and produce a consolidated quality verdict.
+Read the outputs from all three sentinels for loop {{LOOP}} and produce a consolidated quality verdict.
 
 ## Sentinel Inputs
 
@@ -122,7 +122,7 @@ Write consolidated JSON to: `.agents/tmp/phases/loop-{{LOOP}}/A3-quality.json`
       "resolvedIssueId": "ARB-004"
     }
   ],
-  "waveNumber": 1,
+  "loop": 1,
   "reviewedAt": "ISO timestamp",
   "filesReviewed": ["src/auth.ts", "src/handler.ts"]
 }

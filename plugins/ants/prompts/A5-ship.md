@@ -11,7 +11,7 @@ Agents run sequentially: nurse first, then drone.
 
 ## Prerequisites
 
-- A4 sync verdict must be `"ship"` (enforced by gate)
+- A4 sync verdict must be `"clean"` (enforced by gate)
 - `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` exists with `verdict: "clean"`
 
 ## Process

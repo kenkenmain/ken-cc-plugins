@@ -25,17 +25,19 @@ if [[ -z "$INPUT" ]] || ! printf '%s' "$INPUT" | jq empty 2>/dev/null; then
   exit 2
 fi
 
-AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.agent_name // empty')
+AGENT_TYPE=$(printf '%s' "$INPUT" | jq -r '.agent_name // .agent_type // .subagent_type // empty')
 
 # Only handle ants agents
 case "$AGENT_TYPE" in
-  forager|ants:forager|cartographer|ants:cartographer|explore-aggregator|ants:explore-aggregator)
+  forager|ants:forager|cartographer|ants:cartographer)
+    AGENT="explorer-individual" ;;
+  explore-aggregator|ants:explore-aggregator)
     AGENT="explorer" ;;
   architect|ants:architect)     AGENT="planner" ;;
   blueprint-reviewer|ants:blueprint-reviewer)   AGENT="reviewer" ;;
   # All A3 agents (worker, sentinel, guardian) share the builder completion path.
   # Guardian writes tests (builder-like) and sentinel reviews code -- both produce
-  # per-wave outputs that the orchestrator aggregates into A3-build.json.
+  # per-task outputs that the orchestrator aggregates into A3-build.json.
   worker|ants:worker|guardian|ants:guardian|sentinel|ants:sentinel)
     AGENT="builder" ;;
   sentinel-correctness|ants:sentinel-correctness)
@@ -64,6 +66,12 @@ MAX_LOOPS=$(require_int "$MAX_LOOPS" "maxLoops")
 PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
 
 case "$AGENT" in
+  explorer-individual)
+    # Individual foragers/cartographers completing -- allow silently.
+    # Only the explore-aggregator triggers the A0->A1 transition.
+    echo "INFO: Individual explorer (${AGENT_TYPE}) completed, awaiting aggregator" >&2
+    ;;
+
   explorer)
     # Validate A0 output exists (A0 is top-level, not loop-scoped)
     if [[ ! -f ".agents/tmp/phases/A0-explore.md" ]]; then
@@ -76,6 +84,7 @@ case "$AGENT" in
       echo "ERROR: Failed to advance state from A0 to A1." >&2
       exit 2
     fi
+    cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
     ;;
 
   planner)
@@ -90,6 +99,7 @@ case "$AGENT" in
       echo "ERROR: Failed to advance state from A1 to A2." >&2
       exit 2
     fi
+    cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
     ;;
 
   reviewer)
@@ -105,6 +115,10 @@ case "$AGENT" in
 
     # Check if blueprint review requires revision
     review_status=$(jq -r '.status // .verdict // empty' "${PHASES_DIR}/A2-review.json" 2>/dev/null || echo "")
+    if [[ -z "$review_status" ]]; then
+      echo "ERROR: A2-review.json has neither .status nor .verdict field. Failing closed -- review must produce a verdict." >&2
+      exit 2
+    fi
     high_count=$(jq -r '[.issues[]? | select(.severity == "HIGH" or .severity == "critical")] | length' "${PHASES_DIR}/A2-review.json" 2>/dev/null || echo "0")
 
     if [[ "$review_status" == "needs_revision" && "$high_count" -gt 0 ]]; then
@@ -121,10 +135,17 @@ case "$AGENT" in
           echo "ERROR: Failed to loop back to A1 after blueprint review failure." >&2
           exit 2
         fi
-        reset_phases_for_loop
+        if ! reset_phases_for_loop; then
+          echo "ERROR: Failed to reset phases for loop-back from A2" >&2
+          exit 2
+        fi
         cb_increment_stage_restarts || {
           echo "WARNING: Stage restart budget exhausted after blueprint review failure." >&2
-          update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"' || true
+          if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"'; then
+            echo "ERROR: Failed to set blocked status after stage restart budget exhaustion." >&2
+            exit 2
+          fi
+          exit 0  # Allow subagent stop -- workflow is now blocked
         }
         cb_reset_for_loop
       fi
@@ -134,6 +155,7 @@ case "$AGENT" in
         echo "ERROR: Failed to advance state from A2 to A3." >&2
         exit 2
       fi
+      cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
     fi
     ;;
 
@@ -187,22 +209,37 @@ case "$AGENT" in
           echo "ERROR: Failed to advance state from A3 to A4." >&2
           exit 2
         fi
+      else
+        echo "INFO: A3->A4 already advanced (currentPhase=$CURRENT), skipping" >&2
       fi
       rm -rf "$A3_LOCK_DIR" 2>/dev/null || true
-    fi
+    else
     # If A3-build.json doesn't exist yet, this is an individual builder completing.
     # If a task pool exists, mark the worker's task as complete and check pool status.
-    has_pool=$(jq -r '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end' "$STATE_FILE" 2>/dev/null || echo "no")
+    has_pool=$(jq -r '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end' "$STATE_FILE" 2>/dev/null) || { echo "WARNING: Failed to read taskPool from state" >&2; has_pool="no"; }
     if [[ "$has_pool" == "yes" ]]; then
       source "$SCRIPT_DIR/lib/task-pool.sh"
       # Extract task_id from subagent output if available
-      task_id=$(printf '%s' "$INPUT" | jq -r '.output.task_id // empty' 2>/dev/null || echo "")
+      task_id=$(printf '%s' "$INPUT" | jq -r '.output.taskId // .output.task_id // empty' 2>/dev/null || echo "")
+      # Fallback: try extracting task_id from the subagent prompt text
+      if [[ -z "$task_id" ]]; then
+        task_id=$(printf '%s' "$INPUT" | jq -r '.tool_input.prompt // .prompt // empty' 2>/dev/null | grep -oE 'Task ID:\s*(\S+)' | head -1 | sed 's/Task ID:\s*//' || echo "")
+      fi
       if [[ -n "$task_id" ]]; then
-        pool_complete_task "$task_id" || echo "WARNING: Failed to complete task $task_id in pool" >&2
+        if ! pool_complete_task "$task_id"; then
+          echo "ERROR: Failed to complete task $task_id in pool. Workflow will stall." >&2
+          exit 2
+        fi
+      else
+        echo "WARNING: Builder (${AGENT_TYPE}) completed but no task_id found in output or prompt. Recording failure." >&2
+        cb_record_failure || true
       fi
       if pool_is_complete; then
         echo "INFO: All tasks in pool complete" >&2
       fi
+    else
+      echo "INFO: Builder completed (no task pool, legacy mode)" >&2
+    fi
     fi
     ;;
 
@@ -232,8 +269,6 @@ case "$AGENT" in
       exit 2
     fi
 
-    source "$SCRIPT_DIR/lib/circuit-breaker.sh"
-
     arbiter_verdict=$(jq -r '.verdict // empty' "${PHASES_DIR}/A3-quality.json" 2>/dev/null || echo "")
     critical_count=$(jq -r '[.issues[]? | select(.severity == "critical")] | length' "${PHASES_DIR}/A3-quality.json" 2>/dev/null || echo "0")
 
@@ -244,16 +279,24 @@ case "$AGENT" in
       fi
     else
       echo "INFO: Arbiter verdict clean or no critical issues, recording success" >&2
-      cb_record_success
+      cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
     fi
 
     # Advance to A4 regardless (queen evaluates the full picture)
-    current=$(jq -r '.currentPhase // empty' "$STATE_FILE" 2>/dev/null || echo "")
-    if [[ "$current" == "A3" ]]; then
-      if ! update_state '.currentPhase = "A4" | .updatedAt = $ts | .phases.A3.status = "complete"'; then
-        echo "ERROR: Failed to advance state from A3 to A4 after arbiter." >&2
-        exit 2
+    # Use the same mkdir lock as the builder case to prevent duplicate advancement
+    A3_LOCK_DIR="${PHASES_DIR}/.a3-advance.lock"
+    if mkdir "$A3_LOCK_DIR" 2>/dev/null; then
+      current=$(jq -r '.currentPhase // empty' "$STATE_FILE" 2>/dev/null || echo "")
+      if [[ "$current" == "A3" ]]; then
+        if ! update_state '.currentPhase = "A4" | .updatedAt = $ts | .phases.A3.status = "complete"'; then
+          rm -rf "$A3_LOCK_DIR" 2>/dev/null || true
+          echo "ERROR: Failed to advance state from A3 to A4 after arbiter." >&2
+          exit 2
+        fi
       fi
+      rm -rf "$A3_LOCK_DIR" 2>/dev/null || true
+    else
+      echo "INFO: A3 lock held by another process (arbiter path), deferring advancement" >&2
     fi
     ;;
 
@@ -277,7 +320,7 @@ case "$AGENT" in
       exit 2
     fi
 
-    # VERDICT and TOTAL_ISSUES are set by parse_queen_verdict in caller scope
+    # VERDICT is set by parse_queen_verdict in caller scope
     parse_queen_verdict "${PHASES_DIR}/A4-queen-verdict.json"
 
     if [[ "$VERDICT" == "clean" ]]; then
@@ -297,18 +340,28 @@ case "$AGENT" in
           exit 2
         fi
 
+        # Intentional: decision:block in SubagentStop injects context into the orchestrator
+        # to surface the max-loops-reached message. The queen already finished.
         jq -n --arg reason "WORKFLOW STOPPED: Maximum loops (${MAX_LOOPS}) reached with unresolved issues. Review the latest A4 outputs in .agents/tmp/phases/loop-${LOOP}/ for remaining issues." \
           '{"decision":"block","reason":$reason}'
+        exit 0
       else
         if ! update_state --arg verdict "$VERDICT" --argjson nextLoop "$NEXT_LOOP" \
           '.currentPhase = "A1" | .loop = $nextLoop | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .loops += [{"loop": $nextLoop, "startedAt": $ts}]'; then
           echo "ERROR: Failed to loop back to A1." >&2
           exit 2
         fi
-        reset_phases_for_loop
+        if ! reset_phases_for_loop; then
+          echo "ERROR: Failed to reset phases for loop-back from A4" >&2
+          exit 2
+        fi
         cb_increment_stage_restarts || {
           echo "WARNING: Stage restart budget exhausted after queen loop-back." >&2
-          update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"' || true
+          if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"'; then
+            echo "ERROR: Failed to set blocked status after stage restart budget exhaustion." >&2
+            exit 2
+          fi
+          exit 0  # Allow subagent stop -- workflow is now blocked
         }
         cb_reset_for_loop
       fi

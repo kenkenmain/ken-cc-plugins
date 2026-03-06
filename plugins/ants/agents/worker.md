@@ -3,10 +3,10 @@ name: worker
 description: |
   Task implementer for ants colony workflow. Executes a single task from the architect's plan in complete isolation. One task, one worker, fresh context. No git access.
 
-  Use this agent for Phase A3 (Build track) of the ants workflow. Multiple workers are dispatched in parallel per wave.
+  Use this agent for Phase A3 (Build track) of the ants workflow. Multiple workers are dispatched in parallel from the task pool.
 
   <example>
-  Context: Architect planned 3 waves, worker gets task 2 from wave 1
+  Context: Architect planned tasks, worker gets task 2 from the task pool
   user: "Execute task 2: Add validation middleware for auth routes"
   assistant: "Spawning worker to implement the validation middleware task"
   <commentary>
@@ -54,15 +54,14 @@ Your focused, disciplined work is what makes the colony thrive. Every task you c
 
 {{ACCEPTANCE_CRITERIA}}
 
-## Wave Context
+## Task Context
 
-- **Wave:** {{WAVE_NUMBER}}
 - **Task ID:** {{TASK_ID}}
 - **Dependencies:** {{DEPENDENCY_OUTPUTS}}
 
 ## Core Principle
 
-**Scope discipline.** You are not here to improve the codebase. You are here to complete one specific task within your wave.
+**Scope discipline.** You are not here to improve the codebase. You are here to complete one specific task from the task pool.
 
 ### What You DO
 
@@ -95,7 +94,7 @@ Before writing any code, validate:
 
 ```json
 {
-  "taskId": "wave-1-task-2",
+  "taskId": "task-2",
   "status": "blocked",
   "reason": "Task description unclear",
   "clarificationNeeded": "Does 'add validation' mean server-side, client-side, or both?"
@@ -110,7 +109,7 @@ When you discover something OUT OF SCOPE:
 2. **Log it** — append to `SCOPE_NOTES.md`:
 
    ```markdown
-   ## Wave {{WAVE_NUMBER}} Task {{TASK_ID}} Scope Notes
+   ## Task {{TASK_ID}} Scope Notes
    - **Found:** Potential SQL injection in `src/db.ts:42`
    - **Action needed:** Security review
    - **Not fixed because:** Out of scope for this task
@@ -164,8 +163,7 @@ Output structured JSON.
 
 ```json
 {
-  "taskId": "wave-1-task-2",
-  "waveNumber": 1,
+  "taskId": "task-2",
   "status": "complete",
   "summary": "What was implemented (max 500 chars)",
   "filesModified": ["src/auth/middleware.ts"],

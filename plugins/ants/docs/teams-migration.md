@@ -55,7 +55,7 @@ Workers write output files to `.agents/tmp/phases/` in both modes. Mailbox messa
 | Stop hook prompt injection | TeammateIdle auto-assignment | Idle orchestrator picks up next queued task |
 | SubagentStop validation + state advance | TaskCompleted quality gate | Same validation logic, different trigger event |
 | on-edit-gate.sh `file_owner` in taskPool | Exclusive file ownership per teammate | Teams enforces this natively; gate becomes advisory |
-| `dispatchMode: "subagent"` in state.json | `dispatchMode: "teams"` in state.json | Switched by `detect_teams_available()` at swarm init |
+| `dispatchMode: "subagent"` in state.json | `dispatchMode: "teams"` in state.json | Switched by `teams_detect()` at swarm init |
 | `generate_swarm_prompt()` returns Task prompt | Returns TeammateTool call spec | Branching already in `lib/swarm.sh` |
 | `on-teams-stub.sh` exits 0 (no-op) | `on-teams-stub.sh` runs real handler | Remove early-exit guard once API is stable |
 
@@ -69,15 +69,15 @@ Workers write output files to `.agents/tmp/phases/` in both modes. Mailbox messa
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
-Add to your shell profile if you want it persistent. `lib/teams.sh::detect_teams_available()` reads this variable; it is also checked during swarm init to set `state.agentTeamsAvailable` and `state.dispatchMode`.
+Add to your shell profile if you want it persistent. `lib/teams.sh::teams_detect()` reads this variable; it is also checked during swarm init to set `state.agentTeamsAvailable` and `state.dispatchMode`.
 
 ### Step 2 — Update `lib/teams.sh` dispatch mode
 
-Open `plugins/ants/hooks/lib/teams.sh`. The `get_dispatch_mode()` function currently returns `"subagent"` unconditionally as a safe default. Change the teams branch to return `"teams"`:
+Open `plugins/ants/hooks/lib/teams.sh`. The `teams_get_dispatch_mode()` function currently returns `"subagent"` unconditionally as a safe default. Change the teams branch to return `"teams"`:
 
 ```bash
-get_dispatch_mode() {
-  if detect_teams_available; then
+teams_get_dispatch_mode() {
+  if teams_detect; then
     echo "teams"   # was: echo "subagent" (placeholder)
   else
     echo "subagent"
@@ -159,7 +159,7 @@ If Teams mode causes issues, revert immediately with no data loss:
 
 3. **Restart the workflow** — the Stop hook will re-inject the correct orchestrator prompt for the current phase. All output files written so far are intact.
 
-`detect_teams_available()` is called on every dispatch. As soon as the env var is unset, new dispatches fall back to `Task` tool automatically. No hook changes are required.
+`teams_detect()` is called on every dispatch. As soon as the env var is unset, new dispatches fall back to `Task` tool automatically. No hook changes are required.
 
 ---
 
@@ -180,7 +180,7 @@ As of ants v0.2, the Agent Teams API carries these limitations:
 These components are identical in both dispatch modes and require no migration work:
 
 - `lib/state.sh` — atomic state updates, session scoping, JSON validation
-- `lib/dag.sh` — DAG computation, wave scheduling, dependency resolution
+- `lib/dag.sh` — phase-level status tracking (pending/in_progress/complete)
 - `lib/circuit-breaker.sh` — fix attempt tracking, stage restart logic
 - `lib/task-pool.sh` — task claiming, file ownership, completion tracking
 - All agent definitions (`agents/*.md`) — agent prompts are dispatch-mode agnostic

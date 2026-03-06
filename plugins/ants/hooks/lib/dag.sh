@@ -6,7 +6,7 @@
 #
 # Per S3 plan review: this is a SIMPLE phase-status tracker, NOT a full
 # graph computation engine. The actual DAG scheduling lives in A3's task
-# pool (see swarm.sh wave functions). This library reads and writes the
+# pool (see task-pool.sh for dependency-driven dispatch). This library reads and writes the
 # v2 state.json `.phases` object:
 #
 #   "phases": {
@@ -32,6 +32,7 @@ readonly DAG_PHASES="A0 A1 A2 A3 A4 A5"
 
 # Valid phase statuses
 readonly DAG_STATUS_PENDING="pending"
+readonly DAG_STATUS_IN_PROGRESS="in_progress"
 readonly DAG_STATUS_COMPLETE="complete"
 
 # ===========================================================================
@@ -94,7 +95,7 @@ mark_phase_in_progress() {
   _validate_phase_id "$phase"
 
   if ! update_state --arg phase "$phase" \
-    '.phases = (.phases // {}) | .phases[$phase] = {"status": "in_progress", "startedAt": $ts}'; then
+    '.phases = (.phases // {}) | .phases[$phase] = {"status": "'"$DAG_STATUS_IN_PROGRESS"'", "startedAt": $ts}'; then
     echo "ERROR: Failed to mark phase ${phase} as in_progress" >&2
     return 1
   fi

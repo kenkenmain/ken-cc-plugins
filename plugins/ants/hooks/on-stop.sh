@@ -53,7 +53,7 @@ if [[ "$CURRENT_PHASE" == "A4" && -f "${PHASES_DIR}/A4-queen-verdict.json" ]]; t
     exit 2
   fi
 
-  # VERDICT and TOTAL_ISSUES are set by parse_queen_verdict in caller scope
+  # VERDICT is set by parse_queen_verdict in caller scope
   parse_queen_verdict "${PHASES_DIR}/A4-queen-verdict.json"
 
   if [[ "$VERDICT" == "clean" ]]; then
@@ -78,6 +78,19 @@ if [[ "$CURRENT_PHASE" == "A4" && -f "${PHASES_DIR}/A4-queen-verdict.json" ]]; t
         echo "ERROR: Failed to loop back to A1 in Stop hook." >&2
         exit 2
       fi
+      if ! reset_phases_for_loop; then
+        echo "ERROR: Failed to reset phases for loop-back from A4 in Stop hook" >&2
+        exit 2
+      fi
+      cb_increment_stage_restarts || {
+        echo "WARNING: Stage restart budget exhausted in Stop hook recovery." >&2
+        if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"'; then
+          echo "ERROR: Failed to set blocked status after stage restart budget exhaustion." >&2
+          exit 2
+        fi
+        exit 0  # Allow stop -- workflow is now blocked
+      }
+      cb_reset_for_loop
       LOOP="$NEXT_LOOP"
       PHASES_DIR=".agents/tmp/phases/loop-${LOOP}"
       CURRENT_PHASE="A1"
@@ -101,8 +114,8 @@ case "$CURRENT_PHASE" in
     PROMPT="$(generate_swarm_prompt "$CURRENT_PHASE")"
     ;;
 
-  DONE|STOPPED|BLOCKED)
-    # Workflow complete, stopped, or blocked by circuit breaker — allow stop
+  DONE|STOPPED)
+    # Workflow complete or stopped — allow stop
     exit 0
     ;;
 

@@ -57,8 +57,11 @@ cb_init() {
 # Returns 0 normally, returns 1 if the circuit breaker is now tripped.
 # Usage: if ! cb_record_failure; then echo "TRIPPED"; fi
 cb_record_failure() {
-  update_state \
-    '.circuitBreaker.consecutiveFailures = ((.circuitBreaker.consecutiveFailures // 0) + 1)'
+  if ! update_state \
+    '.circuitBreaker.consecutiveFailures = ((.circuitBreaker.consecutiveFailures // 0) + 1)'; then
+    echo "ERROR: Failed to record failure in circuit breaker" >&2
+    return 1
+  fi
 
   # Check if tripped after increment
   cb_is_tripped
@@ -67,8 +70,11 @@ cb_record_failure() {
 # Record a success. Resets consecutiveFailures to 0.
 # Usage: cb_record_success
 cb_record_success() {
-  update_state \
-    '.circuitBreaker.consecutiveFailures = 0'
+  if ! update_state \
+    '.circuitBreaker.consecutiveFailures = 0'; then
+    echo "ERROR: Failed to record success in circuit breaker" >&2
+    return 1
+  fi
 }
 
 # Check if the circuit breaker is tripped.
@@ -105,8 +111,11 @@ cb_get_fix_attempts() {
 cb_increment_fix_attempts() {
   local phase="${1:?cb_increment_fix_attempts requires a phase ID}"
 
-  update_state --arg phase "$phase" \
-    '.circuitBreaker.fixAttempts[$phase] = ((.circuitBreaker.fixAttempts[$phase] // 0) + 1)'
+  if ! update_state --arg phase "$phase" \
+    '.circuitBreaker.fixAttempts[$phase] = ((.circuitBreaker.fixAttempts[$phase] // 0) + 1)'; then
+    echo "ERROR: Failed to increment fix attempts in circuit breaker" >&2
+    return 1
+  fi
 
   local new_count
   new_count=$(cb_get_fix_attempts "$phase")
@@ -137,8 +146,11 @@ cb_get_stage_restarts() {
 # Increment stage restarts. Returns 1 if max exceeded after increment.
 # Usage: if ! cb_increment_stage_restarts; then echo "MAX RESTARTS"; fi
 cb_increment_stage_restarts() {
-  update_state \
-    '.circuitBreaker.stageRestarts = ((.circuitBreaker.stageRestarts // 0) + 1)'
+  if ! update_state \
+    '.circuitBreaker.stageRestarts = ((.circuitBreaker.stageRestarts // 0) + 1)'; then
+    echo "ERROR: Failed to increment stage restarts in circuit breaker" >&2
+    return 1
+  fi
 
   local new_count
   new_count=$(cb_get_stage_restarts)
@@ -162,6 +174,9 @@ cb_increment_stage_restarts() {
 # consecutiveFailures (those track cross-loop state).
 # Usage: cb_reset_for_loop
 cb_reset_for_loop() {
-  update_state \
-    '.circuitBreaker.fixAttempts = {}'
+  if ! update_state \
+    '.circuitBreaker.fixAttempts = {}'; then
+    echo "ERROR: Failed to reset fix attempts for loop" >&2
+    return 1
+  fi
 }

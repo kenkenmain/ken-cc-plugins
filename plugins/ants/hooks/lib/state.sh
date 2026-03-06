@@ -174,15 +174,11 @@ update_state() {
       return 1
     fi
 
-    # Ensure lock is released on exit
-    trap 'rm -rf "$lock_dir" 2>/dev/null' EXIT
-
-    _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
-    local rc=$?
-
-    rm -rf "$lock_dir" 2>/dev/null
-    trap - EXIT
-    return $rc
+    # Use subshell to scope the EXIT trap (avoids overwriting caller's trap)
+    (
+      trap 'rm -rf "$lock_dir" 2>/dev/null' EXIT
+      _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
+    )
   fi
 }
 

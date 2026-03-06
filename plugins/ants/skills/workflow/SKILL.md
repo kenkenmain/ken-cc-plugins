@@ -52,7 +52,7 @@ Repeat until SubagentStop marks workflow "completed" -> Stop hook allows exit
 | A0 | `ants:forager` | haiku | Parallel batch: dispatch 2-4 foragers |
 | A0 | `ants:cartographer` | sonnet | Single: deep architecture trace |
 | A0 | `ants:explore-aggregator` | haiku | Single: merge temp files |
-| A1 | `ants:architect` | sonnet | Single: plan with wave assignments |
+| A1 | `ants:architect` | sonnet | Single: plan with task assignments |
 | A2 | `ants:blueprint-reviewer` | sonnet | Single: validate plan |
 | A3 | `ants:worker` | inherit | Parallel batch: one per task from pool |
 | A3 | `ants:sentinel-correctness` | sonnet | Adversarial: bugs, logic errors |
@@ -128,10 +128,10 @@ When a subagent completes, the SubagentStop hook:
 ```
 A4 sync output parsed:
 
-if verdict == "ship":
+if verdict == "clean":
     advance to A5
 
-if verdict == "loop":
+if verdict == "issues_found":
     if loop >= maxLoops:
         set status = "blocked"
         set failure = "Max loops reached"
@@ -141,18 +141,24 @@ if verdict == "loop":
         create new loop directory
 ```
 
-### A3 Wave Synchronization
+### A3 Task Pool and Adversarial Review
 
-Phase A3 is special -- it has internal wave barriers:
+Phase A3 uses a self-organizing task pool with adversarial review:
 
 ```
 SubagentStop detects A3 worker completion:
-  - Track which wave the worker belongs to
-  - When all workers in current wave complete:
-      - Dispatch sentinel review for the wave
-  - When sentinel review completes:
-      - If more waves remain, dispatch next wave's workers
-      - If all waves done, mark A3 complete
+  - Extract task_id from worker output
+  - Call pool_complete_task to mark the task done
+  - pool_recompute_ready promotes dependent tasks to "ready"
+  - When pool_is_complete (all tasks done):
+      - Dispatch adversarial review team in parallel:
+        sentinel-correctness, sentinel-security, sentinel-perf
+      - When all sentinels complete (marker files):
+        Dispatch review-arbiter to consolidate findings
+      - If arbiter finds critical issues:
+        Dispatch review-fixer, then re-run sentinels
+      - When quality review passes, aggregate into A3-build.json
+  - A3-build.json triggers advancement to A4
 ```
 
 ## Error Handling

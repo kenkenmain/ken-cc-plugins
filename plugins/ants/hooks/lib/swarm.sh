@@ -12,9 +12,7 @@
 #   get_phase_agent()       — Primary agent for each phase
 #   generate_swarm_prompt() — Build orchestrator prompt from phase metadata
 #   parse_queen_verdict()   — Parse and validate A4 verdict from JSON file
-#   init_wave_schedule()    — Initialize wave-based build schedule
-#   advance_build_wave()    — Advance to next build wave
-#   is_a3_complete()        — Check if all build waves are complete
+#   generate_pool_prompt()  — Build A3 prompt listing available tasks from pool
 
 set -euo pipefail
 
@@ -31,7 +29,7 @@ get_phase_output() {
     A3) echo "A3-build.json" ;;
     A4) echo "A4-queen-verdict.json" ;;
     A5) echo "A5-ship.json" ;;
-    *)  echo "" ;;
+    *)  echo "ERROR: Unknown phase ID '${phase}' in get_phase_output" >&2; return 1 ;;
   esac
 }
 
@@ -83,63 +81,11 @@ get_phase_agent() {
     A0) echo "ants:forager ants:cartographer ants:explore-aggregator" ;;
     A1) echo "ants:architect" ;;
     A2) echo "ants:blueprint-reviewer" ;;
-    A3) echo "ants:worker ants:sentinel ants:guardian ants:sentinel-correctness ants:sentinel-security ants:sentinel-perf ants:review-arbiter ants:review-fixer" ;;
+    A3) echo "ants:worker ants:guardian ants:sentinel-correctness ants:sentinel-security ants:sentinel-perf ants:review-arbiter ants:review-fixer" ;;
     A4) echo "ants:queen" ;;
     A5) echo "ants:nurse ants:drone" ;;
-    *)  echo "" ;;
+    *)  echo "WARNING: Unknown phase ID '${phase}' in get_phase_agent" >&2; echo "" ;;
   esac
-}
-
-# ===========================================================================
-# Wave Tracking (A3 build parallelism)
-# ===========================================================================
-
-# Initialize wave schedule from the plan. Writes .waves[] to state.
-# Usage: init_wave_schedule
-init_wave_schedule() {
-  if ! update_state '.waves = [{"wave": 1, "status": "pending", "startedAt": $ts}] | .currentWave = 1'; then
-    echo "ERROR: Failed to initialize wave schedule" >&2
-    return 1
-  fi
-}
-
-# Advance to the next build wave. Returns 0 if advanced, 1 if all waves done.
-# Usage: advance_build_wave
-advance_build_wave() {
-  local current_wave
-  current_wave="$(state_get '.currentWave // 1')"
-  current_wave=$(require_int "$current_wave" "currentWave")
-
-  local total_waves
-  total_waves="$(state_get '.totalWaves // 1')"
-  total_waves=$(require_int "$total_waves" "totalWaves")
-
-  local next_wave=$((current_wave + 1))
-
-  if [[ "$next_wave" -gt "$total_waves" ]]; then
-    return 1
-  fi
-
-  if ! update_state --argjson nw "$next_wave" \
-    '.currentWave = $nw | .waves[-1].status = "complete" | .waves += [{"wave": $nw, "status": "pending", "startedAt": $ts}]'; then
-    echo "ERROR: Failed to advance to wave $next_wave" >&2
-    return 1
-  fi
-
-  return 0
-}
-
-# Check if A3 (build) is fully complete — all waves done.
-# Returns 0 if complete, 1 if not.
-is_a3_complete() {
-  local current_wave
-  current_wave="$(state_get '.currentWave // 1')"
-  current_wave=$(require_int "$current_wave" "currentWave")
-  local total_waves
-  total_waves="$(state_get '.totalWaves // 1')"
-  total_waves=$(require_int "$total_waves" "totalWaves")
-
-  [[ "$current_wave" -ge "$total_waves" ]]
 }
 
 # ===========================================================================
@@ -147,7 +93,7 @@ is_a3_complete() {
 # ===========================================================================
 
 # Parse and validate a queen verdict JSON file.
-# Sets VERDICT (clean|issues_found) and TOTAL_ISSUES in the caller's scope.
+# Sets VERDICT (clean|issues_found) in the caller's scope.
 # Usage: parse_queen_verdict "/path/to/A4-queen-verdict.json"
 parse_queen_verdict() {
   local verdict_file="${1:?parse_queen_verdict requires a file path}"
@@ -156,21 +102,26 @@ parse_queen_verdict() {
     echo "ERROR: Failed to read verdict from $verdict_file." >&2
     exit 2
   }
-  TOTAL_ISSUES=$(jq -r '.total_issues // 0 | floor | tostring' "$verdict_file") || TOTAL_ISSUES="0"
+  local total_issues
+  total_issues=$(jq -r '(.total_issues // (if .unresolvedIssues | type == "array" then .unresolvedIssues | length else 0 end) // 0) | floor | tostring' "$verdict_file") || {
+    echo "WARNING: Failed to parse total_issues/unresolvedIssues from $verdict_file, defaulting to 0" >&2
+    total_issues="0"
+  }
 
   # Sanitize total_issues to integer
-  if ! [[ "$TOTAL_ISSUES" =~ ^[0-9]+$ ]]; then
-    TOTAL_ISSUES="0"
+  if ! [[ "$total_issues" =~ ^[0-9]+$ ]]; then
+    echo "WARNING: total_issues is not a valid integer ('$total_issues'), defaulting to 0" >&2
+    total_issues="0"
   fi
 
   # Fail-safe: issue counts take precedence over declared verdict
-  if [[ "$VERDICT" == "clean" && "$TOTAL_ISSUES" -gt 0 ]]; then
-    echo "WARNING: Queen reports clean with ${TOTAL_ISSUES} issues. Forcing issues_found." >&2
+  if [[ "$VERDICT" == "clean" && "$total_issues" -gt 0 ]]; then
+    echo "WARNING: Queen reports clean with ${total_issues} issues. Forcing issues_found." >&2
     VERDICT="issues_found"
   fi
 
   if [[ "$VERDICT" != "clean" && "$VERDICT" != "issues_found" ]]; then
-    if [[ "$TOTAL_ISSUES" -gt 0 ]]; then
+    if [[ "$total_issues" -gt 0 ]]; then
       echo "WARNING: Unexpected verdict '${VERDICT}'. Inferred issues_found from issue count." >&2
       VERDICT="issues_found"
     else
@@ -340,10 +291,11 @@ The aggregated file must contain:
 }
 RULES
       else
+        # v0.1 fallback (no taskPool): wave-based dispatch
         cat <<RULES
 
 Read the plan and dispatch builder agents for each task.
-Builders work in parallel within waves. After all builders complete,
+Builders work in parallel. After all builders complete,
 aggregate results into: ${phases_dir}/${output_file}
 
 The aggregated file must contain:
