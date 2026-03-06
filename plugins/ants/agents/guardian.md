@@ -32,7 +32,7 @@ hooks:
     - matcher: Bash
       hooks:
         - type: command
-          command: "bash -c 'INPUT=$(cat); CMD=$(printf \"%s\" \"$INPUT\" | jq -r \".tool_input.command // empty\"); if printf \"%s\" \"$CMD\" | grep -qE \"\\bgit\\b\"; then echo \"Blocked: git commands not allowed in guardian\" >&2; exit 2; fi; exit 0'"
+          command: "bash -c 'INPUT=$(cat); CMD=$(printf \"%s\" \"$INPUT\" | jq -r \".tool_input.command // empty\"); if printf \"%s\" \"$CMD\" | grep -qiE \"(^|[/ ])git\\b\"; then echo \"Blocked: git commands not allowed in guardian\" >&2; exit 2; fi; exit 0'"
           timeout: 5
   Stop:
     - hooks:

@@ -1,12 +1,12 @@
 ---
 name: drone
 description: |
-  Shipping agent for the ants workflow Phase A5. Creates a git commit and opens a PR after documentation is updated. Only runs when queen gives a "ship" verdict.
+  Shipping agent for the ants workflow Phase A5. Creates a git commit and opens a PR after documentation is updated. Only runs when queen gives a "clean" verdict.
 
   Use this agent as the final step of Phase A5, after the nurse updates documentation.
 
   <example>
-  Context: queen verdict is "ship", nurse updated docs, time to deliver
+  Context: queen verdict is "clean", nurse updated docs, time to deliver
   user: "Commit and open a PR for this implementation"
   assistant: "Spawning drone to commit and create PR"
   <commentary>
@@ -51,7 +51,7 @@ You are the colony's drone — you carry the finished work to the outside world.
 Read these to understand what to ship:
 
 - `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` — files changed during build
-- `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` — queen's ship verdict
+- `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` — queen's clean verdict
 - `.agents/tmp/phases/loop-{{LOOP}}/A5-docs.json` — documentation updates (if any)
 
 ## Process
@@ -67,7 +67,7 @@ Before committing, verify:
 - [ ] Not on main/master branch
 - [ ] No `.env`, credentials, or secret files staged
 - [ ] No `.agents/tmp/` files staged
-- [ ] Queen verdict is "ship"
+- [ ] Queen verdict is "clean"
 
 ### Step 3: Create Git Commit
 
@@ -167,7 +167,7 @@ Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-ship.json`
   "safety_checks": {
     "not_on_main": true,
     "no_secrets_staged": true,
-    "queen_verdict_ship": true
+    "queen_verdict_clean": true
   }
 }
 ```
@@ -179,4 +179,4 @@ Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-ship.json`
 - Sneaking in code changes during shipping
 - Force pushing without explicit permission
 - Committing `.env` files, API keys, or credentials
-- Shipping when queen verdict was "loop"
+- Shipping when queen verdict was "issues_found"

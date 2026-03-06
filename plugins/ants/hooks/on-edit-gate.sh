@@ -37,9 +37,11 @@ if [[ -z "$FILE_PATH" ]]; then
 fi
 
 # Canonicalize path to prevent traversal bypasses (e.g., /../.agents/../../etc/passwd)
-# realpath -m works even if the file does not exist yet (needed for Write creating new files)
+# Try realpath -m (GNU) first, fall back to realpath without -m (BSD macOS), then python
 if command -v realpath &>/dev/null; then
-  FILE_PATH=$(realpath -m "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
+  FILE_PATH=$(realpath -m "$FILE_PATH" 2>/dev/null || realpath "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
+elif command -v python3 &>/dev/null; then
+  FILE_PATH=$(python3 -c "import os; print(os.path.abspath('$FILE_PATH'))" 2>/dev/null || echo "$FILE_PATH")
 elif [[ "$FILE_PATH" == *".."* ]]; then
   # Fail-closed: block edits with traversal sequences when realpath is unavailable
   echo "ERROR: Path contains '..' and realpath is not available for canonicalization -- blocking edit." >&2

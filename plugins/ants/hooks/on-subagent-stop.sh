@@ -147,7 +147,7 @@ case "$AGENT" in
           fi
           exit 0  # Allow subagent stop -- workflow is now blocked
         }
-        cb_reset_for_loop
+        cb_reset_for_loop || echo "WARNING: Failed to reset circuit breaker for loop" >&2
       fi
     else
       # Advance to A3
@@ -225,14 +225,20 @@ case "$AGENT" in
       if [[ -z "$task_id" ]]; then
         task_id=$(printf '%s' "$INPUT" | jq -r '.tool_input.prompt // .prompt // empty' 2>/dev/null | grep -oE 'Task ID:\s*(\S+)' | head -1 | sed 's/Task ID:\s*//' || echo "")
       fi
+      # Validate task_id format (alphanumeric, hyphens, underscores only)
+      if [[ -n "$task_id" ]] && ! [[ "$task_id" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        echo "WARNING: Extracted task_id '${task_id}' contains unexpected characters. Sanitizing." >&2
+        task_id=$(echo "$task_id" | sed 's/[^A-Za-z0-9_-]//g')
+      fi
       if [[ -n "$task_id" ]]; then
         if ! pool_complete_task "$task_id"; then
           echo "ERROR: Failed to complete task $task_id in pool. Workflow will stall." >&2
           exit 2
         fi
       else
-        echo "WARNING: Builder (${AGENT_TYPE}) completed but no task_id found in output or prompt. Recording failure." >&2
+        echo "ERROR: Builder (${AGENT_TYPE}) completed but no task_id found in output or prompt. Cannot mark task complete — pool will stall." >&2
         cb_record_failure || true
+        exit 2
       fi
       if pool_is_complete; then
         echo "INFO: All tasks in pool complete" >&2

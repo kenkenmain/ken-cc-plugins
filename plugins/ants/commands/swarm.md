@@ -75,12 +75,12 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
   "maxLoops": 5,
   "loop": 1,
   "schedule": [
-    {"phase":"A0","stage":"EXPLORE","label":"Forage","type":"dispatch"},
-    {"phase":"A1","stage":"PLAN","label":"Architect","type":"subagent"},
-    {"phase":"A2","stage":"PLAN-REVIEW","label":"Blueprint Review","type":"review"},
-    {"phase":"A3","stage":"BUILD+QUAL","label":"Dual-Track Build","type":"dispatch"},
-    {"phase":"A4","stage":"SYNC","label":"Synchronize","type":"subagent"},
-    {"phase":"A5","stage":"SHIP","label":"Ship","type":"subagent"}
+    {"phase":"A0","stage":"EXPLORE","label":"Colony Exploration","type":"dispatch"},
+    {"phase":"A1","stage":"PLAN","label":"Architect Plan","type":"subagent"},
+    {"phase":"A2","stage":"PLAN","label":"Blueprint Review","type":"subagent"},
+    {"phase":"A3","stage":"BUILD","label":"Dual-Track Execution","type":"dispatch"},
+    {"phase":"A4","stage":"SYNC","label":"Queen Synchronization","type":"subagent"},
+    {"phase":"A5","stage":"SHIP","label":"Documentation + Ship","type":"subagent"}
   ],
   "phases": {
     "A0": {"status": "pending"},
@@ -110,12 +110,12 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
 ```
 Ants Swarm — 6-Phase Dual-Track Pipeline
 =========================================
-Phase A0  │ EXPLORE     │ Forage         │ dispatch  → foragers + cartographer + aggregator
-Phase A1  │ PLAN        │ Architect      │ subagent  → architect
-Phase A2  │ PLAN-REVIEW │ Blueprint      │ review    → blueprint-reviewer
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ dispatch  → workers + sentinels + guardians (task pool)
-Phase A4  │ SYNC        │ Queen          │ subagent  → queen (ship/loop verdict)
-Phase A5  │ SHIP        │ Ship           │ subagent  → nurse (docs) + drone (commit + PR)
+Phase A0  │ EXPLORE │ Colony Exploration    │ dispatch  → foragers + cartographer + aggregator
+Phase A1  │ PLAN    │ Architect Plan       │ subagent  → architect
+Phase A2  │ PLAN    │ Blueprint Review     │ subagent  → blueprint-reviewer
+Phase A3  │ BUILD   │ Dual-Track Execution │ dispatch  → workers + sentinels + guardians (task pool)
+Phase A4  │ SYNC    │ Queen Synchronization│ subagent  → queen (ship/loop verdict)
+Phase A5  │ SHIP    │ Documentation + Ship │ subagent  → nurse (docs) + drone (commit + PR)
 ```
 
 ## Step 3: Dispatch Phase A0 (Forage)

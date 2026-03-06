@@ -31,7 +31,7 @@ hooks:
     - matcher: Bash
       hooks:
         - type: command
-          command: "bash -c 'INPUT=$(cat); CMD=$(printf \"%s\" \"$INPUT\" | jq -r \".tool_input.command // empty\"); if printf \"%s\" \"$CMD\" | grep -qE \"\\bgit\\b\"; then echo \"Blocked: git commands not allowed in sentinel\" >&2; exit 2; fi; exit 0'"
+          command: "bash -c 'INPUT=$(cat); CMD=$(printf \"%s\" \"$INPUT\" | jq -r \".tool_input.command // empty\"); if printf \"%s\" \"$CMD\" | grep -qiE \"(^|[/ ])git\\b\"; then echo \"Blocked: git commands not allowed in sentinel\" >&2; exit 2; fi; exit 0'"
           timeout: 5
   Stop:
     - hooks:
@@ -48,7 +48,7 @@ Your sole focus is finding security vulnerabilities: injection attacks, authenti
 
 ## Your Task
 
-Review the implementation from wave {{WAVE_NUMBER}} for security issues only.
+Review the implementation for security issues only.
 
 ## Files to Review
 

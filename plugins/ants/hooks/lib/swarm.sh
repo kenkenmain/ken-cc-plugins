@@ -142,15 +142,27 @@ parse_queen_verdict() {
 #   $1 — VERDICT value ("clean" or "issues_found")
 #   $2 — LOOP (current loop number)
 #   $3 — MAX_LOOPS
-#   $4 — PHASES_DIR (current loop phases directory)
 #
 # Returns: 0 on success, exits 2 on failure.
 # Side effects: updates state.json, may call reset_phases_for_loop and circuit breaker functions.
 # Sets RESULT_PHASE in caller scope to the new phase ("A5", "A1", "STOPPED", "BLOCKED").
+#
+# Idempotency: checks currentPhase == "A4" before updating. If phase has already
+# advanced (e.g., SubagentStop already processed the verdict), sets RESULT_PHASE
+# to the current phase and returns 0 without modifying state.
 handle_a4_verdict() {
   local verdict="${1:?handle_a4_verdict requires VERDICT}"
   local loop="${2:?handle_a4_verdict requires LOOP}"
   local max_loops="${3:?handle_a4_verdict requires MAX_LOOPS}"
+
+  # Idempotency guard: only process if still in A4
+  local current_phase
+  current_phase=$(state_get '.currentPhase' --required)
+  if [[ "$current_phase" != "A4" ]]; then
+    echo "INFO: handle_a4_verdict called but currentPhase is '${current_phase}' (not A4). Skipping (already processed)." >&2
+    RESULT_PHASE="$current_phase"
+    return 0
+  fi
 
   if [[ "$verdict" == "clean" ]]; then
     if ! update_state --arg verdict "$verdict" \
