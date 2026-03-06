@@ -61,7 +61,7 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "plugin": "ants",
   "pipeline": "swarm",
   "status": "in_progress",
@@ -83,6 +83,25 @@ Write `.agents/tmp/state.json` with the following structure. Use Bash with jq fo
     {"phase":"A4","stage":"SYNC","name":"Synchronize","type":"subagent"},
     {"phase":"A5","stage":"SHIP","name":"Ship","type":"subagent"}
   ],
+  "phases": {
+    "A0": {"status": "pending"},
+    "A1": {"status": "pending"},
+    "A2": {"status": "pending"},
+    "A3": {"status": "pending"},
+    "A4": {"status": "pending"},
+    "A5": {"status": "pending"}
+  },
+  "circuitBreaker": {
+    "consecutiveFailures": 0,
+    "maxConsecutiveFailures": 5,
+    "maxFixAttempts": 5,
+    "maxStageRestarts": 2,
+    "fixAttempts": {},
+    "stageRestarts": 0
+  },
+  "taskPool": [],
+  "dispatchMode": "subagent",
+  "agentTeamsAvailable": false,
   "buildTrack": {
     "waves": [],
     "currentWave": 0,
@@ -127,9 +146,13 @@ After Phase A0 completes, the Stop hook (`on-stop.sh`) drives the orchestrator t
 | A0 | explore-aggregator | `ants:explore-aggregator` |
 | A1 | architect | `ants:architect` |
 | A2 | blueprint-reviewer | `ants:blueprint-reviewer` |
-| A3 | worker (batch per wave) | `ants:worker` |
-| A3 | sentinel (per wave) | `ants:sentinel` |
-| A3 | guardian (per wave) | `ants:guardian` |
+| A3 | worker (task pool) | `ants:worker` |
+| A3 | sentinel-correctness | `ants:sentinel-correctness` |
+| A3 | sentinel-security | `ants:sentinel-security` |
+| A3 | sentinel-perf | `ants:sentinel-perf` |
+| A3 | review-arbiter | `ants:review-arbiter` |
+| A3 | review-fixer | `ants:review-fixer` |
+| A3 | guardian | `ants:guardian` |
 | A4 | queen | `ants:queen` |
 | A5 | nurse | `ants:nurse` |
 | A5 | drone | `ants:drone` |

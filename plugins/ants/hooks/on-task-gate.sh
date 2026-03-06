@@ -31,7 +31,12 @@ case "$AGENT_TYPE" in
     EXPECTED_PHASE="A0" ;;
   architect|ants:architect)     EXPECTED_PHASE="A1" ;;
   blueprint-reviewer|ants:blueprint-reviewer)   EXPECTED_PHASE="A2" ;;
-  worker|ants:worker|sentinel|ants:sentinel|guardian|ants:guardian)
+  worker|ants:worker|sentinel|ants:sentinel|guardian|ants:guardian|\
+  sentinel-correctness|ants:sentinel-correctness|\
+  sentinel-security|ants:sentinel-security|\
+  sentinel-perf|ants:sentinel-perf|\
+  review-arbiter|ants:review-arbiter|\
+  review-fixer|ants:review-fixer)
     EXPECTED_PHASE="A3" ;;
   queen|ants:queen)         EXPECTED_PHASE="A4" ;;
   nurse|ants:nurse|drone|ants:drone)

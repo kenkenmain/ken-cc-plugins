@@ -1,6 +1,8 @@
 ---
 name: sentinel
 description: |
+  DEPRECATED (v0.2): Replaced by adversarial review team (sentinel-correctness, sentinel-security, sentinel-perf + review-arbiter). Kept for backward compatibility with v0.1 workflows. New workflows should dispatch the three specialist sentinels in parallel followed by the review-arbiter instead.
+
   Unified reviewer for ants colony workflow. Reviews a wave's output for correctness, quality, and security — combines critic, pedant, and security roles into a single pass. READ-ONLY — does not modify files.
 
   Use this agent for Phase A3 (Quality track) of the ants workflow. One sentinel reviews each completed wave.

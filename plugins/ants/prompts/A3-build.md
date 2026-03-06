@@ -1,98 +1,180 @@
-# [PHASE A3] Build — Dual-Track Dispatch
+# [PHASE A3] Build -- Dual-Track Dispatch
 
-Execute the architect's plan using dual-track parallel dispatch: **build track** (workers) and **quality track** (guardian + sentinel).
+Execute the architect's plan using dual-track dispatch: **build track** (task pool workers) and **quality track** (adversarial review team + guardian).
 
 ## Agents
 
 - **Build Track:**
-  - `ants:worker` — one per task within a wave, dispatched in parallel
-- **Quality Track:**
-  - `ants:guardian` — one per wave, writes tests for completed work
-  - `ants:sentinel` — one per wave, reviews correctness/quality/security
+  - `ants:worker` -- one per task, claimed from the task pool
+- **Quality Track (Adversarial Review):**
+  - `ants:sentinel-correctness` -- bugs, logic errors, error handling
+  - `ants:sentinel-security` -- OWASP, injection, secrets, access control
+  - `ants:sentinel-perf` -- N+1 queries, blocking I/O, complexity
+  - `ants:review-arbiter` -- consolidates all sentinel findings
+  - `ants:guardian` -- writes tests for completed work
 
-## Dual-Track Architecture
+## Task Pool Architecture
 
 ```
-Wave 1:  [worker-1] [worker-2] [worker-3]  (parallel build)
-              |           |           |
-              +-----+-----+
-                    |
-         [guardian] + [sentinel]  (parallel quality, after wave completes)
-                    |
-              Pass/Fail gate
-                    |
-Wave 2:  [worker-4] [worker-5]  (next wave, only if wave 1 passed)
-              |           |
-              +-----+-----+
-                    |
-         [guardian] + [sentinel]
-                    |
-              Pass/Fail gate
+Task Pool:
+  [T1: ready]  [T2: ready]  [T3: pending (deps: T1)]  [T4: pending (deps: T1, T2)]
+       |             |
+  [worker-1]    [worker-2]    (parallel -- claimed from pool)
+       |             |
+  T1 complete   T2 complete
+       |             |
+       +------+------+
+              |
+  [T3: ready]  [T4: ready]   (deps satisfied, promoted to ready)
+       |             |
+  [worker-3]    [worker-4]    (parallel -- claimed from pool)
+       |             |
+  pool drained ---------> Adversarial Review Team
+                            sentinel-correctness  \
+                            sentinel-security      } parallel
+                            sentinel-perf         /
+                                  |
+                            review-arbiter (consolidate)
+                                  |
+                             A3-quality.json
 ```
 
-Workers within a wave run in parallel. Guardian and sentinel run in parallel after all workers in a wave complete. The next wave starts only after the current wave's quality gate passes.
+Workers claim tasks as dependencies are satisfied. No rigid wave barriers -- the pool self-organizes based on the dependency graph.
 
 ## Process
 
-### 1. Read the Plan
+### 1. Initialize Task Pool
 
-Read the plan from `.agents/tmp/phases/loop-{{LOOP}}/A1-plan.md` (loop-scoped path).
+Read task descriptors from `.agents/tmp/phases/loop-{{LOOP}}/A1-tasks.json`.
 
-Expected plan structure:
+Expected format:
 ```json
-{
-  "waves": [
-    {
-      "waveNumber": 1,
-      "tasks": [
-        {
-          "taskId": "wave-1-task-1",
-          "description": "Task description",
-          "acceptanceCriteria": ["criterion 1", "criterion 2"],
-          "files": ["src/file.ts"],
-          "dependencies": []
-        }
-      ]
-    }
-  ]
-}
+[
+  {
+    "id": "T1",
+    "description": "Implement auth module",
+    "dependencies": [],
+    "files_owned": ["src/auth.ts", "src/auth/types.ts"]
+  },
+  {
+    "id": "T2",
+    "description": "Add database migration",
+    "dependencies": [],
+    "files_owned": ["src/db/migrate.ts"]
+  },
+  {
+    "id": "T3",
+    "description": "Wire auth to API routes",
+    "dependencies": ["T1", "T2"],
+    "files_owned": ["src/routes/auth.ts"]
+  }
+]
 ```
 
-### 2. Execute Each Wave
+Initialize the pool: tasks with no dependencies start as `ready`; others start as `pending`.
 
-For each wave in order:
+### 2. Dispatch Workers from Pool
 
-#### Build Track (parallel within wave)
-
-For each task in the wave, dispatch a `worker` agent with:
+For each ready task in the pool, dispatch a `worker` agent with:
 
 ```
 You are worker. Implement this task.
 
-Wave: {{WAVE_NUMBER}}
 Task ID: {{TASK_ID}}
 Description: {{TASK_DESCRIPTION}}
 
 Acceptance Criteria:
 {{ACCEPTANCE_CRITERIA}}
 
-Files: {{FILE_LIST}}
+Files you own (ONLY edit these files):
+{{FILES_OWNED}}
 
-Dependency outputs from prior waves/tasks:
+Dependency outputs (context from completed tasks):
 {{DEPENDENCY_OUTPUTS}}
 
 Output your result as JSON at the end of your work.
 ```
 
-Wait for ALL workers in the wave to complete.
+File ownership: Each worker can ONLY edit files listed in its task's `files_owned` field. The edit gate enforces this via `pool_get_file_owner()`.
 
-#### Quality Track (parallel after wave completes)
+As workers complete:
+1. Mark the task complete via `pool_complete_task()`
+2. Recompute the ready set -- tasks whose dependencies are now all complete become ready
+3. Dispatch new workers for newly ready tasks
+4. Repeat until the pool is drained (all tasks complete or failed)
 
-After all workers in the wave complete, dispatch guardian and sentinel in parallel:
+### 3. Adversarial Review (after pool drains)
 
-**Guardian prompt:**
+After all workers complete, dispatch the adversarial review team. Three specialist sentinels run **in parallel**:
+
+**Sentinel-correctness prompt:**
 ```
-Write tests for the implementation from wave {{WAVE_NUMBER}}.
+Review all changes for correctness issues: bugs, logic errors, missing error handling,
+incorrect API usage, race conditions.
+
+Changed files:
+{{ALL_FILES_CHANGED}}
+
+Worker outputs (for context):
+{{WORKER_OUTPUTS_SUMMARY}}
+
+Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-correctness.json
+```
+
+**Sentinel-security prompt:**
+```
+Review all changes for security issues: OWASP top 10, injection attacks,
+authentication flaws, secrets exposure, access control.
+
+Changed files:
+{{ALL_FILES_CHANGED}}
+
+Worker outputs (for context):
+{{WORKER_OUTPUTS_SUMMARY}}
+
+Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-security.json
+```
+
+**Sentinel-perf prompt:**
+```
+Review all changes for performance issues: N+1 queries, unnecessary allocations,
+blocking I/O, missing caching opportunities, algorithmic complexity.
+
+Changed files:
+{{ALL_FILES_CHANGED}}
+
+Worker outputs (for context):
+{{WORKER_OUTPUTS_SUMMARY}}
+
+Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-perf.json
+```
+
+Wait for all three sentinels to complete.
+
+### 4. Arbiter Consolidation
+
+After all sentinels complete, dispatch the **review-arbiter**:
+
+```
+Consolidate findings from all three specialist sentinels.
+
+Read:
+- .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-correctness.json
+- .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-security.json
+- .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-perf.json
+
+Cross-reference findings. Deduplicate overlapping issues. Resolve conflicts.
+Produce unified verdict.
+
+Write to: .agents/tmp/phases/loop-{{LOOP}}/A3-quality.json
+```
+
+### 5. Guardian (Test Writing)
+
+Guardian agents write tests alongside the review. Dispatch after workers complete:
+
+```
+Write tests for the implementation.
 
 Files implemented by workers:
 {{FILES_CHANGED}}
@@ -103,102 +185,83 @@ Worker outputs (for context):
 Discover test conventions, write focused tests, run them, report results as JSON.
 ```
 
-**Sentinel prompt:**
-```
-Review wave {{WAVE_NUMBER}} output for correctness, quality, and security.
+### 6. Aggregate Results
 
-Changed files:
-{{FILES_CHANGED}}
-
-Worker outputs (for context):
-{{WORKER_OUTPUTS_SUMMARY}}
-
-Review all files with correctness, quality, and security lenses. Report results as JSON.
-```
-
-Wait for both guardian and sentinel to complete.
-
-### 3. Wave Gate
-
-After quality track completes, evaluate the wave:
-
-| Condition | Action |
-|-----------|--------|
-| Sentinel status = `clean` | Advance to next wave |
-| Sentinel has critical issues | Block — log issues, do NOT advance |
-| Sentinel has warnings only | Advance with warnings logged |
-| Guardian tests fail | Block — tests must pass before advancing |
-
-### 4. Aggregate Results
-
-After all waves complete, write:
+After all tracks complete, write:
 
 `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json`
 
 ```json
 {
   "completedAt": "ISO timestamp",
-  "waves": [
+  "dispatchMode": "taskPool",
+  "tasks": [
     {
-      "waveNumber": 1,
-      "workers": [
-        {
-          "taskId": "wave-1-task-1",
-          "status": "complete",
-          "filesModified": ["src/auth.ts"],
-          "filesCreated": ["src/auth/types.ts"],
-          "testsWritten": []
-        }
-      ],
-      "guardian": {
-        "status": "complete",
-        "testsWritten": [
-          { "file": "test/auth.test.ts", "targetFile": "src/auth.ts", "testCount": 5 }
-        ],
-        "testResults": { "totalTests": 5, "passed": 5, "failed": 0 }
-      },
-      "sentinel": {
-        "status": "clean",
-        "criticalCount": 0,
-        "warningCount": 1,
-        "issues": []
-      },
-      "waveStatus": "passed"
+      "taskId": "T1",
+      "status": "complete",
+      "filesModified": ["src/auth.ts"],
+      "filesCreated": ["src/auth/types.ts"],
+      "testsWritten": []
     }
   ],
-  "allFilesChanged": ["src/auth.ts", "src/auth/types.ts", "test/auth.test.ts"],
+  "guardian": {
+    "status": "complete",
+    "testsWritten": [
+      { "file": "test/auth.test.ts", "targetFile": "src/auth.ts", "testCount": 5 }
+    ],
+    "testResults": { "totalTests": 5, "passed": 5, "failed": 0 }
+  },
+  "files_changed": ["src/auth.ts", "src/auth/types.ts", "test/auth.test.ts"],
   "totalTasks": 3,
   "totalTasksComplete": 3,
+  "totalTasksFailed": 0,
   "totalTests": 5,
-  "overallStatus": "complete"
+  "all_complete": true
 }
 ```
+
+## Legacy Fallback (v0.1 Wave-Based Dispatch)
+
+If no `taskPool` exists in state (v0.1 state files or plans without `A1-tasks.json`), fall back to wave-based dispatch:
+
+1. Read waves from `.agents/tmp/phases/loop-{{LOOP}}/A1-plan.md`
+2. Execute Wave 1 workers in parallel
+3. Wave 1 completion barrier
+4. Execute Wave 2 workers in parallel
+5. Wave 2 completion barrier
+6. Dispatch generic `ants:sentinel` (not specialist sentinels) for review
+7. Write results in the same A3-build.json / A3-quality.json format
+
+This ensures backward compatibility with existing v0.1 plans.
 
 ## Error Handling
 
 ### Worker Failure
 
 If a worker reports `blocked` or fails:
-- Log the failure in the wave output
-- Continue other workers in the wave (they are independent)
-- Report the blocked task in the wave gate evaluation
+- Mark the task as failed via `pool_fail_task()`
+- Failed tasks block their dependents (dependents stay `pending`)
+- Continue dispatching other ready tasks (they are independent)
+- Report the failed task in the aggregate output
 
-### Quality Track Failure
+### Sentinel Failure
 
-If guardian or sentinel fails to complete:
-- Treat the wave as blocked
+If a sentinel fails to complete:
+- Log the failure
+- Arbiter consolidates from available sentinel outputs (partial review)
+- If all three sentinels fail, treat as blocked
+
+### Pool Stall
+
+If the pool has pending tasks but no ready tasks (all remaining tasks depend on failed tasks):
+- Report which tasks are blocked and why
 - Include partial results in output
-- Do not advance to the next wave
-
-### Partial Wave Completion
-
-If some but not all tasks in a wave complete:
-- Run quality track on completed work only
-- Report incomplete tasks
-- Let the orchestrator decide whether to retry or advance
+- Let the orchestrator decide whether to proceed or block
 
 ## Gate
 
-Output required: `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` with `overallStatus: "complete"`
+Output required: `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` with `all_complete: true`
 
-All waves must pass their quality gates for the phase to succeed.
+Quality output required: `.agents/tmp/phases/loop-{{LOOP}}/A3-quality.json` (from arbiter)
+
+Both files must exist for the phase to advance to A4.

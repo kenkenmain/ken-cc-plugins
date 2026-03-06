@@ -54,8 +54,12 @@ Repeat until SubagentStop marks workflow "completed" -> Stop hook allows exit
 | A0 | `ants:explore-aggregator` | haiku | Single: merge temp files |
 | A1 | `ants:architect` | sonnet | Single: plan with wave assignments |
 | A2 | `ants:blueprint-reviewer` | sonnet | Single: validate plan |
-| A3 | `ants:worker` | inherit | Parallel batch: one per task per wave |
-| A3 | `ants:sentinel` | sonnet | Parallel: sentinel reviews per wave |
+| A3 | `ants:worker` | inherit | Parallel batch: one per task from pool |
+| A3 | `ants:sentinel-correctness` | sonnet | Adversarial: bugs, logic errors |
+| A3 | `ants:sentinel-security` | sonnet | Adversarial: OWASP, injection, secrets |
+| A3 | `ants:sentinel-perf` | sonnet | Adversarial: N+1, blocking I/O, complexity |
+| A3 | `ants:review-arbiter` | sonnet | Consolidates sentinel findings |
+| A3 | `ants:review-fixer` | inherit | Targeted fixes for review issues |
 | A4 | `ants:queen` | sonnet | Single: merge tracks, render verdict |
 | A5 | `ants:nurse` | sonnet | Single: update documentation |
 | A5 | `ants:drone` | inherit | Single: commit and ship |

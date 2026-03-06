@@ -13,6 +13,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/swarm.sh"
+source "$SCRIPT_DIR/lib/dag.sh"
+source "$SCRIPT_DIR/lib/circuit-breaker.sh"
+source "$SCRIPT_DIR/lib/teams.sh"
 
 check_ants_workflow
 
@@ -82,14 +85,24 @@ if [[ "$CURRENT_PHASE" == "A4" && -f "${PHASES_DIR}/A4-queen-verdict.json" ]]; t
   fi
 fi
 
+# Circuit breaker check: if tripped, halt the workflow
+if cb_is_tripped; then
+  echo "INFO: Circuit breaker is tripped, halting workflow" >&2
+  if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Circuit breaker tripped: too many consecutive failures"'; then
+    echo "ERROR: Failed to update state to blocked after circuit breaker trip." >&2
+    exit 2
+  fi
+  exit 0
+fi
+
 # Generate phase-specific prompt
 case "$CURRENT_PHASE" in
   A0|A1|A2|A3|A4|A5)
     PROMPT="$(generate_swarm_prompt "$CURRENT_PHASE")"
     ;;
 
-  DONE|STOPPED)
-    # Workflow complete or stopped, allow stop
+  DONE|STOPPED|BLOCKED)
+    # Workflow complete, stopped, or blocked by circuit breaker — allow stop
     exit 0
     ;;
 

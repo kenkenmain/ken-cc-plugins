@@ -45,6 +45,13 @@ check_ants_workflow() {
     exit 0
   fi
 
+  # Migrate v1 state to v2 if needed
+  local version
+  version=$(jq -r '.version // 1' "$STATE_FILE")
+  if [[ "$version" == "1" ]]; then
+    migrate_state_v1_to_v2
+  fi
+
   return 0
 }
 
@@ -199,18 +206,15 @@ _update_state_inner() {
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
     if jq empty "$tmp_file" 2>/dev/null; then
       mv "$tmp_file" "$STATE_FILE"
-      rm -f "$jq_err_file"
       return 0
     else
       echo "ERROR: State update produced invalid JSON" >&2
-      rm -f "$tmp_file" "$jq_err_file"
       return 1
     fi
   else
     local jq_err
     jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")
     echo "ERROR: jq state update failed: $jq_err" >&2
-    rm -f "$tmp_file" "$jq_err_file"
     return 1
   fi
 }
@@ -250,5 +254,40 @@ validate_json_file() {
     return 1
   fi
 
+  return 0
+}
+
+# Migrate state.json from v1 to v2.
+# Adds phases, circuitBreaker, taskPool, dispatchMode, and agentTeamsAvailable
+# fields if missing. Safe to call multiple times -- only sets fields that do not exist.
+# Usage: migrate_state_v1_to_v2
+migrate_state_v1_to_v2() {
+  echo "INFO: Migrating state.json from v1 to v2" >&2
+  if ! update_state '
+    .version = 2 |
+    .phases //= {
+      "A0": {"status": "pending"},
+      "A1": {"status": "pending"},
+      "A2": {"status": "pending"},
+      "A3": {"status": "pending"},
+      "A4": {"status": "pending"},
+      "A5": {"status": "pending"}
+    } |
+    .circuitBreaker //= {
+      "consecutiveFailures": 0,
+      "maxConsecutiveFailures": 5,
+      "maxFixAttempts": 5,
+      "maxStageRestarts": 2,
+      "fixAttempts": {},
+      "stageRestarts": 0
+    } |
+    .taskPool //= [] |
+    .dispatchMode //= "subagent" |
+    .agentTeamsAvailable //= false
+  '; then
+    echo "ERROR: Failed to migrate state from v1 to v2" >&2
+    return 1
+  fi
+  echo "INFO: State migration v1->v2 complete" >&2
   return 0
 }

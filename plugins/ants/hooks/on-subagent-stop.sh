@@ -13,6 +13,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/swarm.sh"
+source "$SCRIPT_DIR/lib/dag.sh"
+source "$SCRIPT_DIR/lib/circuit-breaker.sh"
 
 check_ants_workflow
 
@@ -34,8 +36,18 @@ case "$AGENT_TYPE" in
   # All A3 agents (worker, sentinel, guardian) share the builder completion path.
   # Guardian writes tests (builder-like) and sentinel reviews code -- both produce
   # per-wave outputs that the orchestrator aggregates into A3-build.json.
-  worker|ants:worker|sentinel|ants:sentinel|guardian|ants:guardian)
+  worker|ants:worker|guardian|ants:guardian|sentinel|ants:sentinel)
     AGENT="builder" ;;
+  sentinel-correctness|ants:sentinel-correctness)
+    AGENT="sentinel-correctness" ;;
+  sentinel-security|ants:sentinel-security)
+    AGENT="sentinel-security" ;;
+  sentinel-perf|ants:sentinel-perf)
+    AGENT="sentinel-perf" ;;
+  review-arbiter|ants:review-arbiter)
+    AGENT="review-arbiter" ;;
+  review-fixer|ants:review-fixer)
+    AGENT="review-fixer" ;;
   queen|ants:queen)         AGENT="queen" ;;
   nurse|ants:nurse)
     AGENT="nurse" ;;
@@ -92,9 +104,7 @@ case "$AGENT" in
     fi
 
     # Check if blueprint review requires revision
-    local review_status
     review_status=$(jq -r '.status // .verdict // empty' "${PHASES_DIR}/A2-review.json" 2>/dev/null || echo "")
-    local high_count
     high_count=$(jq -r '[.issues[]? | select(.severity == "HIGH" or .severity == "critical")] | length' "${PHASES_DIR}/A2-review.json" 2>/dev/null || echo "0")
 
     if [[ "$review_status" == "needs_revision" && "$high_count" -gt 0 ]]; then
@@ -111,6 +121,12 @@ case "$AGENT" in
           echo "ERROR: Failed to loop back to A1 after blueprint review failure." >&2
           exit 2
         fi
+        reset_phases_for_loop
+        cb_increment_stage_restarts || {
+          echo "WARNING: Stage restart budget exhausted after blueprint review failure." >&2
+          update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"' || true
+        }
+        cb_reset_for_loop
       fi
     else
       # Advance to A3
@@ -175,7 +191,79 @@ case "$AGENT" in
       rm -rf "$A3_LOCK_DIR" 2>/dev/null || true
     fi
     # If A3-build.json doesn't exist yet, this is an individual builder completing.
-    # The orchestrator aggregates after all builders finish. No state change yet.
+    # If a task pool exists, mark the worker's task as complete and check pool status.
+    has_pool=$(jq -r '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end' "$STATE_FILE" 2>/dev/null || echo "no")
+    if [[ "$has_pool" == "yes" ]]; then
+      source "$SCRIPT_DIR/lib/task-pool.sh"
+      # Extract task_id from subagent output if available
+      task_id=$(printf '%s' "$INPUT" | jq -r '.output.task_id // empty' 2>/dev/null || echo "")
+      if [[ -n "$task_id" ]]; then
+        pool_complete_task "$task_id" || echo "WARNING: Failed to complete task $task_id in pool" >&2
+      fi
+      if pool_is_complete; then
+        echo "INFO: All tasks in pool complete" >&2
+      fi
+    fi
+    ;;
+
+  sentinel-correctness|sentinel-security|sentinel-perf)
+    # Track sentinel completion via marker files. When all 3 are done, the
+    # orchestrator can dispatch the review-arbiter.
+    marker_file="${PHASES_DIR}/.${AGENT}.done"
+    touch "$marker_file"
+    echo "INFO: ${AGENT} completed, marker written to ${marker_file}" >&2
+
+    # Check if all three sentinels are done
+    if [[ -f "${PHASES_DIR}/.sentinel-correctness.done" ]] \
+       && [[ -f "${PHASES_DIR}/.sentinel-security.done" ]] \
+       && [[ -f "${PHASES_DIR}/.sentinel-perf.done" ]]; then
+      echo "INFO: All sentinels complete, dispatching arbiter" >&2
+    fi
+    ;;
+
+  review-arbiter)
+    # Read consolidated A3-quality.json verdict from the arbiter
+    if [[ ! -f "${PHASES_DIR}/A3-quality.json" ]]; then
+      echo "Review arbiter completed but A3-quality.json not found." >&2
+      exit 2
+    fi
+    if ! validate_json_file "${PHASES_DIR}/A3-quality.json" "A3-quality.json"; then
+      echo "ERROR: A3-quality.json is invalid JSON." >&2
+      exit 2
+    fi
+
+    source "$SCRIPT_DIR/lib/circuit-breaker.sh"
+
+    arbiter_verdict=$(jq -r '.verdict // empty' "${PHASES_DIR}/A3-quality.json" 2>/dev/null || echo "")
+    critical_count=$(jq -r '[.issues[]? | select(.severity == "critical")] | length' "${PHASES_DIR}/A3-quality.json" 2>/dev/null || echo "0")
+
+    if [[ "$arbiter_verdict" == "issues_found" && "$critical_count" -gt 0 ]]; then
+      echo "INFO: Arbiter found ${critical_count} critical issues, recording failure" >&2
+      if ! cb_record_failure; then
+        echo "WARNING: Circuit breaker tripped after arbiter failure" >&2
+      fi
+    else
+      echo "INFO: Arbiter verdict clean or no critical issues, recording success" >&2
+      cb_record_success
+    fi
+
+    # Advance to A4 regardless (queen evaluates the full picture)
+    current=$(jq -r '.currentPhase // empty' "$STATE_FILE" 2>/dev/null || echo "")
+    if [[ "$current" == "A3" ]]; then
+      if ! update_state '.currentPhase = "A4" | .updatedAt = $ts | .phases.A3.status = "complete"'; then
+        echo "ERROR: Failed to advance state from A3 to A4 after arbiter." >&2
+        exit 2
+      fi
+    fi
+    ;;
+
+  review-fixer)
+    # After fix applied, clear sentinel markers and re-run sentinels
+    rm -f "${PHASES_DIR}/.sentinel-correctness.done" \
+          "${PHASES_DIR}/.sentinel-security.done" \
+          "${PHASES_DIR}/.sentinel-perf.done" 2>/dev/null || true
+    rm -f "${PHASES_DIR}/A3-quality.json" 2>/dev/null || true
+    echo "INFO: Review fixer complete, sentinel markers cleared for re-run" >&2
     ;;
 
   queen)
@@ -217,6 +305,12 @@ case "$AGENT" in
           echo "ERROR: Failed to loop back to A1." >&2
           exit 2
         fi
+        reset_phases_for_loop
+        cb_increment_stage_restarts || {
+          echo "WARNING: Stage restart budget exhausted after queen loop-back." >&2
+          update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Stage restart budget exhausted"' || true
+        }
+        cb_reset_for_loop
       fi
     fi
     ;;

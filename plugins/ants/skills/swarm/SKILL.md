@@ -1,11 +1,11 @@
 ---
 name: swarm
-description: Ant-colony themed 6-phase swarm pipeline with dual-track parallel build and quality execution
+description: Ant-colony themed 6-phase swarm pipeline with self-organizing task pool and adversarial review teams
 ---
 
 # Swarm Pipeline
 
-Ant-colony themed 6-phase development pipeline with dual-track parallel execution. Uses **ants plugin agents** (self-contained) driven by **ants plugin hooks** (Ralph-style loop driver). No Codex MCP dependency.
+Ant-colony themed 6-phase development pipeline with dual-track parallel execution, adversarial review teams, and self-organizing task dispatch. Uses **ants plugin agents** (self-contained) driven by **ants plugin hooks** (Ralph-style loop driver). No Codex MCP dependency.
 
 ## Key Architecture
 
@@ -13,6 +13,7 @@ Ant-colony themed 6-phase development pipeline with dual-track parallel executio
 - `plugin: "ants"` -- so ants hooks fire
 - Other plugins' hooks silently exit (they check `plugin` field in state.json)
 - All agents are `ants:*` prefixed -- they exist in the ants plugin
+- State schema v2 with `phases`, `circuitBreaker`, `taskPool`, and `dispatchMode` fields
 
 ## 6-Phase Pipeline
 
@@ -20,8 +21,8 @@ Ant-colony themed 6-phase development pipeline with dual-track parallel executio
 Phase A0  | EXPLORE   | Colony Exploration     | dispatch  -> foragers + cartographer + aggregator
 Phase A1  | PLAN      | Architect Plan         | subagent  -> architect
 Phase A2  | PLAN      | Blueprint Review       | subagent  -> blueprint-reviewer
-Phase A3  | BUILD     | Dual-Track Execution   | dispatch  -> workers (build) + sentinels (quality)
-Phase A4  | SYNC      | Queen Synchronization  | subagent  -> queen
+Phase A3  | BUILD     | Dual-Track Execution   | dispatch  -> workers (task pool) + adversarial sentinels + arbiter
+Phase A4  | SYNC      | Queen Synchronization  | subagent  -> queen (circuit breaker aware)
 Phase A5  | SHIP      | Documentation + Ship   | subagent  -> nurse + drone
 ```
 
@@ -38,13 +39,16 @@ Phase A5  | SHIP      | Documentation + Ship   | subagent  -> nurse + drone
     |    Phase A3      |
     |  (dual-track)    |
     |                  |
-    | Build Track      | Quality Track
-    | (workers)        | (sentinels)
-    |  Wave 1 ------> |  sentinel reviews
-    |  Wave 2 ------> |  per-wave quality
+    | Build Track      | Quality Track (Adversarial)
+    | (task pool)      |
+    |  workers claim   | sentinel-correctness  \
+    |  tasks as deps   | sentinel-security      } parallel
+    |  are satisfied   | sentinel-perf         /
+    |                  |       |
+    |                  | review-arbiter (consolidate)
     +--------+--------+
              |
-         A4 Queen Sync
+         A4 Queen Sync (circuit breaker aware)
           /       \
      ship          loop
       |              |
@@ -67,20 +71,22 @@ This phase is **supplementary, not required**. If agents fail or time out, the w
 
 ### Phase A1: Architect Plan
 
-Single `ants:architect` agent (sonnet) explores the codebase (using A0 context if available) and writes a structured implementation plan with wave assignments for dual-track execution.
+Single `ants:architect` agent (sonnet) explores the codebase (using A0 context if available) and writes a structured implementation plan with task assignments for the task pool.
 
 On loop 2+, the architect reads the previous loop's review outputs and plans targeted fixes rather than re-planning from scratch.
 
-Output: `.agents/tmp/phases/loop-{LOOP}/A1-plan.md`
+Output:
+- `.agents/tmp/phases/loop-{LOOP}/A1-plan.md` -- human-readable plan
+- `.agents/tmp/phases/loop-{LOOP}/A1-tasks.json` -- machine-readable task descriptors for task pool
 
 Must contain:
 - Summary and chosen approach
-- Task table with columns: ID, Description, Files, Wave, Complexity, Dependencies, Acceptance Criteria
-- Wave summary (Wave 1 foundation tasks, Wave 2 dependent tasks)
+- Task table with columns: ID, Description, Files, Dependencies, Complexity, Acceptance Criteria
+- Task dependency graph (which tasks depend on which)
 
 ### Phase A2: Blueprint Review
 
-Single `ants:blueprint-reviewer` agent (sonnet) validates the architect's plan for completeness, feasibility, wave correctness, and risk.
+Single `ants:blueprint-reviewer` agent (sonnet) validates the architect's plan for completeness, feasibility, dependency correctness, and risk.
 
 Output: JSON with `status: "approved" | "needs_revision"`
 
@@ -88,65 +94,78 @@ If `needs_revision` with HIGH issues: loop back to A1 for the architect to revis
 
 ### Phase A3: Dual-Track Execution
 
-The core differentiator. Two parallel tracks execute simultaneously:
+The core differentiator. Two parallel tracks execute:
 
-#### Build Track (workers)
+#### Build Track (Task Pool)
 
-Workers are dispatched in **waves** according to the architect's plan:
+Workers are dispatched from a **self-organizing task pool** based on dependency satisfaction:
 
-1. **Wave 1** -- Foundation tasks with no cross-task dependencies. Multiple workers dispatch in parallel, one per task.
-2. **Wave 1 completion barrier** -- All Wave 1 workers must complete before Wave 2 starts.
-3. **Wave 2** -- Dependent tasks that build on Wave 1 outputs. Multiple workers dispatch in parallel.
+1. `pool_init()` reads `A1-tasks.json` and initializes the task pool in state.json
+2. Tasks with no dependencies start as `ready`; others start as `pending`
+3. Workers atomically claim ready tasks via `pool_claim_task()`
+4. As workers complete, `pool_complete_task()` recomputes the ready set -- previously pending tasks whose dependencies are now all complete become ready
+5. New workers are dispatched for newly ready tasks
+6. Pool is complete when all tasks are `complete` or `failed`
 
 Each worker:
-- Implements exactly one task from the plan
+- Implements exactly one task from the pool
+- Can only edit files listed in the task's `files_owned` field (enforced by edit gate)
 - Self-verifies (tests, lint, typecheck)
 - Outputs structured JSON with status, files modified, tests written
 - Has git blocked by hook (no commits)
-- Has a Stop gate (prompt-based hard validation)
 
-#### Quality Track (sentinels)
+**Fallback:** If no `taskPool` exists in state (v0.1 state files), A3 falls back to legacy wave-based dispatch with the generic sentinel.
 
-Sentinel review agents run **per wave**, reviewing the output of each wave as it completes:
+#### Quality Track (Adversarial Review)
 
-- After Wave 1 completes: sentinels review Wave 1 implementation
-- After Wave 2 completes: sentinels review Wave 2 implementation
+After all workers complete (pool drained), three specialist sentinels run **in parallel**:
 
-Sentinels check:
-- Code correctness and adherence to acceptance criteria
-- Integration risks between tasks
-- Test coverage gaps
-- Issue severity classification (critical, warning, info)
+- **sentinel-correctness** -- bugs, logic errors, missing error handling, incorrect API usage, race conditions
+- **sentinel-security** -- OWASP top 10, injection attacks, authentication flaws, secrets exposure, access control
+- **sentinel-perf** -- N+1 queries, unnecessary allocations, blocking I/O, missing caching, algorithmic complexity
 
-#### Wave Synchronization
+Each sentinel writes its findings to a separate file:
+- `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-correctness.json`
+- `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-security.json`
+- `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-perf.json`
+
+After all three sentinels complete, the **review-arbiter** runs:
+- Reads all three sentinel outputs
+- Cross-references findings across dimensions
+- Deduplicates overlapping issues
+- Resolves conflicts (e.g., security vs performance trade-offs)
+- Produces consolidated verdict: `.agents/tmp/phases/loop-{LOOP}/A3-quality.json`
+
+The arbiter's output is backward compatible with the v0.1 sentinel quality format.
+
+#### Guardian (Test Writing)
+
+Guardian agents write tests for implemented code alongside the review track. One guardian per batch of completed tasks.
+
+#### Task Pool Status Lifecycle
 
 ```
-Build Track              Quality Track
------------              -------------
-Wave 1 workers (parallel)
-    |
-    +-- barrier ----------> Sentinels review Wave 1
-    |                           |
-Wave 2 workers (parallel)       |
-    |                           |
-    +-- barrier ----------> Sentinels review Wave 2
-    |                           |
-    +-- both tracks --------+---+
-             |
-          Phase A4
+pending  ---> ready  ---> claimed  ---> complete
+                                    \--> failed
 ```
+
+- `pending`: Dependencies not yet satisfied
+- `ready`: All dependencies complete, available for claiming
+- `claimed`: Worker has taken ownership
+- `complete`: Implementation finished successfully
+- `failed`: Worker reported failure (blocks dependents)
 
 Build track output: `.agents/tmp/phases/loop-{LOOP}/A3-build.json`
 Quality track output: `.agents/tmp/phases/loop-{LOOP}/A3-quality.json`
 
 ### Phase A4: Queen Synchronization
 
-Single `ants:queen` agent (sonnet, read-only) merges results from both tracks and renders a verdict:
+Single `ants:queen` agent (sonnet, read-only) reads the arbiter's consolidated `A3-quality.json` and the build track's `A3-build.json`, cross-references, and renders a verdict.
+
+The queen is **circuit breaker aware** -- she checks `circuitBreaker.stageRestarts` and `circuitBreaker.consecutiveFailures` before recommending a loop-back.
 
 - **clean**: Quality track clean (or info-only issues) AND build track completed successfully
 - **issues_found**: Any critical or warning issue unresolved, OR build track incomplete
-
-The queen cross-references quality issues against the build implementation to determine which issues are actually still valid.
 
 Output: `.agents/tmp/phases/loop-{LOOP}/A4-queen-verdict.json`
 
@@ -160,6 +179,20 @@ Two sub-steps:
 Nurse output: `.agents/tmp/phases/loop-{LOOP}/A5-docs.json`
 Drone output: `.agents/tmp/phases/loop-{LOOP}/A5-ship.json`
 
+## Circuit Breaker
+
+The circuit breaker prevents infinite failure loops. It tracks three tiers:
+
+| Tier | Counter | Default Limit | Scope |
+|------|---------|---------------|-------|
+| Consecutive failures | `circuitBreaker.consecutiveFailures` | 5 | Cross-loop |
+| Fix attempts | `circuitBreaker.fixAttempts[phase]` | 5 per phase | Per-loop (reset on loop-back) |
+| Stage restarts | `circuitBreaker.stageRestarts` | 2 | Cross-loop |
+
+When any limit is exceeded, the workflow halts with `status: "blocked"`. Success resets the consecutive failure counter. Fix attempts reset per-loop.
+
+Library: `hooks/lib/circuit-breaker.sh`
+
 ## Loop-Back Logic
 
 The queen's verdict drives progression:
@@ -167,13 +200,17 @@ The queen's verdict drives progression:
 ```
 A4 verdict == "clean"         -->  Advance to A5 (ship)
 A4 verdict == "issues_found"  -->  Return to A1 (re-plan fixes)
+                                   Circuit breaker checks:
+                                   - stageRestarts < maxStageRestarts
+                                   - consecutiveFailures < maxConsecutiveFailures
+                                   If either exceeded: block workflow
 ```
 
 ### Loop Limits
 
 - **Maximum loops:** 5 (configurable via `state.maxLoops`)
 - **Loop counter:** `state.loop` (starts at 1)
-- On each loop-back, `loop` increments
+- On each loop-back, `loop` increments and `reset_phases_for_loop()` resets A1-A4 to pending
 - If `loop > maxLoops`: workflow blocks, requires user intervention
 
 ### Loop Context
@@ -183,11 +220,11 @@ On loop 2+:
 - Architect plans **targeted fixes**, not full re-plans
 - Previous loop's files are preserved in `loop-{N}/` directories
 
-## State Schema
+## State Schema (v2)
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "plugin": "ants",
   "pipeline": "swarm",
   "status": "in_progress|blocked|complete",
@@ -198,6 +235,7 @@ On loop 2+:
   "loop": 1,
   "maxLoops": 5,
   "webSearch": true,
+  "dispatchMode": "subagent",
   "startedAt": "ISO timestamp",
   "schedule": [
     {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "dispatch"},
@@ -207,6 +245,14 @@ On loop 2+:
     {"phase": "A4", "stage": "SYNC", "label": "Queen Synchronization", "type": "subagent"},
     {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "subagent"}
   ],
+  "phases": {
+    "A0": {"status": "complete", "startedAt": "...", "completedAt": "..."},
+    "A1": {"status": "in_progress", "startedAt": "..."},
+    "A2": {"status": "pending"},
+    "A3": {"status": "pending"},
+    "A4": {"status": "pending"},
+    "A5": {"status": "pending"}
+  },
   "stages": {
     "EXPLORE": {"status": "pending", "phases": ["A0"]},
     "PLAN": {"status": "pending", "phases": ["A1", "A2"]},
@@ -220,11 +266,23 @@ On loop 2+:
     "BUILD->SYNC": ["loop-{LOOP}/A3-build.json", "loop-{LOOP}/A3-quality.json"],
     "SYNC->SHIP": ["loop-{LOOP}/A4-queen-verdict.json with verdict=clean"]
   },
-  "waves": {
-    "current": 0,
-    "total": 0,
-    "wave1Complete": false,
-    "wave2Complete": false
+  "taskPool": [
+    {
+      "id": "T1",
+      "description": "Implement auth module",
+      "dependencies": [],
+      "files_owned": ["src/auth.ts"],
+      "status": "ready",
+      "claimed_by": null
+    }
+  ],
+  "circuitBreaker": {
+    "consecutiveFailures": 0,
+    "maxConsecutiveFailures": 5,
+    "maxFixAttempts": 5,
+    "maxStageRestarts": 2,
+    "fixAttempts": {},
+    "stageRestarts": 0
   },
   "failure": null
 }
@@ -240,9 +298,13 @@ All outputs live under `.agents/tmp/phases/`:
 | A0 | `A0-explore.cartographer.tmp` | Markdown | Cartographer architecture map |
 | A0 | `A0-explore.md` | Markdown | Aggregated exploration report |
 | A1 | `loop-{L}/A1-plan.md` | Markdown | Architect's implementation plan |
+| A1 | `loop-{L}/A1-tasks.json` | JSON | Task descriptors for task pool |
 | A2 | `loop-{L}/A2-review.json` | JSON | Blueprint review verdict |
 | A3 | `loop-{L}/A3-build.json` | JSON | Build track worker results |
-| A3 | `loop-{L}/A3-quality.json` | JSON | Quality track sentinel results |
+| A3 | `loop-{L}/A3-review.sentinel-correctness.json` | JSON | Correctness sentinel findings |
+| A3 | `loop-{L}/A3-review.sentinel-security.json` | JSON | Security sentinel findings |
+| A3 | `loop-{L}/A3-review.sentinel-perf.json` | JSON | Performance sentinel findings |
+| A3 | `loop-{L}/A3-quality.json` | JSON | Arbiter consolidated verdict |
 | A4 | `loop-{L}/A4-queen-verdict.json` | JSON | Queen synchronization verdict |
 | A5 | `loop-{L}/A5-docs.json` | JSON | Nurse documentation update summary |
 | A5 | `loop-{L}/A5-ship.json` | JSON | Drone commit/PR output |
@@ -252,7 +314,7 @@ All outputs live under `.agents/tmp/phases/`:
 | Gate | Required | Transition |
 |------|----------|------------|
 | EXPLORE -> PLAN | `A0-explore.md` (soft -- continues if missing) | After Phase A0 |
-| PLAN -> BUILD | `loop-{L}/A1-plan.md` + A2 review approved | After Phase A2 |
+| PLAN -> BUILD | `loop-{L}/A1-plan.md` + `loop-{L}/A1-tasks.json` + A2 review approved | After Phase A2 |
 | BUILD -> SYNC | `loop-{L}/A3-build.json` + `loop-{L}/A3-quality.json` | After Phase A3 |
 | SYNC -> SHIP | `loop-{L}/A4-queen-verdict.json` with verdict `clean` | After Phase A4 |
 
@@ -262,7 +324,8 @@ All outputs live under `.agents/tmp/phases/`:
 |--------|-----------|---------------------|
 | Phases | 6 (A0-A5) | 15 (S0-S14) |
 | Theme | Ant colony (forager, architect, worker, queen) | Generic minions |
-| Key innovation | Dual-track Phase A3 (build + quality in parallel) | Sequential phases with review-fix cycles |
-| Loop mechanism | A4 queen verdict -> A1 re-plan (max 5) | Review phases with fix attempts + stage restarts |
-| Agents | 11 specialized colony roles | 26+ agents |
+| Key innovation | Task pool + adversarial review teams (3 sentinels + arbiter) | Sequential phases with review-fix cycles |
+| Loop mechanism | A4 queen verdict -> A1 re-plan (max 5, circuit breaker) | Review phases with fix attempts + stage restarts |
+| Agents | 16 specialized colony roles | 26+ agents |
+| Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Complexity | Streamlined for medium tasks | Thorough for complex tasks |

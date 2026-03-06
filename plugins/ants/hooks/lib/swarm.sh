@@ -83,7 +83,7 @@ get_phase_agent() {
     A0) echo "ants:forager ants:cartographer ants:explore-aggregator" ;;
     A1) echo "ants:architect" ;;
     A2) echo "ants:blueprint-reviewer" ;;
-    A3) echo "ants:worker ants:sentinel ants:guardian" ;;
+    A3) echo "ants:worker ants:sentinel ants:guardian ants:sentinel-correctness ants:sentinel-security ants:sentinel-perf ants:review-arbiter ants:review-fixer" ;;
     A4) echo "ants:queen" ;;
     A5) echo "ants:nurse ants:drone" ;;
     *)  echo "" ;;
@@ -181,6 +181,47 @@ parse_queen_verdict() {
 }
 
 # ===========================================================================
+# Pool-Aware Prompt Generation
+# ===========================================================================
+
+# Generate a prompt listing available tasks from the task pool.
+# Used during A3 when taskPool exists in state.json.
+# Usage: prompt_fragment=$(generate_pool_prompt)
+generate_pool_prompt() {
+  local available
+  available=$(jq '[.taskPool[] | select(.status == "ready" and .claimed_by == null)]' "$STATE_FILE" 2>/dev/null || echo "[]")
+
+  local count
+  count=$(echo "$available" | jq 'length')
+
+  if [[ "$count" == "0" ]]; then
+    # Check if all tasks are done
+    local remaining
+    remaining=$(jq '[.taskPool[] | select(.status == "pending" or .status == "ready" or .status == "claimed")] | length' "$STATE_FILE" 2>/dev/null || echo "0")
+    if [[ "$remaining" == "0" ]]; then
+      echo "All tasks in the pool are complete. Aggregate results into A3-build.json."
+    else
+      echo "No tasks are currently available (${remaining} still in progress or blocked by dependencies). Wait for running workers to complete."
+    fi
+    return 0
+  fi
+
+  local task_list
+  task_list=$(echo "$available" | jq -r '.[] | "- Task \(.id): \(.description) [files: \(.files_owned | join(", "))]"')
+
+  cat <<EOF
+${count} task(s) available for claiming from the task pool:
+
+${task_list}
+
+For each available task, dispatch an ants:worker with:
+- The task ID and description
+- The list of files_owned (worker should only modify these files)
+- Instructions to write output to .agents/tmp/phases/loop-{LOOP}/A3-worker-{TASK_ID}.json
+EOF
+}
+
+# ===========================================================================
 # Prompt Generation
 # ===========================================================================
 
@@ -271,7 +312,35 @@ Write a JSON review with verdict ("approved" or "needs_revision") and issues[].
 RULES
       ;;
     A3)
-      cat <<RULES
+      # Check if task pool exists for pool-aware prompt
+      local has_pool
+      has_pool=$(jq -r '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end' "$STATE_FILE" 2>/dev/null || echo "no")
+      if [[ "$has_pool" == "yes" ]]; then
+        local pool_prompt
+        pool_prompt="$(generate_pool_prompt)"
+        cat <<RULES
+
+## Task Pool Mode
+
+${pool_prompt}
+
+After all workers complete, dispatch the adversarial review team:
+1. ants:sentinel-correctness, ants:sentinel-security, ants:sentinel-perf (in parallel)
+2. Wait for all sentinels to complete (marker files: .sentinel-*.done)
+3. ants:review-arbiter consolidates findings into A3-quality.json
+4. If critical issues found, dispatch ants:review-fixer, then re-run sentinels
+
+After all tasks and quality review complete, aggregate results into: ${phases_dir}/${output_file}
+
+The aggregated file must contain:
+{
+  "tasks": [ ...each builder's output... ],
+  "files_changed": [ ...deduplicated list... ],
+  "all_complete": true
+}
+RULES
+      else
+        cat <<RULES
 
 Read the plan and dispatch builder agents for each task.
 Builders work in parallel within waves. After all builders complete,
@@ -284,6 +353,7 @@ The aggregated file must contain:
   "all_complete": true
 }
 RULES
+      fi
       ;;
     A4)
       cat <<RULES

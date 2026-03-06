@@ -61,7 +61,24 @@ CURRENT_PHASE=$(state_get '.currentPhase' --required)
 
 # Allow edits during build and ship phases
 case "$CURRENT_PHASE" in
-  A3|A5)
+  A3)
+    # During A3, check file ownership via task pool if available
+    has_pool=$(jq -r '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end' "$STATE_FILE" 2>/dev/null || echo "no")
+    if [[ "$has_pool" == "yes" ]]; then
+      source "$SCRIPT_DIR/lib/task-pool.sh"
+      if owner_json=$(pool_get_file_owner "$FILE_PATH"); then
+        # File has an owner -- warn if it does not match the current worker
+        # We cannot determine the current worker identity in the edit gate
+        # (it fires for the orchestrator, not the subagent), so we log a warning
+        # that the file is owned by a specific task for diagnostic purposes.
+        owner_task=$(echo "$owner_json" | jq -r '.task_id // "unknown"')
+        owner_claimer=$(echo "$owner_json" | jq -r '.claimed_by // "unknown"')
+        echo "INFO: File ${FILE_PATH} is owned by task ${owner_task} (claimed by ${owner_claimer})" >&2
+      fi
+    fi
+    exit 0
+    ;;
+  A5)
     exit 0
     ;;
 esac
