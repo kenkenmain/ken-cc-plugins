@@ -22,6 +22,7 @@ tools:
   - Glob
   - Grep
   - WebSearch
+  - Write
 disallowedTools:
   - Edit
   - Bash

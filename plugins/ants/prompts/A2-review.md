@@ -51,6 +51,8 @@ The blueprint-reviewer evaluates the plan on four dimensions:
 
 ## Output
 
+**IMPORTANT:** Use `status` as the top-level verdict field (not `verdict`). The hook validates `.status` as the canonical field. Using `verdict` is a legacy pattern and should not be used in new output.
+
 File: `.agents/tmp/phases/loop-{{LOOP}}/A2-review.json`
 
 ```json

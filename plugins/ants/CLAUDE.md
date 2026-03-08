@@ -70,7 +70,7 @@ plugins/ants/
 | 1 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
 | 2 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
 | 3 | explore-aggregator | Merges explorer outputs into report | haiku | Read, Write, Glob | Yes |
-| 4 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch | Yes |
+| 4 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write | Yes |
 | 5 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep | Yes |
 | 6 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
 | 7 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
@@ -87,9 +87,22 @@ plugins/ants/
 
 All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The orchestrator (hooks) manages task assignment and quality gates via TeammateIdle/TaskCompleted hooks.
 
+**Sentinel tool design:** Specialist sentinels (rows 8-10) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
+
 ### Deprecated Agents
 
 - **sentinel** -- Replaced by specialist sentinels (sentinel-correctness, sentinel-security, sentinel-perf) in v0.2. The generic sentinel is retained for backward compatibility with v0.1 state files but should not be dispatched in new workflows.
+
+### WebSearch Strategy
+
+| Agent | Has WebSearch | Activation |
+|-------|--------------|------------|
+| forager | Yes | Controlled by `webSearch` state flag and dispatch prompt |
+| architect | Yes | Controlled by dispatch prompt (`--web` flag) |
+| guardian | Yes | Controlled by dispatch prompt |
+| All others | No | -- |
+
+WebSearch is opt-in. The `--web` CLI flag sets `webSearch: true` in state.json, which the dispatch prompts use to include or omit WebSearch guidance for eligible agents.
 
 ## Pipeline Phases (A0-A5)
 
@@ -127,7 +140,7 @@ Phase A3 is the core innovation. Two tracks run in coordinated execution:
 - **sentinel-security** -- OWASP top 10, injection, authentication, secrets exposure
 - **sentinel-perf** -- N+1 queries, blocking I/O, unnecessary allocations, algorithmic complexity
 
-After all three sentinels complete, the **review-arbiter** cross-references findings, deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json).
+After all three sentinels complete, the **review-arbiter** cross-references findings, deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json). If the review-arbiter identifies critical issues, a **review-fixer** is dispatched to apply targeted repairs before the quality verdict is finalized.
 
 **Task Pool Synchronization:** Workers in the pool run in parallel when their dependencies are satisfied. After all workers complete (pool drained), the adversarial review team runs. This replaces the wave barrier model with dependency-driven dispatch.
 
@@ -156,7 +169,7 @@ Ants v0.3 uses Agent Teams delegate mode exclusively. The `hooks/lib/teams.sh` l
 - `teams_assign_idle_teammate()` -- Builds exit-2 output for TeammateIdle hook
 - `teams_reject_completion()` -- Builds exit-2 output for TaskCompleted rejection
 
-The swarm command auto-enables `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` before creating the team.
+The swarm command uses ToolSearch to load Agent Teams tools (TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop) before creating the team.
 
 ## Hook Architecture
 
@@ -176,7 +189,7 @@ Eight hooks drive the workflow via Agent Teams delegate mode:
 - Phase-specific quality gates:
   - A0: A0-explore.md exists → advance to A1
   - A1: A1-plan.md exists → advance to A2 (checks A1-tasks.json for A3 sub-tasks)
-  - A2: Review verdict — needs_revision with HIGH → loop to A1; else → A3
+  - A2: Review verdict — needs_revision with HIGH → loop to A1; else → A3. Note: `.status` is the canonical verdict field in A2-review.json. The hook reads `.verdict` as a backward-compatibility fallback.
   - A3: Workers update task pool, sentinels write markers, arbiter consolidates
   - A4: Parse queen verdict — clean → A5, issues_found → loop to A1
   - A5: A5-ship.json with commit_sha → workflow DONE (swarm) or reset to A0 (pswarm)
@@ -422,7 +435,7 @@ Cross-phase communication via the `messages` array in state.json. Agents can sen
 
 ## Worktree Isolation (v0.4)
 
-When `.worktreePath` is set, the workflow operates in a git worktree at the specified path. This isolates the workflow's file changes from the main branch, enabling multiple workflows to run concurrently on the same repository.
+When `.worktreePath` is set, the workflow operates in a git worktree at the specified path. This isolates the workflow's file changes from the main branch, enabling multiple workflows to run concurrently on the same repository. Hooks always execute from the main project root directory, not from the worktree. The `worktreePath` field in state.json directs worker agents to read/write files in the isolated worktree directory.
 
 ## Lint-on-Save (v0.4)
 
