@@ -56,7 +56,7 @@ handle_a1() {
   if [[ "$plan_approved" != "true" ]]; then
     # Plan not yet approved -- keep standard "pending" status and reject
     # completion so TeammateIdle does not re-dispatch A1.
-    if ! update_state '.planApproved = false | .updatedAt = $ts | .phases.A1.status = "pending"'; then
+    if ! update_state '.updatedAt = $ts | .phases.A1.status = "pending"'; then
       echo "ERROR: Failed to mark plan as awaiting approval." >&2
       exit 2
     fi
@@ -101,11 +101,16 @@ handle_a2() {
 
   # Batch-read review status and high-severity count in a single jq pass
   local review_meta
-  review_meta=$(jq -r '{status: (.status // .verdict // ""), high_count: ([.issues[]? | select(.severity == "HIGH" or .severity == "critical")] | length)} | "\(.status)\t\(.high_count)"' "${phases_dir}/A2-review.json")
+  if ! review_meta=$(jq -r '{status: (.status // .verdict // ""), high_count: ([.issues[]? | select(.severity == "HIGH" or .severity == "critical")] | length)} | "\(.status)\t\(.high_count)"' "${phases_dir}/A2-review.json" 2>/dev/null); then
+    teams_reject_completion "Failed to parse A2-review.json"
+    exit 2
+  fi
   local review_status
   review_status=$(printf '%s' "$review_meta" | cut -f1)
   local high_count
   high_count=$(printf '%s' "$review_meta" | cut -f2)
+  high_count="${high_count:-0}"
+  high_count=$(require_int "$high_count" "high_count")
   if [[ -z "$review_status" ]]; then
     teams_reject_completion "A2-review.json has neither .status nor .verdict field. Review must produce a verdict."
     exit 2
@@ -245,11 +250,16 @@ handle_a3_arbiter() {
 
   # Batch-read arbiter verdict and critical count in a single jq pass
   local arbiter_meta
-  arbiter_meta=$(jq -r '{verdict: (.verdict // ""), critical_count: ([.issues[]? | select(.severity == "critical")] | length)} | "\(.verdict)\t\(.critical_count)"' "${phases_dir}/A3-quality.json")
+  if ! arbiter_meta=$(jq -r '{verdict: (.verdict // ""), critical_count: ([.issues[]? | select(.severity == "critical")] | length)} | "\(.verdict)\t\(.critical_count)"' "${phases_dir}/A3-quality.json" 2>/dev/null); then
+    teams_reject_completion "Failed to parse A3-quality.json"
+    exit 2
+  fi
   local arbiter_verdict
   arbiter_verdict=$(printf '%s' "$arbiter_meta" | cut -f1)
   local critical_count
   critical_count=$(printf '%s' "$arbiter_meta" | cut -f2)
+  critical_count="${critical_count:-0}"
+  critical_count=$(require_int "$critical_count" "critical_count")
 
   if [[ "$arbiter_verdict" == "issues_found" && "$critical_count" -gt 0 ]]; then
     teams_log "Arbiter found ${critical_count} critical issues, recording failure"
@@ -437,7 +447,6 @@ handle_a5() {
          | .phases.A3 = {"status": "pending"}
          | .phases.A4 = {"status": "pending"}
          | .phases.A5 = {"status": "pending"}
-         | del(.phases.A3.buildTrackComplete)
          | .circuitBreaker.stageRestarts = 0
          | .circuitBreaker.fixAttempts = {}
          | .circuitBreaker.consecutiveFailures = 0'; then

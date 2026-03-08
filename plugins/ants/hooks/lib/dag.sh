@@ -34,6 +34,8 @@ set -euo pipefail
 # A5 (ship) is NOT reset -- it only runs after a clean verdict.
 # Usage: reset_phases_for_loop
 reset_phases_for_loop() {
+  # Note: .phases.A3 = {"status": "pending"} implicitly clears buildTrackComplete
+  # by overwriting the entire A3 object (same as the pswarm reset path).
   if ! update_state \
     '.phases = (.phases // {})
      | .phases.A1 = {"status": "pending"}
