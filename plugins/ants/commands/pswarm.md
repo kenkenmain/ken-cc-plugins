@@ -79,6 +79,7 @@ If `--worktree` flag was provided, also run:
 
 ```bash
 WORKTREE_PATH="../.worktrees/pswarm-${BRANCH_SLUG}"
+mkdir -p "$(dirname "$WORKTREE_PATH")"
 git worktree add "$WORKTREE_PATH" "$BRANCH_NAME" 2>/dev/null || true
 cd "$WORKTREE_PATH"
 ```

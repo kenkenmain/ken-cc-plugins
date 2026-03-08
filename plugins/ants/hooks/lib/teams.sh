@@ -126,6 +126,14 @@ teams_add_a3_subtasks() {
     return 1
   fi
 
+  # Validate task IDs match safe pattern (alphanumeric, hyphens, underscores only)
+  local invalid_ids
+  invalid_ids=$(jq -r '[.[].id | select(test("^[A-Za-z0-9_-]+$") | not)] | join(", ")' "$tasks_file" 2>/dev/null || echo "")
+  if [[ -n "$invalid_ids" ]]; then
+    teams_log "ERROR: Invalid task IDs in A1-tasks.json: ${invalid_ids}. IDs must match ^[A-Za-z0-9_-]+$"
+    return 1
+  fi
+
   # Read architect's tasks and build sub-task descriptors
   jq '
     # Collect all worker task IDs
@@ -235,10 +243,17 @@ teams_get_next_ready_task() {
 teams_build_teammate_prompt() {
   local phase="${1:?teams_build_teammate_prompt requires a phase ID}"
 
+  # Batch-read task and loop in a single jq pass to avoid multiple lock/fork cycles
+  local task_and_loop
+  task_and_loop="$(jq -r '"\(.task // "")\t\(.loop // 1)"' "$STATE_FILE")"
   local task
-  task="$(state_get '.task' --required)"
+  task="$(printf '%s' "$task_and_loop" | cut -f1)"
+  if [[ -z "$task" ]]; then
+    echo "ERROR: state.json missing required field: .task" >&2
+    return 1
+  fi
   local loop
-  loop="$(state_get '.loop // 1')"
+  loop="$(printf '%s' "$task_and_loop" | cut -f2)"
   loop=$(require_int "$loop" "loop")
 
   local phases_dir

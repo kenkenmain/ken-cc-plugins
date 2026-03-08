@@ -15,7 +15,7 @@ You are launching a 6-phase ant-colony swarm workflow. You are the orchestrator 
 ## Arguments
 
 - `<task description>`: Required. The task to execute.
-- `--worktree`: Optional. Create a git worktree for isolated development.
+- `--worktree`: Optional. Create a git worktree for isolated development. Path stored in `.worktreePath` in state.json. After completion, remove with `git worktree remove <path>`.
 
 Parse from $ARGUMENTS to extract the task description and any flags.
 
@@ -72,6 +72,7 @@ If `--worktree` flag was provided, also run:
 
 ```bash
 WORKTREE_PATH="../.worktrees/ants-${BRANCH_SLUG}"
+mkdir -p "$(dirname "$WORKTREE_PATH")"
 git worktree add "$WORKTREE_PATH" "$BRANCH_NAME" 2>/dev/null || true
 cd "$WORKTREE_PATH"
 ```
@@ -184,6 +185,31 @@ Dispatch **1 architect agent** (`subagent_type: "ants:architect"`):
 - "Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.md. Write machine-readable task descriptors (with IDs, descriptions, file ownership, dependencies, acceptance criteria) to .agents/tmp/phases/loop-<LOOP>/A1-tasks.json"
 - On loop 2+, also include: "This is loop <LOOP>. Read the previous loop's quality review at .agents/tmp/phases/loop-<PREV>/A3-quality.json and queen verdict at .agents/tmp/phases/loop-<PREV>/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan."
 
+#### A1-tasks.json Format
+
+The architect writes task descriptors as JSON for the task pool:
+
+```json
+[
+  {
+    "id": "T1",
+    "description": "Create auth middleware",
+    "files_owned": ["src/middleware/auth.ts"],
+    "dependencies": [],
+    "acceptance_criteria": "Returns 401 for invalid tokens"
+  },
+  {
+    "id": "T2",
+    "description": "Wire up routes",
+    "files_owned": ["src/routes/auth.ts"],
+    "dependencies": ["T1"],
+    "acceptance_criteria": "POST /login and POST /register work"
+  }
+]
+```
+
+Task IDs must match `^[A-Za-z0-9_-]+$`. Workers claim tasks from this pool via `pool_claim_task()` based on dependency satisfaction.
+
 Update state: `phases.A1.status: "complete"`.
 
 ### Phase A2: Blueprint Review
@@ -238,6 +264,10 @@ Read the verdict:
 - **"issues_found"**: Check circuit breaker. If within limits, increment loop counter, reset A1-A4 to pending, go back to Phase A1. If circuit breaker tripped, halt workflow with `status: "blocked"`.
 
 Update state: `phases.A4.status: "complete"`.
+
+#### Cross-Phase Messaging
+
+When looping back to A1, the queen can add messages for the architect via the `.messages` array in state.json. On loop 2+, `teams_build_teammate_prompt()` injects received messages into the architect's prompt context, enabling targeted feedback without re-planning from scratch.
 
 ### Phase A5: Documentation + Ship
 

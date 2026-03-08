@@ -312,6 +312,18 @@ All outputs live under `.agents/tmp/phases/`:
 | BUILD -> SYNC | `loop-{L}/A3-build.json` + `loop-{L}/A3-quality.json` | After Phase A3 |
 | SYNC -> SHIP | `loop-{L}/A4-queen-verdict.json` with verdict `clean` | After Phase A4 |
 
+## Verdict Field Naming
+
+Different phases use different JSON field names for their decision outputs. The hook reads both for compatibility:
+
+| Phase | File | Decision Field | Values |
+|-------|------|---------------|--------|
+| A2 | A2-review.json | `.status` or `.verdict` | `approved`, `needs_revision` |
+| A3 | A3-quality.json | `.verdict` | `clean`, `issues_found` |
+| A4 | A4-queen-verdict.json | `.verdict` | `clean`, `issues_found` |
+
+The A2 hook accepts either `.status` or `.verdict` (`jq '.status // .verdict'`). A3 and A4 use `.verdict` consistently.
+
 ## Difference from Minions
 
 | Aspect | ants:swarm | minions:superlaunch |
