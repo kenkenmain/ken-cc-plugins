@@ -20,66 +20,73 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
 
 check_ants_workflow
+shutdown_check
 
 # Read input
-INPUT=$(cat)
-if [[ -z "$INPUT" ]] || ! printf '%s' "$INPUT" | jq empty 2>/dev/null; then
+input=$(cat)
+if [[ -z "$input" ]] || ! printf '%s' "$input" | jq empty 2>/dev/null; then
   echo "ERROR: No valid JSON received on stdin for PreToolUse hook." >&2
   exit 2
 fi
 
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')
+file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty')
 
 # Block if file path is empty or missing — fail-closed for security gate
-if [[ -z "$FILE_PATH" ]]; then
+if [[ -z "$file_path" ]]; then
   echo "ERROR: Edit/Write tool call has no file_path — blocking as precaution." >&2
   exit 2
 fi
 
 # Canonicalize path to prevent traversal bypasses (e.g., /../.agents/../../etc/passwd)
 # Try realpath -m (GNU) first, fall back to realpath without -m (BSD macOS), then python
+canonicalized=false
 if command -v realpath &>/dev/null; then
-  FILE_PATH=$(realpath -m "$FILE_PATH" 2>/dev/null || realpath "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
-elif command -v python3 &>/dev/null; then
-  FILE_PATH=$(python3 -c "import os; print(os.path.abspath('$FILE_PATH'))" 2>/dev/null || echo "$FILE_PATH")
-elif [[ "$FILE_PATH" == *".."* ]]; then
-  # Fail-closed: block edits with traversal sequences when realpath is unavailable
-  echo "ERROR: Path contains '..' and realpath is not available for canonicalization -- blocking edit." >&2
+  canon=$(realpath -m "$file_path" 2>/dev/null) || canon=$(realpath "$file_path" 2>/dev/null) || canon=""
+  if [[ -n "$canon" ]]; then
+    file_path="$canon"
+    canonicalized=true
+  fi
+fi
+if [[ "$canonicalized" == "false" ]] && command -v python3 &>/dev/null; then
+  canon=$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$file_path" 2>/dev/null) || canon=""
+  if [[ -n "$canon" ]]; then
+    file_path="$canon"
+    canonicalized=true
+  fi
+fi
+# Fail-closed: if canonicalization failed and path has traversal sequences, block
+if [[ "$canonicalized" == "false" && "$file_path" == *".."* ]]; then
+  echo "ERROR: Path contains '..' and canonicalization failed -- blocking edit." >&2
   exit 2
 fi
 
 # Allow .agents/ writes in any phase (workflow output files)
-if [[ "$FILE_PATH" =~ (^|/)\.agents/ ]]; then
+if [[ "$file_path" =~ (^|/)\.agents/ ]]; then
   exit 0
 fi
 
 # Allow writes to external paths (outside project directory)
 # The gate only protects project source files — temp files, scratchpads, etc. are fine
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
+project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 if command -v realpath &>/dev/null; then
-  PROJECT_DIR=$(realpath -m "$PROJECT_DIR" 2>/dev/null || echo "$PROJECT_DIR")
+  project_dir=$(realpath -m "$project_dir" 2>/dev/null || realpath "$project_dir" 2>/dev/null || echo "$project_dir")
 fi
-if [[ "$FILE_PATH" == /* ]] && [[ "$FILE_PATH" != "$PROJECT_DIR"/* ]]; then
+if [[ "$file_path" == /* ]] && [[ "$file_path" != "$project_dir"/* ]]; then
   exit 0
 fi
 
-CURRENT_PHASE=$(state_get '.currentPhase' --required)
+current_phase=$(state_get '.currentPhase' --required)
 
 # Allow edits during build and ship phases
-case "$CURRENT_PHASE" in
+case "$current_phase" in
   A3)
     # During A3, check file ownership via task pool if available
-    has_pool=$(jq -r '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end' "$STATE_FILE" 2>/dev/null || echo "no")
+    has_pool=$(jq -r '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end' "$STATE_FILE")
     if [[ "$has_pool" == "yes" ]]; then
       source "$SCRIPT_DIR/lib/task-pool.sh"
-      if owner_json=$(pool_get_file_owner "$FILE_PATH"); then
-        # File has an owner -- advisory logging only.
-        # The edit gate fires for the orchestrator context, not the subagent,
-        # so we cannot determine the current worker identity to enforce ownership.
-        # File ownership is enforced at the worker prompt level (workers are told
-        # which files they own), not at the hook level.
+      if owner_json=$(pool_get_file_owner "$file_path"); then
         owner_task=$(echo "$owner_json" | jq -r '.task_id // "unknown"')
-        echo "INFO: File ${FILE_PATH} is owned by task ${owner_task} (advisory -- ownership enforced at worker prompt level)" >&2
+        echo "INFO: File ${file_path} is owned by task ${owner_task} (advisory)" >&2
       fi
     fi
     exit 0
@@ -90,7 +97,7 @@ case "$CURRENT_PHASE" in
 esac
 
 # Deny edits in all other phases
-DENY_JSON=$(jq -n --arg phase "$CURRENT_PHASE" \
+deny_json=$(jq -n --arg phase "$current_phase" \
   '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
@@ -101,5 +108,5 @@ DENY_JSON=$(jq -n --arg phase "$CURRENT_PHASE" \
   echo "ERROR: Failed to generate deny JSON for edit gate." >&2
   exit 2
 }
-printf '%s\n' "$DENY_JSON"
+printf '%s\n' "$deny_json"
 exit 0

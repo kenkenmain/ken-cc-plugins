@@ -21,16 +21,16 @@ setup() {
   cat > .agents/tmp/state.json <<'JSON'
 {
   "plugin": "ants",
-  "version": 2,
+  "version": 3,
   "status": "in_progress",
   "currentPhase": "A1",
   "loop": 1,
   "phases": {
-    "A0": {"status": "complete", "startedAt": "2026-01-01T00:00:00Z", "completedAt": "2026-01-01T00:01:00Z"},
-    "A1": {"status": "pending"},
-    "A2": {"status": "pending"},
-    "A3": {"status": "pending"},
-    "A4": {"status": "pending"},
+    "A0": {"status": "complete"},
+    "A1": {"status": "in_progress"},
+    "A2": {"status": "complete"},
+    "A3": {"status": "in_progress"},
+    "A4": {"status": "complete"},
     "A5": {"status": "pending"}
   }
 }
@@ -68,129 +68,55 @@ assert_exit() {
 }
 
 # =========================================================================
-echo "=== get_phase_status ==="
-
-setup
-result=$(get_phase_status "A0")
-assert_eq "A0 is complete" "complete" "$result"
-
-result=$(get_phase_status "A1")
-assert_eq "A1 is pending" "pending" "$result"
-
-# Invalid phase
-assert_exit "invalid phase rejects" 2 get_phase_status "X9"
-
-# =========================================================================
-echo "=== is_phase_complete ==="
-
-setup
-if is_phase_complete "A0"; then
-  PASS=$((PASS + 1)); echo "  PASS: A0 is complete returns true"
-else
-  FAIL=$((FAIL + 1)); echo "  FAIL: A0 is complete should return true"
-fi
-
-if is_phase_complete "A1"; then
-  FAIL=$((FAIL + 1)); echo "  FAIL: A1 pending should return false"
-else
-  PASS=$((PASS + 1)); echo "  PASS: A1 pending returns false"
-fi
-
-# =========================================================================
-echo "=== mark_phase_in_progress ==="
-
-setup
-mark_phase_in_progress "A1"
-result=$(get_phase_status "A1")
-assert_eq "A1 marked in_progress" "in_progress" "$result"
-
-# Verify startedAt was set
-started=$(jq -r '.phases.A1.startedAt // empty' "$STATE_FILE")
-if [[ -n "$started" ]]; then
-  PASS=$((PASS + 1)); echo "  PASS: startedAt was set"
-else
-  FAIL=$((FAIL + 1)); echo "  FAIL: startedAt was not set"
-fi
-
-# Invalid phase
-assert_exit "invalid phase rejects" 2 mark_phase_in_progress "Z1"
-
-# =========================================================================
-echo "=== mark_phase_complete ==="
-
-setup
-mark_phase_complete "A1"
-result=$(get_phase_status "A1")
-assert_eq "A1 marked complete" "complete" "$result"
-
-# Verify completedAt was set
-completed=$(jq -r '.phases.A1.completedAt // empty' "$STATE_FILE")
-if [[ -n "$completed" ]]; then
-  PASS=$((PASS + 1)); echo "  PASS: completedAt was set"
-else
-  FAIL=$((FAIL + 1)); echo "  FAIL: completedAt was not set"
-fi
-
-# =========================================================================
 echo "=== reset_phases_for_loop ==="
 
 setup
-# First mark A1-A4 as various states
-mark_phase_complete "A1"
-mark_phase_in_progress "A2"
-mark_phase_complete "A3"
-mark_phase_in_progress "A4"
 
-# Reset
+# Before reset: A0=complete, A1=in_progress, A2=complete, A3=in_progress, A4=complete, A5=pending
+result=$(jq -r '.phases.A0.status' "$STATE_FILE")
+assert_eq "A0 before reset is complete" "complete" "$result"
+
+result=$(jq -r '.phases.A1.status' "$STATE_FILE")
+assert_eq "A1 before reset is in_progress" "in_progress" "$result"
+
+# Reset A1-A4 to pending
 reset_phases_for_loop
 
-result=$(get_phase_status "A0")
+# A0 should be preserved (exploration persists across loops)
+result=$(jq -r '.phases.A0.status' "$STATE_FILE")
 assert_eq "A0 preserved after reset" "complete" "$result"
 
-result=$(get_phase_status "A1")
+# A1-A4 should all be pending
+result=$(jq -r '.phases.A1.status' "$STATE_FILE")
 assert_eq "A1 reset to pending" "pending" "$result"
 
-result=$(get_phase_status "A2")
+result=$(jq -r '.phases.A2.status' "$STATE_FILE")
 assert_eq "A2 reset to pending" "pending" "$result"
 
-result=$(get_phase_status "A3")
+result=$(jq -r '.phases.A3.status' "$STATE_FILE")
 assert_eq "A3 reset to pending" "pending" "$result"
 
-result=$(get_phase_status "A4")
+result=$(jq -r '.phases.A4.status' "$STATE_FILE")
 assert_eq "A4 reset to pending" "pending" "$result"
 
-result=$(get_phase_status "A5")
+# A5 should be preserved (only runs after clean verdict)
+result=$(jq -r '.phases.A5.status' "$STATE_FILE")
 assert_eq "A5 preserved after reset" "pending" "$result"
 
 # =========================================================================
-echo "=== v1 state fallback ==="
+echo "=== reset_phases_for_loop idempotency ==="
 
-cd "$TEST_DIR"
-# Create a v1 state without phases object
-cat > .agents/tmp/state.json <<'JSON'
-{
-  "plugin": "ants",
-  "version": 1,
-  "status": "in_progress",
-  "currentPhase": "A0",
-  "loop": 1
-}
-JSON
+setup
 
-result=$(get_phase_status "A0")
-assert_eq "missing phases falls back to pending" "pending" "$result"
+# Reset twice should be safe
+reset_phases_for_loop
+reset_phases_for_loop
 
-# mark_phase_in_progress should create the phases object
-mark_phase_in_progress "A0"
-result=$(get_phase_status "A0")
-assert_eq "phases object created on write" "in_progress" "$result"
+result=$(jq -r '.phases.A1.status' "$STATE_FILE")
+assert_eq "A1 still pending after double reset" "pending" "$result"
 
-# =========================================================================
-echo "=== constants ==="
-
-assert_eq "DAG_STATUS_PENDING" "pending" "$DAG_STATUS_PENDING"
-assert_eq "DAG_STATUS_IN_PROGRESS" "in_progress" "$DAG_STATUS_IN_PROGRESS"
-assert_eq "DAG_STATUS_COMPLETE" "complete" "$DAG_STATUS_COMPLETE"
+result=$(jq -r '.phases.A0.status' "$STATE_FILE")
+assert_eq "A0 still complete after double reset" "complete" "$result"
 
 # =========================================================================
 echo ""

@@ -102,7 +102,7 @@ cb_is_tripped() {
 cb_get_fix_attempts() {
   local phase="${1:?cb_get_fix_attempts requires a phase ID}"
   local count
-  count=$(state_get ".circuitBreaker.fixAttempts[\"$phase\"] // 0")
+  count=$(jq -r --arg p "$phase" '.circuitBreaker.fixAttempts[$p] // 0' "$STATE_FILE" 2>/dev/null || echo "0")
   count=$(require_int "$count" "circuitBreaker.fixAttempts.$phase")
   echo "$count"
 }

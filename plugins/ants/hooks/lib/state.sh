@@ -45,11 +45,19 @@ check_ants_workflow() {
     exit 0
   fi
 
-  # Migrate v1 state to v2 if needed
+  # Migrate state schema if needed (fall-through: v1->v2->v3->v4)
   local version
   version=$(jq -r '.version // 1' "$STATE_FILE")
   if [[ "$version" == "1" ]]; then
     migrate_state_v1_to_v2
+    version="2"
+  fi
+  if [[ "$version" == "2" ]]; then
+    migrate_state_v2_to_v3
+    version="3"
+  fi
+  if [[ "$version" == "3" ]]; then
+    migrate_state_v3_to_v4
   fi
 
   return 0
@@ -82,10 +90,22 @@ state_get() {
   local filter="$1"
   local required="${2:-}"
   local value
-  if ! value=$(jq -r "$filter // empty" "$STATE_FILE" 2>&1); then
-    echo "ERROR: jq failed querying state.json with filter '$filter': $value" >&2
+  local jq_errfile
+  jq_errfile=$(mktemp 2>/dev/null) || {
+    echo "ERROR: mktemp failed in state_get" >&2
+    exit 2
+  }
+  # Append `// empty` to convert null → "" for required checks.
+  # Callers with fallbacks (e.g., '.loop // 1') produce '.loop // 1 // empty'
+  # which is correct: jq alternative is left-associative, so 1 stays 1.
+  if ! value=$(jq -r "$filter // empty" "$STATE_FILE" 2>"$jq_errfile"); then
+    local jq_err
+    jq_err=$(head -c 200 "$jq_errfile" 2>/dev/null || echo "unknown error")
+    rm -f "$jq_errfile"
+    echo "ERROR: jq failed querying state.json with filter '$filter': $jq_err" >&2
     exit 2
   fi
+  rm -f "$jq_errfile"
 
   if [[ -z "$value" && "$required" == "--required" ]]; then
     echo "ERROR: state.json field '$filter' is missing or empty. Workflow state is incomplete." >&2
@@ -196,21 +216,25 @@ _update_state_inner() {
   local jq_err_file
   jq_err_file=$(mktemp "${STATE_FILE}.err.XXXXXX")
 
-  # Clean up temp files on any exit
-  trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' RETURN
+  # Explicit cleanup helper — avoids RETURN/EXIT trap conflicts with the
+  # caller's subshell EXIT trap (which cleans up the lock directory).
+  _cleanup_inner() { rm -f "$tmp_file" "$jq_err_file" 2>/dev/null; }
 
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
     if jq empty "$tmp_file" 2>/dev/null; then
       mv "$tmp_file" "$STATE_FILE"
+      _cleanup_inner
       return 0
     else
       echo "ERROR: State update produced invalid JSON" >&2
+      _cleanup_inner
       return 1
     fi
   else
     local jq_err
     jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")
     echo "ERROR: jq state update failed: $jq_err" >&2
+    _cleanup_inner
     return 1
   fi
 }
@@ -286,4 +310,87 @@ migrate_state_v1_to_v2() {
   fi
   echo "INFO: State migration v1->v2 complete" >&2
   return 0
+}
+
+# Migrate state.json from v2 to v3.
+# Removes dispatchMode and agentTeamsAvailable fields (teams-only in v0.3).
+# Adds teamName field if missing.
+# Usage: migrate_state_v2_to_v3
+migrate_state_v2_to_v3() {
+  echo "INFO: Migrating state.json from v2 to v3" >&2
+  if ! update_state '
+    .version = 3 |
+    del(.dispatchMode) |
+    del(.agentTeamsAvailable) |
+    .teamName //= ("ants-" + (.branch // "default" | split("/") | last))
+  '; then
+    echo "ERROR: Failed to migrate state from v2 to v3" >&2
+    return 1
+  fi
+  echo "INFO: State migration v2->v3 complete" >&2
+  return 0
+}
+
+# Migrate state.json from v3 to v4.
+# Adds worktreePath, messages, planApproved, shutdown, webhookUrl, lintConfig,
+# configSnapshot, and compactMetadata fields if missing.
+# Usage: migrate_state_v3_to_v4
+migrate_state_v3_to_v4() {
+  echo "INFO: Migrating state.json from v3 to v4" >&2
+  if ! update_state '
+    .version = 4 |
+    .worktreePath //= null |
+    .messages //= [] |
+    .planApproved //= false |
+    .shutdown //= false |
+    .webhookUrl //= null |
+    .lintConfig //= null |
+    .configSnapshot //= null |
+    .compactMetadata //= null
+  '; then
+    echo "ERROR: Failed to migrate state from v3 to v4" >&2
+    return 1
+  fi
+  echo "INFO: State migration v3->v4 complete" >&2
+  return 0
+}
+
+# Output a continue:false JSON response and exit 0.
+# Used by hooks that need to signal Claude to stop gracefully.
+# Usage: continue_false_exit "reason message"
+continue_false_exit() {
+  local reason="${1:?continue_false_exit requires a reason}"
+  jq -n --arg reason "$reason" '{"continue": false, "stopReason": $reason}'
+  exit 0
+}
+
+# Check if the shutdown flag is set in state.json.
+# If true, calls continue_false_exit to stop the workflow gracefully.
+# Usage: shutdown_check
+shutdown_check() {
+  local shutdown_flag
+  shutdown_flag=$(jq -r '.shutdown // false' "$STATE_FILE" 2>/dev/null || echo "false")
+  if [[ "$shutdown_flag" == "true" ]]; then
+    continue_false_exit "Ants workflow shutting down gracefully (shutdown flag set)"
+  fi
+}
+
+# Add a message to the messages array in state.json for cross-phase communication.
+# Usage: add_message "from_agent" "to_agent" "message content"
+add_message() {
+  local from="${1:?add_message requires from}"
+  local to="${2:?add_message requires to}"
+  local content="${3:?add_message requires content}"
+  local loop
+  loop=$(state_get '.loop // 1')
+  update_state --arg from "$from" --arg to "$to" --arg content "$content" --argjson loop "$loop" \
+    '.messages += [{"from": $from, "to": $to, "content": $content, "loop": $loop, "addedAt": $ts}]'
+}
+
+# Get messages targeted at a specific recipient from state.json.
+# Returns a JSON array of matching messages, or "[]" if none found.
+# Usage: msgs=$(get_messages_for "architect")
+get_messages_for() {
+  local recipient="${1:?get_messages_for requires recipient}"
+  jq -r --arg to "$recipient" '[.messages[]? | select(.to == $to)]' "$STATE_FILE" 2>/dev/null || echo "[]"
 }

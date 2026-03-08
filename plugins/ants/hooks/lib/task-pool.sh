@@ -119,7 +119,7 @@ pool_init() {
 
   # Validate we got a non-empty array
   local count
-  count=$(echo "$pool_json" | jq 'length')
+  count=$(printf '%s' "$pool_json" | jq 'length')
   if [[ "$count" == "0" ]]; then
     echo "ERROR: No tasks found in $tasks_file" >&2
     return 1
@@ -127,7 +127,7 @@ pool_init() {
 
   # Check for duplicate task IDs
   local dupes
-  dupes=$(echo "$pool_json" | jq '[.[].id] | group_by(.) | map(select(length > 1)) | length')
+  dupes=$(printf '%s' "$pool_json" | jq '[.[].id] | group_by(.) | map(select(length > 1)) | length')
   if [[ "$dupes" != "0" ]]; then
     echo "ERROR: Duplicate task IDs found in $tasks_file" >&2
     return 1
@@ -135,7 +135,7 @@ pool_init() {
 
   # Check for references to non-existent dependencies
   local bad_deps
-  bad_deps=$(echo "$pool_json" | jq '
+  bad_deps=$(printf '%s' "$pool_json" | jq '
     [.[].id] as $ids |
     [.[] | .dependencies[] | select(. as $d | $ids | index($d) | not)] |
     length
@@ -212,28 +212,43 @@ pool_claim_task() {
 pool_complete_task() {
   local task_id="${1:?pool_complete_task requires a task ID}"
 
-  # Atomic status check + update inside update_state to avoid TOCTOU race.
-  # The jq filter validates status is "claimed" before completing.
+  _pool_lock || return 1
+
+  # Single atomic jq pass: mark task complete AND recompute ready set.
+  # This prevents readers from seeing a stale ready-set between two writes.
   if ! update_state --arg tid "$task_id" '
     if (.taskPool | map(select(.id == $tid)) | length) == 0 then
       error("Task \($tid) not found in pool")
     else
+      # Step 1: Mark task complete
       .taskPool |= map(
         if .id == $tid then
           if .status == "claimed" then .status = "complete"
           elif .status == "complete" then .  # idempotent
-          else .status = "complete"  # warn but complete
+          else .status = "complete"
           end
         else . end
       )
+      # Step 2: Recompute ready set in same transaction
+      | (.taskPool | map(select(.status == "complete")) | map(.id)) as $done
+      | .taskPool |= map(
+          if .status == "pending" and
+             (.dependencies | length > 0) and
+             (.dependencies | all(. as $d | $done | index($d) | . != null))
+          then .status = "ready"
+          elif .status == "pending" and (.dependencies | length == 0)
+          then .status = "ready"
+          else . end
+        )
     end
   '; then
     echo "ERROR: Failed to complete task $task_id" >&2
+    _pool_unlock
     return 1
   fi
 
-  # Recompute which pending tasks are now ready
-  pool_recompute_ready
+  _pool_unlock
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -247,26 +262,25 @@ pool_fail_task() {
   local task_id="${1:?pool_fail_task requires a task ID}"
   local reason="${2:-unknown}"
 
-  local current_status
-  current_status=$(jq -r --arg tid "$task_id" '
-    .taskPool[] | select(.id == $tid) | .status // empty
-  ' "$STATE_FILE")
+  _pool_lock || return 1
 
-  if [[ -z "$current_status" ]]; then
-    echo "ERROR: Task $task_id not found in pool" >&2
-    return 1
-  fi
-
+  # Single atomic read-modify-write: validates task exists and marks it failed.
   if ! update_state --arg tid "$task_id" --arg reason "$reason" '
-    .taskPool |= map(
-      if .id == $tid then .status = "failed" | .failure_reason = $reason
-      else . end
-    )
+    if (.taskPool | map(select(.id == $tid)) | length) == 0 then
+      error("Task \($tid) not found in pool")
+    else
+      .taskPool |= map(
+        if .id == $tid then .status = "failed" | .failure_reason = $reason
+        else . end
+      )
+    end
   '; then
     echo "ERROR: Failed to mark task $task_id as failed" >&2
+    _pool_unlock
     return 1
   fi
 
+  _pool_unlock
   return 0
 }
 

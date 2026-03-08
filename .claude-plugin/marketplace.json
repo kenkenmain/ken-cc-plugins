@@ -69,6 +69,21 @@
       "license": "MIT",
       "keywords": ["subagents", "hooks", "auto-chaining", "context-isolation", "gate-enforcement"],
       "category": "workflow"
+    },
+    {
+      "name": "ants",
+      "source": "./plugins/ants",
+      "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track build, adversarial review, and self-organizing task pool",
+      "version": "0.4.0",
+      "author": {
+        "name": "Kennard Ng",
+        "email": "kennard.ng.pool.hua@gmail.com"
+      },
+      "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
+      "repository": "https://github.com/kenkenmain/ken-cc-plugins",
+      "license": "MIT",
+      "keywords": ["ants", "swarm", "workflow", "agent-teams", "delegate-mode", "dual-track", "colony"],
+      "category": "workflow"
     }
   ]
 }

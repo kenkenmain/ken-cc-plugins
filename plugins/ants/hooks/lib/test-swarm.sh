@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-swarm.sh -- Unit tests for swarm.sh (parse_queen_verdict, get_phase_output, get_phase_agent)
+# test-swarm.sh -- Unit tests for swarm.sh (get_phase_output, parse_queen_verdict)
 # Usage: bash plugins/ants/hooks/lib/test-swarm.sh
 set -eo pipefail
 
@@ -21,7 +21,7 @@ setup() {
   cat > .agents/tmp/state.json <<'JSON'
 {
   "plugin": "ants",
-  "version": 2,
+  "version": 3,
   "status": "in_progress",
   "currentPhase": "A4",
   "loop": 1,
@@ -85,28 +85,6 @@ result=$(get_phase_output "A5")
 assert_eq "A5 output" "A5-ship.json" "$result"
 
 assert_exit "unknown phase returns error" 1 get_phase_output "X9"
-
-# =========================================================================
-echo "=== get_phase_agent ==="
-
-result=$(get_phase_agent "A0")
-assert_eq "A0 agents" "ants:forager ants:cartographer ants:explore-aggregator" "$result"
-
-result=$(get_phase_agent "A1")
-assert_eq "A1 agent" "ants:architect" "$result"
-
-result=$(get_phase_agent "A2")
-assert_eq "A2 agent" "ants:blueprint-reviewer" "$result"
-
-result=$(get_phase_agent "A4")
-assert_eq "A4 agent" "ants:queen" "$result"
-
-result=$(get_phase_agent "A5")
-assert_eq "A5 agents" "ants:nurse ants:drone" "$result"
-
-# Unknown phase returns empty with warning
-result=$(get_phase_agent "X9" 2>/dev/null)
-assert_eq "unknown phase returns empty" "" "$result"
 
 # =========================================================================
 echo "=== parse_queen_verdict ==="

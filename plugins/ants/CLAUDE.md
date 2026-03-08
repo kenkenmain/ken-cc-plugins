@@ -1,6 +1,6 @@
 # ants Plugin -- Agent Instructions
 
-Ant-colony themed swarm workflow with dual-track parallel build and adversarial quality review.
+Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track parallel build, and adversarial quality review.
 
 ## Plugin Structure
 
@@ -28,20 +28,26 @@ plugins/ants/
 │   └── swarm.md                   # /ants:swarm <task>
 ├── docs/                          # Architecture documentation
 │   └── teams-migration.md         # Agent Teams API migration guide
-├── hooks/                         # Shell hooks (Ralph Loop driver)
-│   ├── hooks.json                 # Hook event configuration
-│   ├── on-stop.sh                 # Stop: prompt re-injection
-│   ├── on-subagent-stop.sh        # SubagentStop: validate + advance
-│   ├── on-task-gate.sh            # PreToolUse (Task): dispatch validation
+├── hooks/                         # Shell hooks (Agent Teams delegate mode)
+│   ├── hooks.json                 # Hook event configuration (8 hooks)
+│   ├── on-teammate-idle.sh        # TeammateIdle: task router (assigns next ready phase)
+│   ├── on-task-completed.sh       # TaskCompleted: quality gate (validates output, advances state)
+│   ├── on-stop.sh                 # Stop: allows lead to stop (teammates continue)
+│   ├── on-subagent-stop.sh        # SubagentStop: no-op (exit 0)
 │   ├── on-edit-gate.sh            # PreToolUse (Edit/Write): edit control
-│   ├── on-teams-stub.sh           # TeammateIdle/TaskCompleted: no-op until Teams API stable
+│   ├── on-post-edit-lint.sh       # PostToolUse (Edit/Write): lint-on-save advisory
+│   ├── on-subagent-start.sh       # SubagentStart: injects workflow context
+│   ├── on-config-change.sh        # ConfigChange: snapshots config changes
+│   ├── on-pre-compact.sh          # PreCompact: saves metadata before compaction
 │   └── lib/
 │       ├── state.sh               # Shared bash state helpers
 │       ├── swarm.sh               # Pipeline-specific phase routing
 │       ├── dag.sh                 # Phase-level DAG status tracker
 │       ├── circuit-breaker.sh     # Fix-budget and consecutive failure tracking
 │       ├── task-pool.sh           # Self-organizing task pool for A3
-│       └── teams.sh               # Agent Teams API readiness layer
+│       ├── teams.sh               # Agent Teams dispatch layer (task creation, prompts)
+│       ├── webhook.sh             # Fire-and-forget HTTP webhook notifications
+│       └── lint.sh                # Language-aware lint runner abstraction
 ├── prompts/                       # Phase prompt templates
 │   ├── A0-explore.md              # Colony exploration dispatch
 │   ├── A1-plan.md                 # Architect plan dispatch
@@ -51,7 +57,7 @@ plugins/ants/
 │   └── A5-ship.md                 # Documentation + ship dispatch
 ├── skills/                        # Workflow documentation
 │   ├── swarm/SKILL.md             # Swarm pipeline reference
-│   └── workflow/SKILL.md          # Ralph Loop mechanics
+│   └── workflow/SKILL.md          # Agent Teams delegate mode
 ├── CLAUDE.md                      # This file -- architecture docs
 └── README.md                      # User-facing documentation
 ```
@@ -76,9 +82,9 @@ plugins/ants/
 | 14 | queen | Merges track results and renders ship/loop verdict | sonnet | Read, Glob, Grep | Yes |
 | 15 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep | Yes |
 | 16 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write | Yes |
-| 17 | (orchestrator) | Ralph Loop driver (hooks, not an agent file) | -- | -- | -- |
+| 17 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
 
-All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The orchestrator (hooks) is the only entity that dispatches agents.
+All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The orchestrator (hooks) manages task assignment and quality gates via TeammateIdle/TaskCompleted hooks.
 
 ### Deprecated Agents
 
@@ -133,56 +139,86 @@ When the circuit breaker trips, the workflow halts with status `blocked` and req
 
 Library: `hooks/lib/circuit-breaker.sh`
 
-## Agent Teams Readiness
+## Agent Teams (v0.3)
 
-The v0.2 dispatch layer is designed for a future migration to the Claude Code Agent Teams API. The `hooks/lib/teams.sh` library provides:
+Ants v0.3 uses Agent Teams delegate mode exclusively. The `hooks/lib/teams.sh` library provides:
 
-- `teams_detect()` -- Checks `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var
-- `teams_get_dispatch_mode()` -- Returns `"subagent"` (current) or `"teams"` (future)
-- `teams_build_task_descriptor()` -- Builds dispatch-mode-agnostic task descriptors
+- `teams_create_phase_tasks()` -- Creates TaskCreate entries for A0→A5 with dependency chains
+- `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/arbiter tasks after A1
+- `teams_get_next_ready_task()` -- Reads state.json, returns next dispatchable phase
+- `teams_build_teammate_prompt()` -- Generates direct execution prompts for teammates
+- `teams_assign_idle_teammate()` -- Builds exit-2 output for TeammateIdle hook
+- `teams_reject_completion()` -- Builds exit-2 output for TaskCompleted rejection
 
-All dispatch flows through this library so the Teams migration is a single-file change. See `docs/teams-migration.md` for the step-by-step guide.
-
-Current hooks.json includes `TeammateIdle` and `TaskCompleted` stubs (`on-teams-stub.sh`) that exit 0 until the Teams API stabilizes.
+The swarm command auto-enables `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` before creating the team.
 
 ## Hook Architecture
 
-Six hooks drive the workflow via the Ralph Loop pattern:
+Eight hooks drive the workflow via Agent Teams delegate mode:
+
+### on-teammate-idle.sh (TeammateIdle event)
+
+- Checks circuit breaker (if tripped → allows idle, workflow blocks)
+- Reads `state.json` to find next ready phase via `teams_get_next_ready_task()`
+- Generates phase-specific teammate execution prompt via `teams_build_teammate_prompt()`
+- Returns exit 2 with prompt to keep teammate working
+- Returns exit 0 if no tasks ready (workflow complete/blocked/waiting)
+
+### on-task-completed.sh (TaskCompleted event)
+
+- Validates output file exists and is valid JSON
+- Phase-specific quality gates:
+  - A0: A0-explore.md exists → advance to A1
+  - A1: A1-plan.md exists → advance to A2 (checks A1-tasks.json for A3 sub-tasks)
+  - A2: Review verdict — needs_revision with HIGH → loop to A1; else → A3
+  - A3: Workers update task pool, sentinels write markers, arbiter consolidates
+  - A4: Parse queen verdict — clean → A5, issues_found → loop to A1
+  - A5: A5-ship.json with commit_sha → workflow DONE
+- Updates circuit breaker on success/failure
+- Exit 0 = accept | Exit 2 = reject with feedback
 
 ### on-stop.sh (Stop event)
 
-- Reads `state.json` to determine current phase
-- Generates phase-specific orchestrator prompt (~30-60 lines)
-- Returns `{"decision":"block","reason":"<prompt>"}` to keep Claude working
-- Allows exit only when status is `complete` or `blocked`
-
-### on-subagent-stop.sh (SubagentStop event)
-
-- Validates subagent output file exists and is valid
-- Checks stage gates at boundaries
-- Handles A4 queen verdict (ship -> A5, loop -> A1 with incremented counter)
-- Handles A3 task pool completion (all tasks done -> sentinel review -> arbiter)
-- Advances `currentPhase` in state
-- Updates circuit breaker on success/failure
-- Exits silently (no stdout) -- Stop hook handles prompt injection
-
-### on-task-gate.sh (PreToolUse: Task)
-
-- Validates that the dispatched `ants:*` agent matches the current phase
-- Blocks dispatch of wrong agent types
-- Prevents out-of-order phase execution
+- Allows lead to stop freely (teammates continue independently)
+- No prompt re-injection — Agent Teams handles coordination
 
 ### on-edit-gate.sh (PreToolUse: Edit/Write)
 
 - Allows file edits only in BUILD (A3) and SHIP (A5) stages
 - Blocks edits during EXPLORE, PLAN, and SYNC stages
 - Allows writes to `.agents/` path at all times (state and output files)
-- Validates file ownership via task pool (workers can only edit their assigned files)
+- Logs file ownership advisory via task pool (ownership enforced at worker prompt level, not hook level)
 
-### on-teams-stub.sh (TeammateIdle / TaskCompleted)
+### on-subagent-stop.sh (SubagentStop event -- not wired in hooks.json)
 
-- No-op stub that exits 0 while the Agent Teams API is experimental
-- Will be activated when Teams API becomes stable (see `docs/teams-migration.md`)
+- No-op (exit 0) -- retained as safety fallback if SubagentStop fires for internal subagents
+- Not configured in hooks.json -- TaskCompleted handles all validation and state advancement
+
+### on-post-edit-lint.sh (PostToolUse: Edit/Write -- v0.4)
+
+- Runs language-aware lint on files after successful edits during A3 (BUILD) and A5 (SHIP) phases
+- Non-blocking: provides lint results as informational context only (exit 0 always)
+- Skips `.agents/` files and respects `lintConfig.enabled` state flag
+- Uses `lint.sh` library for shell (`bash -n`), JSON (`jq empty`), and Python (`py_compile`) linting
+
+### on-subagent-start.sh (SubagentStart event -- v0.4)
+
+- Injects workflow context (phase, loop, status, stage) into subagents via `additionalContext`
+- Non-blocking (exit 0 always)
+- Ensures teammates are aware of the current workflow state when spawned
+
+### on-config-change.sh (ConfigChange event -- v0.4)
+
+- Detects configuration changes during active workflows
+- Updates `configSnapshot` in state.json with timestamp and source
+- Defensive: gracefully handles empty or invalid stdin (exit 0 always)
+
+### on-pre-compact.sh (PreCompact event -- v0.4)
+
+- Saves critical workflow metadata before context compaction
+- Preserves current phase, loop, status, and task pool summary in `compactMetadata`
+- Ensures workflow can resume after compaction by reading preserved metadata
+- Non-blocking (exit 0 always)
 
 ### hooks.json Configuration
 
@@ -190,13 +226,17 @@ Six hooks drive the workflow via the Ralph Loop pattern:
 {
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "on-stop.sh"}]}],
-    "SubagentStop": [{"hooks": [{"type": "command", "command": "on-subagent-stop.sh"}]}],
+    "TeammateIdle": [{"hooks": [{"type": "command", "command": "on-teammate-idle.sh"}]}],
+    "TaskCompleted": [{"hooks": [{"type": "command", "command": "on-task-completed.sh"}]}],
     "PreToolUse": [
-      {"matcher": "Task", "hooks": [{"type": "command", "command": "on-task-gate.sh"}]},
       {"matcher": "Edit|Write", "hooks": [{"type": "command", "command": "on-edit-gate.sh"}]}
     ],
-    "TeammateIdle": [{"hooks": [{"type": "command", "command": "on-teams-stub.sh"}]}],
-    "TaskCompleted": [{"hooks": [{"type": "command", "command": "on-teams-stub.sh"}]}]
+    "PostToolUse": [
+      {"matcher": "Edit|Write", "hooks": [{"type": "command", "command": "on-post-edit-lint.sh"}]}
+    ],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "on-subagent-start.sh"}]}],
+    "ConfigChange": [{"hooks": [{"type": "command", "command": "on-config-change.sh"}]}],
+    "PreCompact": [{"hooks": [{"type": "command", "command": "on-pre-compact.sh"}]}]
   }
 }
 ```
@@ -206,15 +246,17 @@ Six hooks drive the workflow via the Ralph Loop pattern:
 State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 
 ### state.sh (core)
-- `check_ants_workflow()` -- plugin guard, session scoping, status check
-- `read_state_field()` / `state_get()` -- read fields with optional required validation
-- `update_state()` -- atomic state update with file locking (flock)
+- `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v4
+- `state_get()` -- read fields with optional required validation
+- `update_state()` -- atomic state update with file locking (flock with mkdir fallback on macOS)
 - `validate_json_file()` -- check file exists and contains valid JSON
 - `require_int()` -- validate integer fields
+- `continue_false_exit()` -- emit `{"continue": false, "stopReason": ...}` JSON and exit 0
+- `shutdown_check()` -- check shutdown flag and halt gracefully if set
+- `add_message()` -- add cross-phase message to state.json messages array
+- `get_messages_for()` -- retrieve messages targeted at a specific recipient
 
 ### dag.sh (phase tracking)
-- `get_phase_status()` / `is_phase_complete()` -- read phase status
-- `mark_phase_in_progress()` / `mark_phase_complete()` -- update phase status
 - `reset_phases_for_loop()` -- reset A1-A4 to pending for loop-back
 
 ### circuit-breaker.sh (failure tracking)
@@ -231,10 +273,22 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 - `pool_recompute_ready()` -- promote pending tasks whose deps are complete
 - `pool_get_file_owner()` -- file ownership enforcement for edit gate
 
-### teams.sh (dispatch abstraction)
-- `teams_detect()` -- check Agent Teams API availability
-- `teams_get_dispatch_mode()` -- returns "subagent" or "teams"
-- `teams_build_task_descriptor()` -- dispatch-mode-agnostic task descriptors
+### teams.sh (Agent Teams dispatch)
+- `teams_create_phase_tasks()` -- creates TaskCreate entries for A0→A5 dependency chain
+- `teams_add_a3_subtasks()` -- dynamically adds worker/sentinel/arbiter tasks after A1
+- `teams_get_next_ready_task()` -- finds next dispatchable phase from state
+- `teams_build_teammate_prompt()` -- generates execution prompts for teammates
+- `teams_assign_idle_teammate()` / `teams_reject_completion()` -- exit-2 handlers
+
+### webhook.sh (HTTP notifications -- v0.4)
+- `webhook_fire()` -- fire-and-forget HTTP POST to configured webhook URL (background curl)
+- `webhook_phase_event()` -- send phase lifecycle events (started/completed/failed)
+- `webhook_workflow_event()` -- send workflow lifecycle events (completed/blocked/stopped)
+
+### lint.sh (lint runner -- v0.4)
+- `lint_file()` -- run language-appropriate linter on a single file (shell, JSON, Python)
+- `lint_check_enabled()` -- check if linting is enabled in workflow state
+- `lint_format_advisory()` -- format lint result JSON as human-readable string
 
 Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the session that owns the workflow.
 
@@ -242,7 +296,7 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 
 ```
 .agents/tmp/
-├── state.json                           # Workflow state (v2)
+├── state.json                           # Workflow state (v4)
 ├── phases/
 │   ├── A0-explore.forager.1.tmp         # Forager results
 │   ├── A0-explore.forager.2.tmp
@@ -264,11 +318,11 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 │   │   └── ...
 ```
 
-## State Schema (v2)
+## State Schema (v4)
 
 ```json
 {
-  "version": 2,
+  "version": 4,
   "plugin": "ants",
   "pipeline": "swarm",
   "status": "in_progress|blocked|complete",
@@ -278,15 +332,15 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
   "currentPhase": "A0|A1|A2|A3|A4|A5|DONE|STOPPED",
   "loop": 1,
   "maxLoops": 5,
-  "dispatchMode": "subagent",
+  "teamName": "ants-<branch-slug>",
   "startedAt": "ISO timestamp",
   "schedule": [
-    {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "dispatch"},
-    {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "subagent"},
-    {"phase": "A2", "stage": "PLAN", "label": "Blueprint Review", "type": "subagent"},
-    {"phase": "A3", "stage": "BUILD", "label": "Dual-Track Execution", "type": "dispatch"},
-    {"phase": "A4", "stage": "SYNC", "label": "Queen Synchronization", "type": "subagent"},
-    {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "subagent"}
+    {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "teams"},
+    {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "teams"},
+    {"phase": "A2", "stage": "PLAN", "label": "Blueprint Review", "type": "teams"},
+    {"phase": "A3", "stage": "BUILD", "label": "Dual-Track Execution", "type": "teams"},
+    {"phase": "A4", "stage": "SYNC", "label": "Queen Synchronization", "type": "teams"},
+    {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "teams"}
   ],
   "phases": {
     "A0": {"status": "complete", "startedAt": "...", "completedAt": "..."},
@@ -305,9 +359,54 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
     "fixAttempts": {},
     "stageRestarts": 0
   },
-  "failure": null
+  "failure": null,
+  "worktreePath": null,
+  "messages": [],
+  "planApproved": false,
+  "shutdown": false,
+  "webhookUrl": null,
+  "lintConfig": null,
+  "configSnapshot": null,
+  "compactMetadata": null
 }
 ```
+
+### New v0.4 State Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `worktreePath` | string/null | null | Absolute path to git worktree if workflow uses worktree isolation |
+| `messages` | array | [] | Cross-phase messages for teammate communication (`add_message()` / `get_messages_for()`) |
+| `planApproved` | boolean | false | Whether the architect's plan has been approved (A1 gate) |
+| `shutdown` | boolean | false | Graceful shutdown flag -- when true, `shutdown_check()` stops the workflow |
+| `webhookUrl` | string/null | null | HTTP endpoint for fire-and-forget webhook notifications |
+| `lintConfig` | object/null | null | Lint configuration (`{"enabled": true/false}`) for PostToolUse lint-on-save |
+| `configSnapshot` | object/null | null | Last config change metadata (`{"lastChangeAt": ..., "source": ...}`) |
+| `compactMetadata` | object/null | null | Workflow state snapshot saved before context compaction |
+
+## Graceful Shutdown (v0.4)
+
+Set `.shutdown = true` in state.json to request a graceful shutdown. The `shutdown_check()` function (called by hooks) detects this flag and emits `{"continue": false, "stopReason": "..."}` to halt the workflow cleanly. This allows in-progress phases to complete before stopping, unlike a hard kill.
+
+## Plan Approval (v0.4)
+
+When `.planApproved` is `false` (default), the TaskCompleted hook holds the workflow at A1 after the architect writes the plan. The plan must be reviewed and `.planApproved` set to `true` before the workflow advances to A2 (blueprint review). This prevents premature implementation of poorly-scoped plans.
+
+## Teammate Messaging (v0.4)
+
+Cross-phase communication via the `messages` array in state.json. Agents can send messages to other agents using `add_message "from" "to" "content"` and retrieve them with `get_messages_for "recipient"`. Messages are tagged with the current loop number and timestamp. This enables feedback loops without re-planning (e.g., queen sending targeted notes to the architect for the next loop).
+
+## Worktree Isolation (v0.4)
+
+When `.worktreePath` is set, the workflow operates in a git worktree at the specified path. This isolates the workflow's file changes from the main branch, enabling multiple workflows to run concurrently on the same repository.
+
+## Lint-on-Save (v0.4)
+
+The PostToolUse hook (`on-post-edit-lint.sh`) runs language-aware linting after every successful Edit/Write during BUILD (A3) and SHIP (A5) phases. Lint results are advisory only (non-blocking). Supported linters: `bash -n` for shell scripts, `jq empty` for JSON, `python3 -m py_compile` for Python. Disable via `.lintConfig.enabled = false` in state.json.
+
+## HTTP Webhooks (v0.4)
+
+Set `.webhookUrl` in state.json to receive fire-and-forget HTTP POST notifications for phase and workflow lifecycle events. The `webhook.sh` library sends all notifications in the background with a 5-second timeout. Events: `phase.started`, `phase.completed`, `phase.failed`, `workflow.completed`, `workflow.blocked`, `workflow.stopped`. If no URL is configured, all webhook calls are silent no-ops.
 
 ## Code Style
 

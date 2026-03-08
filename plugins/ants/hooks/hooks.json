@@ -1,5 +1,5 @@
 {
-  "description": "Ants workflow enforcement: loop driver, output validation, dispatch ordering, and teams stubs",
+  "description": "Ants v0.4 Agent Teams workflow: TeammateIdle task router, TaskCompleted quality gate, edit control, lint advisory, config change, pre-compact, subagent context",
   "hooks": {
     "Stop": [
       {
@@ -7,33 +7,34 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-stop.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-teammate-idle.sh",
             "timeout": 10
           }
         ]
       }
     ],
-    "SubagentStop": [
+    "TaskCompleted": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-subagent-stop.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-task-completed.sh",
             "timeout": 15
           }
         ]
       }
     ],
     "PreToolUse": [
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-task-gate.sh",
-            "timeout": 5
-          }
-        ]
-      },
       {
         "matcher": "Edit|Write",
         "hooks": [
@@ -45,23 +46,46 @@
         ]
       }
     ],
-    "TeammateIdle": [
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-post-edit-lint.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-teams-stub.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-subagent-start.sh",
             "timeout": 5
           }
         ]
       }
     ],
-    "TaskCompleted": [
+    "ConfigChange": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-teams-stub.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-config-change.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/on-pre-compact.sh",
             "timeout": 5
           }
         ]

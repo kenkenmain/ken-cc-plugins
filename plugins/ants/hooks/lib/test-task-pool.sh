@@ -92,7 +92,7 @@ write_mock_state() {
   "status": "in_progress",
   "loop": 1,
   "currentPhase": "A3",
-  "version": 2,
+  "version": 3,
   "taskPool": []
 }
 EOF

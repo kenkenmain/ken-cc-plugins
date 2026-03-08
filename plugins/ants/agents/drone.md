@@ -53,6 +53,7 @@ Read these to understand what to ship:
 - `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` — files changed during build
 - `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` — queen's clean verdict
 - `.agents/tmp/phases/loop-{{LOOP}}/A5-docs.json` — documentation updates (if any)
+- `.agents/tmp/state.json` — check `worktreePath` for worktree isolation
 
 ## Process
 
@@ -68,6 +69,7 @@ Before committing, verify:
 - [ ] No `.env`, credentials, or secret files staged
 - [ ] No `.agents/tmp/` files staged
 - [ ] Queen verdict is "clean"
+- [ ] If `worktreePath` is set in state.json, all git operations use that directory
 
 ### Step 3: Create Git Commit
 
@@ -97,6 +99,12 @@ Commit message guidelines:
 ### Step 4: Push and Create PR
 
 ```bash
+# Check for worktree
+WORKTREE=$(jq -r '.worktreePath // empty' .agents/tmp/state.json 2>/dev/null)
+if [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ]; then
+  cd "$WORKTREE"
+fi
+
 # Get branch from state or current branch
 BRANCH=$(jq -r '.branch // empty' .agents/tmp/state.json 2>/dev/null)
 if [ -z "$BRANCH" ]; then
@@ -133,6 +141,17 @@ EOF
 ### Step 5: Write Output
 
 Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-ship.json`
+
+### Step 6: Worktree Cleanup (if applicable)
+
+If `worktreePath` is set, remove the worktree after shipping:
+
+```bash
+WORKTREE=$(jq -r '.worktreePath // empty' .agents/tmp/state.json 2>/dev/null)
+if [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ]; then
+  git worktree remove "$WORKTREE" 2>/dev/null || true
+fi
+```
 
 ## What You DO
 

@@ -1,49 +1,46 @@
 ---
 name: workflow
-description: Ralph-style orchestrator loop -- dispatches each phase as a subagent, hooks enforce progression
+description: Agent Teams delegate mode -- teammates self-claim tasks, hooks enforce quality gates
 ---
 
-# Workflow Orchestration
+# Workflow Orchestration (Agent Teams)
 
-Dispatch each phase as a subagent. Hooks enforce output validation, gate checks, state advancement, and loop re-injection. This skill only handles the dispatch loop.
+Ants uses Agent Teams delegate mode exclusively. The lead creates a team, populates a shared task list with dependency chains, spawns teammates, and enters delegate mode. Teammates self-claim work. TeammateIdle hooks assign tasks, TaskCompleted hooks enforce quality gates.
 
-## Execution Flow (Ralph-Style)
-
-The orchestrator uses the Ralph Loop pattern: the Stop hook generates a **phase-specific orchestrator prompt** every time Claude tries to stop. Claude reads state from disk and dispatches the current phase -- no conversation memory required.
+## Execution Flow (Agent Teams)
 
 ```
-Claude dispatches phase N as a subagent (Task tool)
+Lead creates team and populates shared task list (A0→A1→A2→A3→A4→A5)
   |
-Subagent completes
+Lead spawns 3-5 teammates and enters delegate mode
   |
-SubagentStop hook fires:
-  - Validates output file exists
-  - Checks gate if at stage boundary
-  - Marks phase completed
-  - Advances state to phase N+1 (or loop back if A4 verdict is "loop")
-  - Exits silently (no stdout)
+Teammate goes idle
   |
-Claude tries to stop (subagent done, nothing left to do)
+TeammateIdle hook fires:
+  - Checks circuit breaker
+  - Reads state.json to find next ready phase
+  - Generates phase-specific execution prompt
+  - Returns exit 2 with prompt → teammate starts working
   |
-Stop hook fires:
-  - Reads state.json to determine current phase
-  - Generates phase-specific orchestrator prompt
-  - Increments loopIteration in state
-  - Returns {"decision":"block","reason":"<phase-specific orchestrator prompt>"}
+Teammate completes task
   |
-Claude receives phase-specific orchestrator prompt
-  - Reads .agents/tmp/state.json (now pointing to phase N+1)
-  - Dispatches phase N+1 as a subagent
+TaskCompleted hook fires:
+  - Validates output file exists and is valid
+  - Checks stage gates at boundaries
+  - Handles A4 queen verdict (ship/loop/block)
+  - Updates circuit breaker (success/failure)
+  - Advances state to next phase
+  - Exit 0 = accept | Exit 2 = reject with feedback
   |
-Repeat until SubagentStop marks workflow "completed" -> Stop hook allows exit
+Repeat until workflow complete or blocked
 ```
 
 ### Key Design: Separation of Concerns
 
-- **SubagentStop hook** = pure side-effects (validate, advance state, exit silently)
-- **Stop hook** = prompt re-injection (generates phase-specific prompt, reads state, blocks stop)
-- **PreToolUse (Task) hook** = dispatch validation (ensures correct agent for current phase)
+- **TaskCompleted hook** = quality gate (validate output, advance state, handle verdict)
+- **TeammateIdle hook** = task router (find next ready phase, generate prompt, assign work)
 - **PreToolUse (Edit/Write) hook** = edit gate (controls which phases allow file modifications)
+- **Stop hook** = minimal (allows lead to stop freely, teammates continue independently)
 
 ## Phase Dispatch Mapping
 
@@ -64,130 +61,53 @@ Repeat until SubagentStop marks workflow "completed" -> Stop hook allows exit
 | A5 | `ants:nurse` | sonnet | Single: update documentation |
 | A5 | `ants:drone` | inherit | Single: commit and ship |
 
-## Prompt Construction
+## TeammateIdle Hook: Task Assignment
 
-For each phase dispatch, build the prompt as:
+When a teammate goes idle, the hook:
 
-```
-[PHASE {phase_id}]
+1. Checks circuit breaker — if tripped, allows idle (workflow blocks)
+2. Reads `state.json` to find current phase
+3. If phase is ready, generates a teammate execution prompt
+4. Returns exit 2 with prompt to keep teammate working
+5. If no tasks ready (complete/blocked/waiting), allows idle (exit 0)
 
-{contents of prompts/{phase_id}-*.md}
+## TaskCompleted Hook: Quality Gate
 
-## Task Context
+When a teammate marks a task complete, the hook:
 
-Task: {state.task}
+1. Identifies the completed phase from task subject
+2. Validates output file exists and is valid JSON
+3. Phase-specific validation:
+   - **A0**: A0-explore.md exists → advance to A1
+   - **A1**: A1-plan.md exists → advance to A2 (also checks A1-tasks.json for dynamic A3 sub-tasks)
+   - **A2**: A2-review.json verdict — if needs_revision with HIGH issues → loop back to A1; else → advance to A3
+   - **A3**: Workers update task pool, sentinels write markers, arbiter consolidates quality
+   - **A4**: Parse queen verdict — clean → A5, issues_found → loop to A1, budget exhausted → block
+   - **A5**: A5-ship.json with commit_sha → workflow DONE
+4. Updates circuit breaker (success/failure tracking)
+5. Exit 0 = accept, Exit 2 = reject with feedback
 
-## Input Files
-
-{contents or summaries of input files for this phase}
-```
-
-The `[PHASE {id}]` tag is used by the PreToolUse hook to validate dispatches.
-
-## Stop Hook: Prompt Generation
-
-The Stop hook reads `state.json` and generates a phase-specific prompt (~30-60 lines) for the orchestrator. The prompt contains:
-
-1. **Current phase identifier** -- tells Claude which phase to dispatch next
-2. **Agent type** -- which `ants:*` agent to spawn
-3. **Input file paths** -- what the agent should read
-4. **Output file path** -- where the agent should write results
-5. **Loop context** -- if loop 2+, includes previous loop's feedback
-6. **Task description** -- the original task from state
-
-The prompt is self-contained: Claude does not need conversation memory to continue the workflow. It reads state from disk each time.
-
-### Stop Hook Decision Logic
+## A4 Verdict Handling
 
 ```
-if state.status == "complete":
-    allow stop (exit 0, no output)
-
-if state.status == "blocked":
-    allow stop with reason
-
-if state.status == "in_progress":
-    generate phase prompt for state.currentPhase
-    return {"decision":"block","reason":"<prompt>"}
+A4 verdict == "clean"         →  Advance to A5 (ship)
+A4 verdict == "issues_found"  →  Return to A1 (re-plan fixes)
+                                  Circuit breaker checks:
+                                  - stageRestarts < maxStageRestarts
+                                  - consecutiveFailures < maxConsecutiveFailures
+                                  If either exceeded: block workflow
 ```
-
-## SubagentStop Hook: Validation and Advancement
-
-When a subagent completes, the SubagentStop hook:
-
-1. **Identifies the completed phase** from the agent type name
-2. **Validates output** -- checks that expected output file exists and is valid
-3. **Checks gate** if at a stage boundary (e.g., PLAN -> BUILD requires A2 approval)
-4. **Handles A4 verdict** -- if queen says "loop", resets currentPhase to A1 and increments loop counter
-5. **Advances state** -- sets currentPhase to the next phase in the schedule
-6. **Marks stage complete** if all phases in the stage are done
-7. **Exits silently** (exit 0, no stdout) -- the Stop hook handles prompt injection
-
-### A4 Verdict Handling
-
-```
-A4 sync output parsed:
-
-if verdict == "clean":
-    advance to A5
-
-if verdict == "issues_found":
-    if loop >= maxLoops:
-        set status = "blocked"
-        set failure = "Max loops reached"
-    else:
-        increment loop
-        reset currentPhase to A1
-        create new loop directory
-```
-
-### A3 Task Pool and Adversarial Review
-
-Phase A3 uses a self-organizing task pool with adversarial review:
-
-```
-SubagentStop detects A3 worker completion:
-  - Extract task_id from worker output
-  - Call pool_complete_task to mark the task done
-  - pool_recompute_ready promotes dependent tasks to "ready"
-  - When pool_is_complete (all tasks done):
-      - Dispatch adversarial review team in parallel:
-        sentinel-correctness, sentinel-security, sentinel-perf
-      - When all sentinels complete (marker files):
-        Dispatch review-arbiter to consolidate findings
-      - If arbiter finds critical issues:
-        Dispatch review-fixer, then re-run sentinels
-      - When quality review passes, aggregate into A3-build.json
-  - A3-build.json triggers advancement to A4
-```
-
-## Error Handling
-
-The workflow skill does NOT handle errors directly. If a subagent fails:
-
-- SubagentStop hook exits with code 2 (blocking error)
-- Hook stderr message tells Claude what went wrong
-- Claude retries the phase dispatch
-
-If retries exhaust (hook keeps blocking):
-
-- Stop hook prevents premature exit
-- User intervention needed
-
-## What This Skill Does NOT Do
-
-- **Gate checks** -- handled by `on-subagent-stop.sh` hook
-- **State updates** -- handled by `on-subagent-stop.sh` hook
-- **Phase progression** -- handled by `on-subagent-stop.sh` hook
-- **Stop prevention** -- handled by `on-stop.sh` hook
-- **Dispatch validation** -- handled by `on-task-gate.sh` hook
-- **Edit control** -- handled by `on-edit-gate.sh` hook
 
 ## Hook Responsibilities
 
 | Hook | Event | Behavior |
 |------|-------|----------|
-| on-stop.sh | Stop | Generates phase-specific orchestrator prompt, blocks premature exit |
-| on-subagent-stop.sh | SubagentStop | Validates output, checks gates, handles A4 verdict, advances phase |
-| on-task-gate.sh | PreToolUse (Task) | Validates `ants:*` agent matches current phase |
+| on-teammate-idle.sh | TeammateIdle | Finds next ready task, generates prompt, assigns work (exit 2) |
+| on-task-completed.sh | TaskCompleted | Validates output, checks gates, handles verdict, advances phase |
 | on-edit-gate.sh | PreToolUse (Edit/Write) | Allows edits in BUILD and SHIP stages; blocks in EXPLORE, PLAN, SYNC |
+| on-stop.sh | Stop | Allows lead to stop (teammates continue independently) |
+| on-subagent-stop.sh | SubagentStop | No-op (exit 0) — TaskCompleted handles validation |
+| on-post-edit-lint.sh | PostToolUse (Edit/Write) | Runs language-aware lint after edits during BUILD/SHIP (advisory, non-blocking) |
+| on-subagent-start.sh | SubagentStart | Injects workflow context (phase, loop, status, stage) into subagents |
+| on-config-change.sh | ConfigChange | Snapshots configuration changes to state.json configSnapshot field |
+| on-pre-compact.sh | PreCompact | Saves critical workflow metadata before context compaction |

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-teams.sh -- Unit tests for teams.sh
+# test-teams.sh -- Unit tests for teams.sh (v0.3 Agent Teams)
 # Usage: bash plugins/ants/hooks/lib/test-teams.sh
 set -eo pipefail
 
@@ -21,19 +21,20 @@ setup() {
   cat > .agents/tmp/state.json <<'JSON'
 {
   "plugin": "ants",
-  "version": 2,
+  "version": 3,
   "status": "in_progress",
   "currentPhase": "A0",
-  "loop": 1
+  "loop": 1,
+  "maxLoops": 5,
+  "task": "Add auth module",
+  "teamName": "ants-add-auth"
 }
 JSON
   export STATE_FILE=".agents/tmp/state.json"
-  # Reset TEAMS_AVAILABLE
-  TEAMS_AVAILABLE=false
-  unset CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS 2>/dev/null || true
 }
 
 source "$SCRIPT_DIR/lib/state.sh"
+source "$SCRIPT_DIR/lib/swarm.sh"
 source "$SCRIPT_DIR/lib/teams.sh"
 set +u
 
@@ -49,42 +50,6 @@ assert_eq() {
 }
 
 # =========================================================================
-echo "=== teams_detect ==="
-
-setup
-teams_detect 2>/dev/null
-assert_eq "teams not available by default" "false" "$TEAMS_AVAILABLE"
-
-setup
-export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
-teams_detect 2>/dev/null
-assert_eq "teams available when env=1" "true" "$TEAMS_AVAILABLE"
-
-setup
-export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="0"
-teams_detect 2>/dev/null
-assert_eq "teams not available when env=0" "false" "$TEAMS_AVAILABLE"
-
-setup
-export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=""
-teams_detect 2>/dev/null
-assert_eq "teams not available when env empty" "false" "$TEAMS_AVAILABLE"
-
-# =========================================================================
-echo "=== teams_get_dispatch_mode ==="
-
-setup
-result=$(teams_get_dispatch_mode)
-assert_eq "dispatch mode is subagent by default" "subagent" "$result"
-
-# Even with teams detected, currently always returns subagent
-setup
-export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
-teams_detect 2>/dev/null
-result=$(teams_get_dispatch_mode)
-assert_eq "dispatch mode still subagent even with teams detected" "subagent" "$result"
-
-# =========================================================================
 echo "=== teams_log ==="
 
 setup
@@ -92,38 +57,129 @@ output=$(teams_log "test message" 2>&1)
 assert_eq "log has TEAMS prefix" "[TEAMS] test message" "$output"
 
 # =========================================================================
-echo "=== teams_build_task_descriptor ==="
+echo "=== teams_get_next_ready_task ==="
 
 setup
-descriptor=$(teams_build_task_descriptor "ants:worker" "Build the auth module" "sonnet" "T1")
+result=$(teams_get_next_ready_task)
+assert_eq "returns current phase when in_progress" "A0" "$result"
 
-# Validate JSON fields
-tid=$(echo "$descriptor" | jq -r '.taskId')
-assert_eq "taskId" "T1" "$tid"
+setup
+jq '.status = "complete" | .currentPhase = "DONE"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+assert_eq "returns empty when complete" "" "$result"
 
-agent=$(echo "$descriptor" | jq -r '.agentType')
-assert_eq "agentType" "ants:worker" "$agent"
+setup
+jq '.status = "blocked" | .currentPhase = "A3"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+assert_eq "returns empty when blocked" "" "$result"
 
-prompt=$(echo "$descriptor" | jq -r '.prompt')
-assert_eq "prompt" "Build the auth module" "$prompt"
+setup
+jq '.currentPhase = "STOPPED"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+assert_eq "returns empty when STOPPED" "" "$result"
 
-model=$(echo "$descriptor" | jq -r '.model')
-assert_eq "model" "sonnet" "$model"
+# =========================================================================
+echo "=== teams_create_phase_tasks ==="
 
-dispatch=$(echo "$descriptor" | jq -r '.dispatch')
-assert_eq "dispatch mode in descriptor" "subagent" "$dispatch"
+setup
+tasks=$(teams_create_phase_tasks)
+count=$(echo "$tasks" | jq 'length')
+assert_eq "creates 6 phase tasks" "6" "$count"
 
-created=$(echo "$descriptor" | jq -r '.createdAt')
-if [[ -n "$created" && "$created" != "null" ]]; then
-  PASS=$((PASS + 1)); echo "  PASS: createdAt is set"
+first_phase=$(echo "$tasks" | jq -r '.[0].phaseId')
+assert_eq "first task is A0" "A0" "$first_phase"
+
+last_phase=$(echo "$tasks" | jq -r '.[-1].phaseId')
+assert_eq "last task is A5" "A5" "$last_phase"
+
+a1_blocked=$(echo "$tasks" | jq -r '.[1].blockedBy | join(",")')
+assert_eq "A1 blocked by A0" "A0" "$a1_blocked"
+
+a0_blocked=$(echo "$tasks" | jq -r '.[0].blockedBy | length')
+assert_eq "A0 has no blockedBy" "0" "$a0_blocked"
+
+# =========================================================================
+echo "=== teams_reject_completion ==="
+
+setup
+output=$(teams_reject_completion "Output file missing" 2>&1)
+if echo "$output" | grep -q "Task completion rejected"; then
+  PASS=$((PASS + 1)); echo "  PASS: reject message contains prefix"
 else
-  FAIL=$((FAIL + 1)); echo "  FAIL: createdAt not set"
+  FAIL=$((FAIL + 1)); echo "  FAIL: reject message missing prefix"
 fi
 
-# Test with special characters in prompt
-descriptor2=$(teams_build_task_descriptor "ants:sentinel-correctness" 'Review "all" files & check $vars' "inherit" "R1")
-prompt2=$(echo "$descriptor2" | jq -r '.prompt')
-assert_eq "special chars in prompt preserved" 'Review "all" files & check $vars' "$prompt2"
+# =========================================================================
+echo "=== teams_build_teammate_prompt ==="
+
+setup
+prompt=$(teams_build_teammate_prompt "A0")
+if echo "$prompt" | grep -q "Phase A0"; then
+  PASS=$((PASS + 1)); echo "  PASS: prompt contains phase ID"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: prompt missing phase ID"
+fi
+
+if echo "$prompt" | grep -q "Add auth module"; then
+  PASS=$((PASS + 1)); echo "  PASS: prompt contains task description"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: prompt missing task description"
+fi
+
+# =========================================================================
+echo "=== teams_add_a3_subtasks ==="
+
+setup
+mkdir -p .agents/tmp/phases/loop-1
+cat > .agents/tmp/phases/loop-1/A1-tasks.json <<'TASKS'
+[
+  {"id": "T1", "description": "Create auth module", "files_owned": ["src/auth.ts"], "dependencies": [], "acceptance_criteria": "Module exports login()"},
+  {"id": "T2", "description": "Add middleware", "files_owned": ["src/middleware.ts"], "dependencies": ["T1"], "acceptance_criteria": "Middleware validates tokens"}
+]
+TASKS
+
+subtasks=$(teams_add_a3_subtasks ".agents/tmp/phases/loop-1/A1-tasks.json")
+subtask_count=$(echo "$subtasks" | jq 'length')
+assert_eq "creates worker + sentinel + guardian + arbiter tasks" "7" "$subtask_count"
+
+# Check worker tasks
+worker_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId | startswith("A3-worker"))] | length')
+assert_eq "2 worker tasks" "2" "$worker_count"
+
+# Check sentinel tasks
+sentinel_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId | startswith("A3-sentinel"))] | length')
+assert_eq "3 sentinel tasks" "3" "$sentinel_count"
+
+# Check guardian task
+guardian_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-guardian")] | length')
+assert_eq "1 guardian task" "1" "$guardian_count"
+
+# Check arbiter task
+arbiter_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-arbiter")] | length')
+assert_eq "1 arbiter task" "1" "$arbiter_count"
+
+# Check worker T2 depends on T1
+t2_deps=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-worker-T2") | .blockedBy | join(",")')
+if echo "$t2_deps" | grep -q "A3-worker-T1"; then
+  PASS=$((PASS + 1)); echo "  PASS: T2 depends on T1"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: T2 missing T1 dependency (got: $t2_deps)"
+fi
+
+# Check sentinels depend on all workers
+s_deps=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-sentinel-correctness") | .blockedBy | length')
+assert_eq "sentinel depends on 2 workers" "2" "$s_deps"
+
+# Check arbiter depends on 3 sentinels
+a_deps=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-arbiter") | .blockedBy | length')
+assert_eq "arbiter depends on 3 sentinels" "3" "$a_deps"
+
+# Test with missing file
+if teams_add_a3_subtasks "/nonexistent/file.json" 2>/dev/null; then
+  FAIL=$((FAIL + 1)); echo "  FAIL: should reject missing file"
+else
+  PASS=$((PASS + 1)); echo "  PASS: rejects missing file"
+fi
 
 # =========================================================================
 echo ""

@@ -5,7 +5,7 @@ description: Ant-colony themed 6-phase swarm pipeline with self-organizing task 
 
 # Swarm Pipeline
 
-Ant-colony themed 6-phase development pipeline with dual-track parallel execution, adversarial review teams, and self-organizing task dispatch. Uses **ants plugin agents** (self-contained) driven by **ants plugin hooks** (Ralph-style loop driver). No Codex MCP dependency.
+Ant-colony themed 6-phase development pipeline with dual-track parallel execution, adversarial review teams, and self-organizing task dispatch. Uses **ants plugin agents** (self-contained) driven by **ants plugin hooks** (Agent Teams delegate mode). No Codex MCP dependency.
 
 ## Key Architecture
 
@@ -13,17 +13,17 @@ Ant-colony themed 6-phase development pipeline with dual-track parallel executio
 - `plugin: "ants"` -- so ants hooks fire
 - Other plugins' hooks silently exit (they check `plugin` field in state.json)
 - All agents are `ants:*` prefixed -- they exist in the ants plugin
-- State schema v2 with `phases`, `circuitBreaker`, `taskPool`, and `dispatchMode` fields
+- State schema v4 with `phases`, `circuitBreaker`, `taskPool`, `teamName`, `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`, and `worktreePath` fields
 
 ## 6-Phase Pipeline
 
 ```
-Phase A0  | EXPLORE   | Colony Exploration     | dispatch  -> foragers + cartographer + aggregator
-Phase A1  | PLAN      | Architect Plan         | subagent  -> architect
-Phase A2  | PLAN      | Blueprint Review       | subagent  -> blueprint-reviewer
-Phase A3  | BUILD     | Dual-Track Execution   | dispatch  -> workers (task pool) + adversarial sentinels + arbiter
-Phase A4  | SYNC      | Queen Synchronization  | subagent  -> queen (circuit breaker aware)
-Phase A5  | SHIP      | Documentation + Ship   | subagent  -> nurse + drone
+Phase A0  | EXPLORE   | Colony Exploration     | teams → foragers + cartographer + aggregator
+Phase A1  | PLAN      | Architect Plan         | teams → architect
+Phase A2  | PLAN      | Blueprint Review       | teams → blueprint-reviewer
+Phase A3  | BUILD     | Dual-Track Execution   | teams → workers (task pool) + adversarial sentinels + arbiter
+Phase A4  | SYNC      | Queen Synchronization  | teams → queen (circuit breaker aware)
+Phase A5  | SHIP      | Documentation + Ship   | teams → nurse + drone
 ```
 
 ### Pipeline Diagram
@@ -220,11 +220,11 @@ On loop 2+:
 - Architect plans **targeted fixes**, not full re-plans
 - Previous loop's files are preserved in `loop-{N}/` directories
 
-## State Schema (v2)
+## State Schema (v4)
 
 ```json
 {
-  "version": 2,
+  "version": 4,
   "plugin": "ants",
   "pipeline": "swarm",
   "status": "in_progress|blocked|complete",
@@ -234,15 +234,15 @@ On loop 2+:
   "currentPhase": "A0|A1|A2|A3|A4|A5|DONE|STOPPED",
   "loop": 1,
   "maxLoops": 5,
-  "dispatchMode": "subagent",
+  "teamName": "ants-<branch-slug>",
   "startedAt": "ISO timestamp",
   "schedule": [
-    {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "dispatch"},
-    {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "subagent"},
-    {"phase": "A2", "stage": "PLAN", "label": "Blueprint Review", "type": "subagent"},
-    {"phase": "A3", "stage": "BUILD", "label": "Dual-Track Execution", "type": "dispatch"},
-    {"phase": "A4", "stage": "SYNC", "label": "Queen Synchronization", "type": "subagent"},
-    {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "subagent"}
+    {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "teams"},
+    {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "teams"},
+    {"phase": "A2", "stage": "PLAN", "label": "Blueprint Review", "type": "teams"},
+    {"phase": "A3", "stage": "BUILD", "label": "Dual-Track Execution", "type": "teams"},
+    {"phase": "A4", "stage": "SYNC", "label": "Queen Synchronization", "type": "teams"},
+    {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "teams"}
   ],
   "phases": {
     "A0": {"status": "complete", "startedAt": "...", "completedAt": "..."},
@@ -270,7 +270,15 @@ On loop 2+:
     "fixAttempts": {},
     "stageRestarts": 0
   },
-  "failure": null
+  "failure": null,
+  "worktreePath": null,
+  "messages": [],
+  "planApproved": false,
+  "shutdown": false,
+  "webhookUrl": null,
+  "lintConfig": null,
+  "configSnapshot": null,
+  "compactMetadata": null
 }
 ```
 

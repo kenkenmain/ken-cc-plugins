@@ -16,7 +16,10 @@ claude plugin install ./plugins/ants --scope project
 
 ```bash
 /ants:swarm Add a caching layer to the API endpoints
+/ants:swarm --worktree Add a caching layer to the API endpoints
 ```
+
+The `--worktree` flag creates a git worktree for isolated development, enabling multiple workflows to run concurrently on the same repository.
 
 This launches a 6-phase pipeline that explores the codebase, plans the implementation, builds with a self-organizing task pool, runs adversarial review, and ships the result.
 
@@ -43,12 +46,31 @@ This launches a 6-phase pipeline that explores the codebase, plans the implement
   A5 Ship             update docs, commit, open PR
 ```
 
-### What's New in v0.2
+### What's New in v0.4
+
+- **Graceful shutdown** -- Set `.shutdown = true` in state.json to stop the workflow cleanly after in-progress phases complete
+- **Plan approval gate** -- Architect plans require explicit approval (`.planApproved = true`) before advancing to blueprint review
+- **Teammate messaging** -- Cross-phase communication via `add_message()` / `get_messages_for()` enables feedback loops without re-planning
+- **Worktree isolation** -- Run workflows in git worktrees for concurrent execution on the same repository
+- **Lint-on-save** -- PostToolUse hook runs language-aware linting (shell, JSON, Python) after edits during build/ship phases
+- **HTTP webhooks** -- Fire-and-forget notifications for phase and workflow lifecycle events via configurable webhook URL
+- **SubagentStart context injection** -- Teammates receive workflow state context (phase, loop, status) when spawned
+- **PreCompact metadata** -- Critical workflow state is saved before context compaction for safe resumption
+- **ConfigChange tracking** -- Configuration changes are snapshotted in state.json with timestamps
+- **State schema v4** -- Adds 8 new fields: `worktreePath`, `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`
+
+### What Was New in v0.3
+
+- **Agent Teams delegate mode** -- Lead creates team, populates shared task list, enters delegate mode. Teammates self-claim work. No Ralph Loop
+- **Auto-enable** -- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is auto-set by the swarm command. No user config needed
+- **TeammateIdle/TaskCompleted hooks** -- Replace Stop/SubagentStop as workflow drivers. TeammateIdle assigns tasks, TaskCompleted validates output
+- **State schema v3** -- Adds `teamName`, removes `dispatchMode` and `agentTeamsAvailable` fields
+
+### What Was New in v0.2
 
 - **Adversarial review teams** -- Three specialist sentinels (correctness, security, performance) replace the single generic sentinel, with a review-arbiter consolidating findings
 - **Self-organizing task pool** -- Dependency-driven task dispatch replaces rigid wave barriers; tasks become ready as their dependencies complete
 - **Circuit breaker** -- Consecutive failure tracking, per-phase fix budgets, and stage restart limits prevent infinite failure loops
-- **Agent Teams readiness** -- Dispatch abstraction layer prepared for Claude Code Agent Teams API migration
 - **5 new agents** -- sentinel-correctness, sentinel-security, sentinel-perf, review-arbiter, review-fixer (total: 16 agents)
 
 ### What Makes It Different
@@ -81,18 +103,18 @@ This catches issues from multiple perspectives rather than relying on a single r
 | drone | Commits and opens PR | inherit | A5 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 16 agent definitions are leaf agents (cannot spawn subagents). The orchestrator loop is driven entirely by hooks.
+All 16 agent definitions are leaf agents (cannot spawn subagents). The workflow is driven by Agent Teams hooks (TeammateIdle/TaskCompleted).
 
 ## How It Works
 
-### Ralph Loop Pattern
+### Agent Teams Delegate Mode
 
-The workflow is driven by shell hooks, not conversation memory:
+The workflow is driven by Agent Teams, not conversation memory:
 
-1. The `/ants:swarm` command initializes state and dispatches Phase A0
-2. When the subagent completes, the **SubagentStop hook** validates output and advances state
-3. When Claude tries to stop, the **Stop hook** generates a phase-specific prompt and blocks the stop
-4. Claude receives the prompt, reads state from disk, and dispatches the next phase
+1. The `/ants:swarm` command auto-enables Agent Teams, creates a team, and populates the task list
+2. Lead spawns 3-5 teammates and enters delegate mode (coordination-only)
+3. When a teammate goes idle, the **TeammateIdle hook** assigns the next ready phase
+4. When a teammate completes a task, the **TaskCompleted hook** validates output and advances state
 5. This repeats until the workflow completes or blocks
 
 ### Dual-Track Phase A3
@@ -154,19 +176,9 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 
 ## State and Output
 
-Workflow state lives in `.agents/tmp/state.json` (v2 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
+Workflow state lives in `.agents/tmp/state.json` (v4 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
 
 All state and output files are gitignored. They are temporary artifacts of the workflow execution.
-
-## Agent Teams Readiness
-
-The dispatch layer is prepared for migration to the Claude Code Agent Teams API (currently experimental). When the API stabilizes:
-
-1. Set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
-2. Update dispatch mode in `lib/teams.sh`
-3. Enable `TeammateIdle` and `TaskCompleted` hooks
-
-See `docs/teams-migration.md` for the complete migration guide. Rollback is immediate by unsetting the env var.
 
 ## Requirements
 
