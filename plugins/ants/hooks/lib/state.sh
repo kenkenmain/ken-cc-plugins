@@ -4,7 +4,7 @@
 
 # Bootstrap: STATE_FILE, jq check, ERR trap
 set -euo pipefail
-_ANTS_STATE_DIR="${BASH_SOURCE[0]%/*}/../../../shared/lib"
+_ANTS_STATE_DIR="${BASH_SOURCE[0]%/*}/../../../../lib"
 [[ -f "$_ANTS_STATE_DIR/common-state.sh" ]] || { echo "ERROR: cannot locate common-state.sh" >&2; exit 2; }
 source "$_ANTS_STATE_DIR/common-state.sh"
 
