@@ -2,17 +2,11 @@
 # state.sh — Shared state helpers for minions hooks
 # Source this from hook scripts: source "$SCRIPT_DIR/lib/state.sh"
 
-STATE_FILE=".agents/tmp/state.json"
-
-# Dependency check — jq is required by all hooks that source this file
-if ! command -v jq &>/dev/null; then
-  echo "ERROR: jq is required but not installed" >&2
-  exit 2
-fi
-
-# ERR trap — convert unexpected failures into informative exit-2 errors.
-# Note: does NOT fire for arithmetic expansion or set -u violations (bash limitation).
-trap 'echo "ERROR: ${BASH_SOURCE[1]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
+# Bootstrap: STATE_FILE, jq check, ERR trap
+set -euo pipefail
+_MINIONS_STATE_DIR="${BASH_SOURCE[0]%/*}/../../../shared/lib"
+[[ -f "$_MINIONS_STATE_DIR/common-state.sh" ]] || { echo "ERROR: cannot locate common-state.sh" >&2; exit 2; }
+source "$_MINIONS_STATE_DIR/common-state.sh"
 
 # Check if workflow is active and owned by this session.
 # Returns 0 if we should proceed, exits 0 (allow) if we should not.
@@ -132,6 +126,10 @@ _update_state_inner() {
   fi
 }
 
+# Probe flock availability once at source time to avoid fork+exec on every state write
+_FLOCK_AVAILABLE=false
+command -v flock &>/dev/null && _FLOCK_AVAILABLE=true
+
 # Atomic state update with file locking.
 # Usage: update_state [jq_args...] 'jq_filter'
 # The last argument is always the jq filter. All preceding arguments are passed to jq.
@@ -151,7 +149,7 @@ update_state() {
   local timestamp
   timestamp=$(date -Iseconds)
 
-  if command -v flock &>/dev/null; then
+  if [[ "$_FLOCK_AVAILABLE" == "true" ]]; then
     # flock-based locking (Linux, macOS with util-linux)
     (
       flock -x -w 5 200 || {

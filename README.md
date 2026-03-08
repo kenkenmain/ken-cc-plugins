@@ -12,6 +12,24 @@ claude plugin marketplace add kenkenmain/ken-cc-plugins
 claude plugin install superpowers-iterate@ken-cc-plugins
 ```
 
+## Choosing a Plugin
+
+| Plugin | Phases | Parallelism Style | Model Requirements | Best For | Example Tasks |
+|--------|--------|-------------------|-------------------|----------|---------------|
+| **kenken** | 4 (Plan, Implement, Test, Final) | Sequential stages, no parallel agents | Claude only | Quick tasks, simple iteration | "Add OAuth2 login", "Set up GitFlow repo" |
+| **superpowers-iterate** | 9 (loop phases 1-8 until clean) | Sequential with iterative refinement | Codex MCP (full) or Claude-only (lite) | Quality-obsessed iteration, convergence to zero issues | "Refactor auth module with TDD", "Add comprehensive error handling" |
+| **minions** | 5 (launch) / 15 (superlaunch) | Parallel explorers + parallel reviewers (6 specialists) | Claude only (no Codex MCP) | Thorough coverage, personality-driven review teams | "Build payment pipeline (superlaunch)", "Review-fix existing code (review)" |
+| **subagents** | 5-15 (profile-based) | Wave-based parallel agents, complexity-routed tasks | Codex MCP (default) or Claude-only | Complex multi-file features, configurable pipelines | "Add full API with tests (standard)", "Quick config fix (minimal)" |
+| **ants** | 6 (A0-A5), persistent loop variant | Self-organizing task pool + adversarial review team (3 sentinels) | Claude only, Agent Teams | Adversarial quality, fast iteration, concurrent builds | "Add caching layer (swarm)", "Fix all lint warnings (pswarm)" |
+
+**Quick decision guide:**
+
+- Need a simple 4-stage loop? Start with **kenken**.
+- Want iterative refinement until zero issues? Use **superpowers-iterate**.
+- Need thorough 15-phase coverage with parallel reviewers? Use **minions:superlaunch**.
+- Need complexity-routed agents with Codex MCP? Use **subagents**.
+- Want adversarial multi-angle review with self-organizing tasks? Use **ants**.
+
 ## Available Plugins
 
 ### subagents
