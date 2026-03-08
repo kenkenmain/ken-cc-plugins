@@ -181,3 +181,22 @@ cb_reset_for_loop() {
     return 1
   fi
 }
+
+# ===========================================================================
+# Run Reset (pswarm)
+# ===========================================================================
+
+# Reset all circuit breaker counters for pswarm run boundaries.
+# Called between full A0→A5 runs in the pswarm pipeline.
+# Unlike cb_reset_for_loop() which only clears fixAttempts, this fully resets
+# all counters because each pswarm run is an independent attempt.
+# Usage: cb_reset_for_run
+cb_reset_for_run() {
+  if ! update_state \
+    '.circuitBreaker.stageRestarts = 0 |
+     .circuitBreaker.fixAttempts = {} |
+     .circuitBreaker.consecutiveFailures = 0'; then
+    echo "ERROR: Failed to reset circuit breaker counters for run" >&2
+    return 1
+  fi
+}

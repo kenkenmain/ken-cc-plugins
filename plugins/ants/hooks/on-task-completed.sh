@@ -381,13 +381,76 @@ handle_a5() {
     exit 2
   fi
 
-  if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
-    echo "ERROR: Failed to mark workflow as complete." >&2
-    exit 2
+  local pipeline
+  pipeline=$(state_get '.pipeline // "swarm"')
+
+  if [[ "$pipeline" == "pswarm" ]]; then
+    local pswarm_run
+    pswarm_run=$(state_get '.pswarmRun // 1')
+    pswarm_run=$(require_int "$pswarm_run" "pswarmRun")
+    local max_runs
+    max_runs=$(state_get '.maxRuns // 50')
+    max_runs=$(require_int "$max_runs" "maxRuns")
+
+    if [[ "$pswarm_run" -ge "$max_runs" ]]; then
+      # Max runs exhausted — mark complete
+      if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
+        echo "ERROR: Failed to mark pswarm workflow as complete." >&2
+        exit 2
+      fi
+      webhook_phase_event "A5" "completed" || true
+      webhook_workflow_event "completed" || true
+      teams_log "pswarm complete: maxRuns ($max_runs) reached after run $pswarm_run"
+    else
+      local next_run
+      next_run=$((pswarm_run + 1))
+
+      # Re-check shutdown flag before starting next run
+      local is_shutdown
+      is_shutdown=$(state_get '.shutdown // false')
+      if [[ "$is_shutdown" == "true" ]]; then
+        if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
+          echo "ERROR: Failed to mark pswarm workflow as complete after shutdown." >&2
+          exit 2
+        fi
+        webhook_phase_event "A5" "completed" || true
+        webhook_workflow_event "completed" || true
+        teams_log "pswarm: shutdown requested, completing after run $pswarm_run"
+        return
+      fi
+
+      # Atomic reset for next pswarm run — combines state fields, phase resets,
+      # and circuit breaker resets into a single update_state call to avoid
+      # non-atomic intermediate states and redundant lock/jq cycles.
+      if ! update_state --argjson nextRun "$next_run" \
+        '.pswarmRun = $nextRun | .loop = 1 | .planApproved = false | .taskPool = []
+         | .currentPhase = "A0" | .status = "in_progress" | .updatedAt = $ts
+         | .phases = (.phases // {})
+         | .phases.A0 = {"status": "pending"}
+         | .phases.A1 = {"status": "pending"}
+         | .phases.A2 = {"status": "pending"}
+         | .phases.A3 = {"status": "pending"}
+         | .phases.A4 = {"status": "pending"}
+         | .phases.A5 = {"status": "pending"}
+         | .circuitBreaker.stageRestarts = 0
+         | .circuitBreaker.fixAttempts = {}
+         | .circuitBreaker.consecutiveFailures = 0'; then
+        echo "ERROR: Failed to reset state for next pswarm run." >&2
+        exit 2
+      fi
+      webhook_phase_event "A5" "completed" || true
+      teams_log "pswarm: run $pswarm_run shipped, starting run $next_run of $max_runs"
+    fi
+  else
+    # Original swarm behavior
+    if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
+      echo "ERROR: Failed to mark workflow as complete." >&2
+      exit 2
+    fi
+    webhook_phase_event "A5" "completed" || true
+    webhook_workflow_event "completed" || true
+    teams_log "A5 complete, workflow DONE"
   fi
-  webhook_phase_event "A5" "completed" || true
-  webhook_workflow_event "completed" || true
-  teams_log "A5 complete, workflow DONE"
 }
 
 # ---------------------------------------------------------------------------
