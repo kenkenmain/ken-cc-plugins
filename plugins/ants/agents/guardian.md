@@ -72,6 +72,8 @@ Write tests for the implementation from the current build batch.
 - Search for testing utilities/helpers already in the codebase
 - Search for relevant testing libraries if needed (via WebSearch)
 
+**IMPORTANT:** Only use WebSearch when your dispatch prompt explicitly states that web search is enabled. If the dispatch prompt does not mention web search, do NOT use WebSearch.
+
 ### What You DON'T Do
 
 - Git operations (blocked by hook — don't even try)

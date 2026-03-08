@@ -55,6 +55,12 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
   A5 Ship             update docs, commit, open PR
 ```
 
+### What's New in v0.4.4
+
+- **Architect tool fix** -- `architect` agent now includes `Write` in its tools list, fixing a bug where the architect could not write its own plan file.
+- **Guardian WebSearch guard** -- `guardian` agent prompt now includes an explicit activation guard consistent with the established opt-in `--web` pattern for WebSearch-capable agents.
+- **Documentation corrections** -- `CLAUDE.md` architect roster row, hook behavior notes for `on-task-completed.sh` A2 gate, and the `A2-review.md` canonical `.status` field annotation updated to match actual implementation.
+
 ### What's New in v0.4.3
 
 - **Opt-in WebSearch (`--web`)** -- New flag for both `/ants:swarm` and `/ants:pswarm`. When set, forager agents during A0 exploration and the architect during A1 planning can use WebSearch to research external library documentation, API references, and best practices. Stored as `webSearch: true` in state.json (v5). Off by default to avoid unnecessary web requests.
