@@ -1,7 +1,7 @@
 ---
 name: ants:swarm
 description: Launch a 6-phase swarm workflow using Agent Teams with delegate mode
-argument-hint: <task description> [--web-search]
+argument-hint: <task description> [--web]
 ---
 
 <HARD-GATE>
@@ -16,11 +16,11 @@ You are launching a 6-phase ant-colony swarm workflow. You are the orchestrator 
 
 - `<task description>`: Required. The task to execute.
 - `--worktree`: Optional. Create a git worktree for isolated development. Path stored in `.worktreePath` in state.json. After completion, remove with `git worktree remove <path>`.
-- `--web-search`: Optional. Opt-in flag that enables WebSearch tool for forager agents during the A0 exploration phase. When set, foragers can search the web for library documentation, API references, and best practices relevant to the task. Stored as `webSearch: true` in state.json.
+- `--web`: Optional. Opt-in flag that enables WebSearch tool for forager agents during the A0 exploration phase. When set, foragers can search the web for library documentation, API references, and best practices relevant to the task. Stored as `webSearch: true` in state.json.
 
 Parse from $ARGUMENTS to extract the task description and any flags:
 - Check if `--worktree` is present; if so, set `WORKTREE=true` and remove it from the task description.
-- Check if `--web-search` is present; if so, set `WEB_SEARCH=true` and remove it from the task description.
+- Check if `--web` is present; if so, set `WEB_SEARCH=true` and remove it from the task description.
 - The remaining text after removing flags is the `<task description>`.
 
 ## Pipeline
@@ -141,12 +141,12 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 }
 ```
 
-### 1d. Apply --web-search flag
+### 1d. Apply --web flag
 
-If `--web-search` was provided, update `webSearch` to `true` in state.json:
+If `--web` was provided, update `webSearch` to `true` in state.json:
 
 ```bash
-# Only if --web-search flag was parsed
+# Only if --web flag was parsed
 jq '.webSearch = true' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
 ```
 

@@ -344,13 +344,13 @@ The `pswarm` (persistent swarm) command extends the swarm pipeline into a contin
 ### Command Syntax
 
 ```
-/ants:pswarm <task description> [--max-loops N] [--worktree] [--web-search]
+/ants:pswarm <task description> [--max-loops N] [--worktree] [--web]
 ```
 
 - `<task description>`: Required. The task to solve.
 - `--max-loops N`: Maximum number of full runs (default: 50). Each run is a complete A0→A5 cycle.
 - `--worktree`: Create a git worktree for isolated development.
-- `--web-search`: Enable WebSearch for forager agents during exploration (A0) and planning (A1) phases. Opt-in, default: disabled.
+- `--web`: Enable WebSearch for forager agents during exploration (A0) and planning (A1) phases. Opt-in, default: disabled.
 
 ### How It Differs from Swarm
 
