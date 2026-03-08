@@ -52,7 +52,7 @@ plugins/minions/
 │   ├── cursor.md                  # /minions:cursor <task>
 │   └── review.md                  # /minions:review <task>
 ├── hooks/                         # Shell hooks (Ralph-style loop driver)
-│   ├── hooks.json                 # Hook event configuration (5 event types)
+│   ├── hooks.json                 # Hook event configuration (4 event types)
 │   ├── on-launch-init.sh          # UserPromptSubmit: stale state detection
 │   ├── on-stop.sh                 # Stop: pipeline router + launch prompt generator
 │   ├── on-stop-superlaunch.sh     # Stop: superlaunch prompt generator

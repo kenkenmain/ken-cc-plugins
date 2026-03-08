@@ -135,6 +135,8 @@ The arbiter must also read this file alongside the other three sentinel outputs.
 
 Add a **Phase 2.2: Simplify** step between Implementation (2.1) and Implementation Review (2.3) in the subagents standard pipeline profile. This phase runs a simplification pass over implemented code before review.
 
+> **Note:** This example uses Phase 2.2 and the simplifier agent, which already exist in the thorough profile (`plugins/subagents/prompts/phases/2.2-simplify.md` and `plugins/subagents/agents/simplifier.md`). The example demonstrates how they were added — follow this same pattern to add entirely new phases.
+
 ### Files to Create/Modify
 
 | Action | File |
@@ -229,7 +231,7 @@ This follows the same pattern used by all other phases in the function.
 
 ### Common Pitfalls
 
-- **Missing `[PHASE X.Y]` tag** -- The `on-task-dispatch.sh` hook validates that dispatched agents match the current phase. Without this tag in the prompt template heading, the PreToolUse hook will block the dispatch.
+- **Missing `[PHASE X.Y]` tag** -- The `on-task-dispatch.sh` hook checks for a matching phase tag. Without this tag in the prompt template heading, the PreToolUse hook provides `additionalContext` warning the orchestrator about the mismatch (it does not block the dispatch).
 - **Wrong phase ordering in schedule** -- Phases execute in array order. If 2.2 appears after 2.3 in the schedule, the simplification pass runs after review, defeating its purpose.
 - **Forgetting the gate update** -- If the gate does not require `2.2-simplify.json`, the workflow can skip the phase entirely when advancing stages. Gates are the enforcement mechanism for required phases.
 - **Not testing with `bash -n`** -- Shell syntax errors in hook libraries crash the entire workflow at runtime. Always validate with `bash -n` after modifying any `.sh` file.

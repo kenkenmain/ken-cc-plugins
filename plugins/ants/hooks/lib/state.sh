@@ -69,27 +69,6 @@ check_ants_workflow() {
   return 0
 }
 
-# Verify ownerPpid and sessionId match the current session.
-# Exits 0 (allow/passthrough) if this is not our session.
-check_session_owner() {
-  local owner_ppid
-  owner_ppid=$(jq -r '.ownerPpid // empty' "$STATE_FILE")
-  if [[ -n "$owner_ppid" && "$owner_ppid" != "$PPID" ]]; then
-    exit 0
-  fi
-
-  # CLAUDE_SESSION_ID is a forward-compatible placeholder environment variable.
-  # It may be provided by Claude Code in future versions to uniquely identify sessions.
-  # If not present, the sessionId check is skipped (backward compatible).
-  local state_session_id
-  state_session_id=$(jq -r '.sessionId // empty' "$STATE_FILE")
-  if [[ -n "$state_session_id" && -n "${CLAUDE_SESSION_ID:-}" && "$state_session_id" != "$CLAUDE_SESSION_ID" ]]; then
-    exit 0
-  fi
-
-  return 0
-}
-
 # Read a field from state.json. Exits 2 if the field is missing/empty and required.
 # Usage: state_get '.currentPhase' [--required]
 state_get() {
@@ -151,7 +130,7 @@ update_state() {
     (
       flock -x -w 5 200 || {
         echo "ERROR: Could not acquire state lock after 5 seconds" >&2
-        return 1
+        exit 1
       }
 
       _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
@@ -214,28 +193,28 @@ _update_state_inner() {
   local tmp_file
   tmp_file=$(mktemp "${STATE_FILE}.XXXXXX")
 
+  # Capture stderr separately from stdout for diagnostics
   local jq_err_file
   jq_err_file=$(mktemp "${STATE_FILE}.err.XXXXXX")
 
-  # Explicit cleanup helper — avoids RETURN/EXIT trap conflicts with the
-  # caller's subshell EXIT trap (which cleans up the lock directory).
-  _cleanup_inner() { rm -f "$tmp_file" "$jq_err_file" 2>/dev/null; }
+  # Clean up temp files on any exit from this function scope
+  trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' EXIT
 
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
     if jq empty "$tmp_file" 2>/dev/null; then
       mv "$tmp_file" "$STATE_FILE"
-      _cleanup_inner
+      rm -f "$jq_err_file"
       return 0
     else
       echo "ERROR: State update produced invalid JSON" >&2
-      _cleanup_inner
+      rm -f "$tmp_file" "$jq_err_file"
       return 1
     fi
   else
     local jq_err
     jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")
     echo "ERROR: jq state update failed: $jq_err" >&2
-    _cleanup_inner
+    rm -f "$tmp_file" "$jq_err_file"
     return 1
   fi
 }

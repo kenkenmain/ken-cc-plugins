@@ -3,7 +3,7 @@
 # Source this from plugin-specific state.sh files.
 # Provides: STATE_FILE, jq dependency check, ERR trap.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 STATE_FILE=".agents/tmp/state.json"
 
@@ -15,4 +15,4 @@ fi
 
 # ERR trap — convert unexpected failures into informative exit-2 errors.
 # Note: does NOT fire for arithmetic expansion or set -u violations (bash limitation).
-trap 'echo "ERROR: ${BASH_SOURCE[1]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
+trap 'echo "ERROR: ${BASH_SOURCE[0]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR

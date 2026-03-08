@@ -49,7 +49,7 @@ ken-cc-plugins/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
 │   │   ├── agents/                        # Agent definitions (16 agents)
 │   │   ├── commands/                      # Slash commands (swarm.md, pswarm.md)
-│   │   ├── hooks/                         # Shell hooks (8 hooks)
+│   │   ├── hooks/                         # Shell hooks (9 hooks)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, swarm.sh, dag.sh, circuit-breaker.sh, task-pool.sh, teams.sh, webhook.sh, lint.sh)
 │   │   ├── prompts/                       # Phase prompt templates (A0-A5)
 │   │   ├── skills/                        # swarm, workflow
@@ -71,7 +71,7 @@ ken-cc-plugins/
 │   │   ├── agents/                        # Agent definitions (49 agents)
 │   │   ├── hooks/                         # Shell hooks (6 hooks: fdispatch-init, subagent-stop, stop, task-dispatch, codex-guard, orchestrator-guard)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh)
-│   │   ├── prompts/                       # Orchestrator + phase prompt templates (19 templates)
+│   │   ├── prompts/                       # Orchestrator + phase prompt templates (25 templates)
 │   │   ├── skills/                        # workflow, state-manager, configuration
 │   │   ├── README.md                      # User-facing documentation
 │   │   └── CLAUDE.md                      # Subagents-specific architecture docs

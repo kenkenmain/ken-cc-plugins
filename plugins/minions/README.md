@@ -143,13 +143,13 @@ DONE
 | explorer-patterns | Coding patterns finder | haiku | launch, cursor |
 | deep-explorer | Deep architecture tracer | haiku | superlaunch |
 | explore-aggregator | Merges explorer outputs | haiku | superlaunch |
-| scout | Explore + brainstorm + plan | inherit | launch |
+| scout | Explore + brainstorm + plan | sonnet | launch |
 | brainstormer | Strategy analysis | inherit | superlaunch |
 | planner | Implementation plan (batch) | inherit | superlaunch |
 | architecture-analyst | Architecture blueprint | inherit | superlaunch |
 | plan-aggregator | Merges planner outputs | haiku | superlaunch |
 | plan-reviewer | Plan validation | inherit | superlaunch |
-| sub-scout | Domain-specific planner | inherit | cursor |
+| sub-scout | Domain-specific planner | sonnet | cursor |
 | builder | Task implementer (no git) | inherit | launch |
 | cursor-builder | Task implementer (per-task commits) | inherit | cursor |
 | task-agent | Task executor | inherit | superlaunch |
@@ -180,7 +180,7 @@ All 38 agents are leaf agents (`disallowedTools: [Task]`). Workflow orchestratio
 
 | | minions:launch | minions:superlaunch | minions:cursor | minions:review | ants:swarm | subagents:dispatch |
 |---|---|---|---|---|---|---|
-| Phases | 5 (F0-F4) | 15 (S0-S14) | 5 (C0-C4) | 2 (R1-R2) | 6 (A0-A5) | 4-9 (configurable) |
+| Phases | 5 (F0-F4) | 15 (S0-S14) | 5 (C0-C4) | 2 (R1-R2) | 6 (A0-A5) | 5-15 (profile-based) |
 | Build model | Parallel builders | Parallel task-agents | Per-task commits | N/A (review only) | Task pool + adversarial review | Sequential with review |
 | Review style | 6 parallel reviewers | Per-phase reviewers + judgement | Single judge verdict | 5 parallel reviewers | 3 specialist sentinels + arbiter | Configurable reviewer |
 | Loop type | F3 issues -> F1 re-scout (max 10) | Review-fix cycles + stage restarts | Judge: approve/fix/replan | R1-R2 iteration (max 5) | Queen verdict -> re-plan (max 5) | Fix cycles per phase |

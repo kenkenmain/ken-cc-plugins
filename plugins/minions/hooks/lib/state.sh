@@ -22,34 +22,28 @@ check_workflow_active() {
     exit 2
   fi
 
-  # Plugin guard
-  local plugin
-  plugin=$(jq -r '.plugin // empty' "$STATE_FILE")
+  # Batch-read all guard fields in a single jq call to avoid repeated file reads
+  local guard_fields
+  guard_fields=$(jq -r '[.plugin // "", .status // "", .ownerPpid // "", .sessionId // ""] | join("\t")' "$STATE_FILE")
+  local plugin status owner_ppid state_session_id
+  IFS=$'\t' read -r plugin status owner_ppid state_session_id <<< "$guard_fields"
+
+  # Plugin guard — only handle minions workflows
   if [[ "$plugin" != "minions" ]]; then
     exit 0
   fi
 
   # Session scoping - ownerPpid
-  local owner_ppid
-  owner_ppid=$(jq -r '.ownerPpid // empty' "$STATE_FILE")
   if [[ -n "$owner_ppid" && "$owner_ppid" != "$PPID" ]]; then
     exit 0
   fi
 
   # Session scoping - sessionId
-  # CLAUDE_SESSION_ID is a forward-compatible placeholder environment variable.
-  # It may be provided by Claude Code in future versions to uniquely identify sessions.
-  # If not present, the sessionId check is skipped (backward compatible with current Claude Code).
-  # When both state.sessionId and CLAUDE_SESSION_ID are set, they must match for the hook to proceed.
-  local state_session_id
-  state_session_id=$(jq -r '.sessionId // empty' "$STATE_FILE")
   if [[ -n "$state_session_id" && -n "${CLAUDE_SESSION_ID:-}" && "$state_session_id" != "$CLAUDE_SESSION_ID" ]]; then
     exit 0
   fi
 
   # Status check
-  local status
-  status=$(jq -r '.status // empty' "$STATE_FILE")
   if [[ "$status" != "in_progress" ]]; then
     exit 0
   fi
@@ -154,7 +148,7 @@ update_state() {
     (
       flock -x -w 5 200 || {
         echo "ERROR: Could not acquire state lock after 5 seconds" >&2
-        return 1
+        exit 1
       }
 
       _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
