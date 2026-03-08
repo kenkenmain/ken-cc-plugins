@@ -2,17 +2,11 @@
 # state.sh — Shared state helpers for ants hooks
 # Source this from hook scripts: source "$SCRIPT_DIR/lib/state.sh"
 
-STATE_FILE=".agents/tmp/state.json"
-
-# Dependency check — jq is required by all hooks that source this file
-if ! command -v jq &>/dev/null; then
-  echo "ERROR: jq is required but not installed" >&2
-  exit 2
-fi
-
-# ERR trap — convert unexpected failures into informative exit-2 errors.
-# Note: does NOT fire for arithmetic expansion or set -u violations (bash limitation).
-trap 'echo "ERROR: ${BASH_SOURCE[1]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
+# Bootstrap: STATE_FILE, jq check, ERR trap
+set -euo pipefail
+_ANTS_STATE_DIR="${BASH_SOURCE[0]%/*}/../../../../lib"
+[[ -f "$_ANTS_STATE_DIR/common-state.sh" ]] || { echo "ERROR: cannot locate common-state.sh" >&2; exit 2; }
+source "$_ANTS_STATE_DIR/common-state.sh"
 
 # Check if an ants workflow is active and owned by this session.
 # Returns 0 if we should proceed, exits 0 (allow) if we should not.
@@ -28,26 +22,33 @@ check_ants_workflow() {
     exit 2
   fi
 
+  # Batch-read all guard fields in a single jq call to avoid repeated file reads
+  local guard_fields
+  guard_fields=$(jq -r '[.plugin // "", .status // "", .ownerPpid // "", .sessionId // "", (.version // 1 | tostring)] | join("\t")' "$STATE_FILE")
+  local plugin status owner_ppid state_session_id version
+  IFS=$'\t' read -r plugin status owner_ppid state_session_id version <<< "$guard_fields"
+
   # Plugin guard — only handle ants workflows
-  local plugin
-  plugin=$(jq -r '.plugin // empty' "$STATE_FILE")
   if [[ "$plugin" != "ants" ]]; then
     exit 0
   fi
 
   # Session scoping - ownerPpid
-  check_session_owner
+  if [[ -n "$owner_ppid" && "$owner_ppid" != "$PPID" ]]; then
+    exit 0
+  fi
+
+  # Session scoping - sessionId
+  if [[ -n "$state_session_id" && -n "${CLAUDE_SESSION_ID:-}" && "$state_session_id" != "$CLAUDE_SESSION_ID" ]]; then
+    exit 0
+  fi
 
   # Status check
-  local status
-  status=$(jq -r '.status // empty' "$STATE_FILE")
   if [[ "$status" != "in_progress" ]]; then
     exit 0
   fi
 
   # Migrate state schema if needed (fall-through: v1->v2->v3->v4->v5)
-  local version
-  version=$(jq -r '.version // 1' "$STATE_FILE")
   if [[ "$version" == "1" ]]; then
     migrate_state_v1_to_v2
     version="2"
@@ -68,49 +69,19 @@ check_ants_workflow() {
   return 0
 }
 
-# Verify ownerPpid and sessionId match the current session.
-# Exits 0 (allow/passthrough) if this is not our session.
-check_session_owner() {
-  local owner_ppid
-  owner_ppid=$(jq -r '.ownerPpid // empty' "$STATE_FILE")
-  if [[ -n "$owner_ppid" && "$owner_ppid" != "$PPID" ]]; then
-    exit 0
-  fi
-
-  # CLAUDE_SESSION_ID is a forward-compatible placeholder environment variable.
-  # It may be provided by Claude Code in future versions to uniquely identify sessions.
-  # If not present, the sessionId check is skipped (backward compatible).
-  local state_session_id
-  state_session_id=$(jq -r '.sessionId // empty' "$STATE_FILE")
-  if [[ -n "$state_session_id" && -n "${CLAUDE_SESSION_ID:-}" && "$state_session_id" != "$CLAUDE_SESSION_ID" ]]; then
-    exit 0
-  fi
-
-  return 0
-}
-
 # Read a field from state.json. Exits 2 if the field is missing/empty and required.
 # Usage: state_get '.currentPhase' [--required]
 state_get() {
   local filter="$1"
   local required="${2:-}"
   local value
-  local jq_errfile
-  jq_errfile=$(mktemp 2>/dev/null) || {
-    echo "ERROR: mktemp failed in state_get" >&2
-    exit 2
-  }
   # Append `// empty` to convert null → "" for required checks.
   # Callers with fallbacks (e.g., '.loop // 1') produce '.loop // 1 // empty'
   # which is correct: jq alternative is left-associative, so 1 stays 1.
-  if ! value=$(jq -r "$filter // empty" "$STATE_FILE" 2>"$jq_errfile"); then
-    local jq_err
-    jq_err=$(head -c 200 "$jq_errfile" 2>/dev/null || echo "unknown error")
-    rm -f "$jq_errfile"
-    echo "ERROR: jq failed querying state.json with filter '$filter': $jq_err" >&2
+  if ! value=$(jq -r "$filter // empty" "$STATE_FILE" 2>&1); then
+    echo "ERROR: jq failed querying state.json with filter '$filter': $value" >&2
     exit 2
   fi
-  rm -f "$jq_errfile"
 
   if [[ -z "$value" && "$required" == "--required" ]]; then
     echo "ERROR: state.json field '$filter' is missing or empty. Workflow state is incomplete." >&2
@@ -131,6 +102,10 @@ require_int() {
   echo "$value"
 }
 
+# Probe flock availability once at source time to avoid fork+exec on every state write
+_FLOCK_AVAILABLE=false
+command -v flock &>/dev/null && _FLOCK_AVAILABLE=true
+
 # Atomic state update with file locking.
 # Usage: update_state [jq_args...] 'jq_filter'
 # The last argument is always the jq filter. All preceding arguments are passed to jq.
@@ -150,12 +125,12 @@ update_state() {
   local timestamp
   timestamp=$(date -Iseconds)
 
-  if command -v flock &>/dev/null; then
+  if [[ "$_FLOCK_AVAILABLE" == "true" ]]; then
     # flock-based locking (Linux, macOS with util-linux)
     (
       flock -x -w 5 200 || {
         echo "ERROR: Could not acquire state lock after 5 seconds" >&2
-        return 1
+        exit 1
       }
 
       _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
@@ -218,28 +193,28 @@ _update_state_inner() {
   local tmp_file
   tmp_file=$(mktemp "${STATE_FILE}.XXXXXX")
 
+  # Capture stderr separately from stdout for diagnostics
   local jq_err_file
   jq_err_file=$(mktemp "${STATE_FILE}.err.XXXXXX")
 
-  # Explicit cleanup helper — avoids RETURN/EXIT trap conflicts with the
-  # caller's subshell EXIT trap (which cleans up the lock directory).
-  _cleanup_inner() { rm -f "$tmp_file" "$jq_err_file" 2>/dev/null; }
+  # Clean up temp files on any exit from this function scope
+  trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' EXIT
 
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
     if jq empty "$tmp_file" 2>/dev/null; then
       mv "$tmp_file" "$STATE_FILE"
-      _cleanup_inner
+      rm -f "$jq_err_file"
       return 0
     else
       echo "ERROR: State update produced invalid JSON" >&2
-      _cleanup_inner
+      rm -f "$tmp_file" "$jq_err_file"
       return 1
     fi
   else
     local jq_err
     jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")
     echo "ERROR: jq state update failed: $jq_err" >&2
-    _cleanup_inner
+    rm -f "$tmp_file" "$jq_err_file"
     return 1
   fi
 }
@@ -402,10 +377,8 @@ add_message() {
   local from="${1:?add_message requires from}"
   local to="${2:?add_message requires to}"
   local content="${3:?add_message requires content}"
-  local loop
-  loop=$(state_get '.loop // 1')
-  update_state --arg from "$from" --arg to "$to" --arg content "$content" --argjson loop "$loop" \
-    '.messages += [{"from": $from, "to": $to, "content": $content, "loop": $loop, "addedAt": $ts}]'
+  update_state --arg from "$from" --arg to "$to" --arg content "$content" \
+    '.messages += [{"from": $from, "to": $to, "content": $content, "loop": (.loop // 1), "addedAt": $ts}]'
 }
 
 # Get messages targeted at a specific recipient from state.json.

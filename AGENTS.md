@@ -45,13 +45,33 @@ claude plugin list                                     # List installed
 ```
 ken-cc-plugins/
 ├── plugins/
+│   ├── ants/
+│   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
+│   │   ├── agents/                        # Agent definitions (16 agents)
+│   │   ├── commands/                      # Slash commands (swarm.md, pswarm.md)
+│   │   ├── hooks/                         # Shell hooks (9 hooks)
+│   │   │   └── lib/                       # Shared bash libs (state.sh, swarm.sh, dag.sh, circuit-breaker.sh, task-pool.sh, teams.sh, webhook.sh, lint.sh)
+│   │   ├── prompts/                       # Phase prompt templates (A0-A5)
+│   │   ├── skills/                        # swarm, workflow
+│   │   ├── README.md                      # User-facing documentation
+│   │   └── CLAUDE.md                      # Ants-specific architecture docs
+│   ├── minions/
+│   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
+│   │   ├── agents/                        # Agent definitions (38 agents)
+│   │   ├── commands/                      # Slash commands (launch.md, superlaunch.md, cursor.md, review.md)
+│   │   ├── hooks/                         # Shell hooks (Ralph Loop pattern)
+│   │   │   └── lib/                       # Shared bash libs (state.sh, superlaunch.sh, cursor.sh)
+│   │   ├── prompts/                       # Phase prompt templates (launch, superlaunch, cursor)
+│   │   ├── skills/                        # workflow, superlaunch, review
+│   │   ├── README.md                      # User-facing documentation
+│   │   └── CLAUDE.md                      # Minions-specific architecture docs
 │   ├── subagents/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest
 │   │   ├── commands/                      # Slash commands (12 commands: init, dispatch, fdispatch, debug, etc.)
 │   │   ├── agents/                        # Agent definitions (49 agents)
 │   │   ├── hooks/                         # Shell hooks (6 hooks: fdispatch-init, subagent-stop, stop, task-dispatch, codex-guard, orchestrator-guard)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, gates.sh, schedule.sh, review.sh, fallback.sh)
-│   │   ├── prompts/                       # Orchestrator + phase prompt templates (19 templates)
+│   │   ├── prompts/                       # Orchestrator + phase prompt templates (25 templates)
 │   │   ├── skills/                        # workflow, state-manager, configuration
 │   │   ├── README.md                      # User-facing documentation
 │   │   └── CLAUDE.md                      # Subagents-specific architecture docs
@@ -61,11 +81,15 @@ ken-cc-plugins/
 │   │   ├── skills/iteration-workflow/     # Main skill (SKILL.md)
 │   │   ├── skills/configuration/          # Config management (SKILL.md)
 │   │   └── agents/                        # Agent definitions (codex-reviewer.md)
-│   └── kenken/
-│       ├── .claude-plugin/plugin.json
-│       ├── agents/                        # Agent definitions (codex-reviewer)
-│       ├── skills/                        # iterate, iterate-status, iterate-resume, iterate-configure, gh-repo-setup
-│       └── README.md
+│   ├── kenken/
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── agents/                        # Agent definitions (codex-reviewer)
+│   │   ├── skills/                        # iterate, iterate-status, iterate-resume, iterate-configure, gh-repo-setup
+│   │   └── README.md
+├── lib/
+│   └── common-state.sh                    # Shared bootstrap (flock/mkdir lock probe, macOS/Linux compat)
+├── docs/
+│   └── cookbook.md                        # Plugin developer cookbook
 ├── .agents/                               # Runtime state (gitignored)
 ├── .github/workflows/                     # CI validation
 ├── AGENTS.md                              # This file - agent instructions
@@ -399,7 +423,7 @@ Event-specific fields go in `hookSpecificOutput`:
 - `set -euo pipefail` at top of every script
 - `local var; var="$(cmd)"` not `local var="$(cmd)"` (avoids masking exit codes)
 - Always run `bash -n <script>` after modifying shell scripts
-- Source shared libs from `$SCRIPT_DIR/lib/`
+- Source plugin-local libs from `$SCRIPT_DIR/lib/`; source cross-plugin bootstrap from `lib/common-state.sh` (provides flock/mkdir lock probe, macOS/Linux `stat` compatibility)
 
 ## Workflow Learnings
 
