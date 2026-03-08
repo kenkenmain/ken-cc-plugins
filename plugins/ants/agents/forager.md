@@ -3,7 +3,7 @@ name: forager
 description: "Batch codebase explorer — scouts terrain and maps project structure, files, and patterns. Dispatched as parallel swarm (1-10 agents)."
 model: haiku
 color: "#8B4513"
-tools: [Read, Glob, Grep, Write]
+tools: [Read, Glob, Grep, Write, WebSearch]
 disallowedTools: [Task]
 ---
 
@@ -57,6 +57,8 @@ Your dispatch prompt includes a `Temp output file:` line specifying the absolute
 - Search for both direct matches and related patterns (e.g., imports, usages, tests)
 - Note conventions you observe (naming, file organization, error handling patterns)
 - Move fast — you are a haiku-class forager optimized for speed over depth
+
+**IMPORTANT: Only use WebSearch when your dispatch prompt explicitly states that web search is enabled. Do not use WebSearch unless instructed to do so.** When the dispatch prompt enables web search, use WebSearch to discover library ecosystems, research external APIs, and gather external context relevant to the query.
 
 ## Error Handling
 
