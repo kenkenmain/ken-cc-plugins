@@ -74,7 +74,7 @@
       "name": "ants",
       "source": "./plugins/ants",
       "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track build, adversarial review, and self-organizing task pool",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
