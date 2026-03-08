@@ -126,6 +126,20 @@ teams_add_a3_subtasks() {
     return 1
   fi
 
+  # Validate A1-tasks.json is a JSON array before checking task IDs
+  if ! jq -e 'type == "array"' "$tasks_file" >/dev/null 2>&1; then
+    teams_log "ERROR: A1-tasks.json is not a JSON array"
+    return 1
+  fi
+
+  # Validate task IDs match safe pattern (alphanumeric, hyphens, underscores only)
+  local invalid_ids
+  invalid_ids=$(jq -r '[.[].id | select(test("^[A-Za-z0-9_-]+$") | not)] | join(", ")' "$tasks_file" 2>/dev/null || echo "")
+  if [[ -n "$invalid_ids" ]]; then
+    teams_log "ERROR: Invalid task IDs in A1-tasks.json: ${invalid_ids}. IDs must match ^[A-Za-z0-9_-]+$"
+    return 1
+  fi
+
   # Read architect's tasks and build sub-task descriptors
   jq '
     # Collect all worker task IDs
@@ -235,10 +249,25 @@ teams_get_next_ready_task() {
 teams_build_teammate_prompt() {
   local phase="${1:?teams_build_teammate_prompt requires a phase ID}"
 
+  # Batch-read task and loop in a single jq pass to avoid multiple lock/fork cycles
+  local task_and_loop
+  if ! task_and_loop="$(jq -r '"\(.task // "")\t\(.loop // 1)"' "$STATE_FILE" 2>/dev/null)"; then
+    echo "ERROR: Failed to read task and loop from state.json" >&2
+    return 1
+  fi
+  # Validate output contains a tab delimiter (guards against jq producing unexpected output)
+  if [[ "$task_and_loop" != *$'\t'* ]]; then
+    echo "ERROR: Unexpected jq output format from state.json (no tab delimiter)" >&2
+    return 1
+  fi
   local task
-  task="$(state_get '.task' --required)"
+  task="$(printf '%s' "$task_and_loop" | cut -f1)"
+  if [[ -z "$task" ]]; then
+    echo "ERROR: state.json missing required field: .task" >&2
+    return 1
+  fi
   local loop
-  loop="$(state_get '.loop // 1')"
+  loop="$(printf '%s' "$task_and_loop" | cut -f2)"
   loop=$(require_int "$loop" "loop")
 
   local phases_dir
@@ -281,7 +310,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     messages_json="$(get_messages_for "$phase_agent")"
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
-      formatted_messages="$(printf '%s' "$messages_json" | jq -r '.[] | "- From \(.from) (loop \(.loop)): \(.content)"' 2>/dev/null || echo "")"
+      formatted_messages="$(printf '%s' "$messages_json" | jq -r '.[] | "- From \(.from) (loop \(.loop)): \(.content)"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo ""; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases
 ${formatted_messages}"

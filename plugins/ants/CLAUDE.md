@@ -25,7 +25,8 @@ plugins/ants/
 │   ├── sentinel-security.md       # Specialist: OWASP, injection, secrets, access control
 │   └── worker.md                  # Task implementer (one per task)
 ├── commands/                      # Slash commands
-│   └── swarm.md                   # /ants:swarm <task>
+│   ├── swarm.md                   # /ants:swarm <task>
+│   └── pswarm.md                  # /ants:pswarm <task> [--max-loops N] [--worktree]
 ├── docs/                          # Architecture documentation
 │   └── teams-migration.md         # Agent Teams API migration guide
 ├── hooks/                         # Shell hooks (Agent Teams delegate mode)
@@ -101,6 +102,11 @@ EXPLORE ──> PLAN ──> BUILD ──> SYNC ──> SHIP
                       ship       loop ──> back to A1
 ```
 
+Two pipeline variants are supported, selected by the `pipeline` field in state.json:
+
+- **`swarm`** -- Single A0→A5 run; workflow completes after A5 ships (command: `/ants:swarm`)
+- **`pswarm`** -- Persistent multi-run loop; after A5 ships, all phases reset to pending and the pipeline restarts from A0 until `pswarmRun >= maxRuns` or `shutdown == true` (command: `/ants:pswarm`)
+
 | Phase | Stage | Agent(s) | Description |
 |-------|-------|----------|-------------|
 | A0 | EXPLORE | forager x2-4, cartographer x1, explore-aggregator x1 | Parallel codebase exploration |
@@ -173,7 +179,7 @@ Eight hooks drive the workflow via Agent Teams delegate mode:
   - A2: Review verdict — needs_revision with HIGH → loop to A1; else → A3
   - A3: Workers update task pool, sentinels write markers, arbiter consolidates
   - A4: Parse queen verdict — clean → A5, issues_found → loop to A1
-  - A5: A5-ship.json with commit_sha → workflow DONE
+  - A5: A5-ship.json with commit_sha → workflow DONE (swarm) or reset to A0 (pswarm)
 - Updates circuit breaker on success/failure
 - Exit 0 = accept | Exit 2 = reject with feedback
 
@@ -258,6 +264,7 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 
 ### dag.sh (phase tracking)
 - `reset_phases_for_loop()` -- reset A1-A4 to pending for loop-back
+- `reset_phases_for_pswarm()` -- reset A0-A5 to pending for pswarm run boundary
 
 ### circuit-breaker.sh (failure tracking)
 - `cb_init()` -- initialize circuit breaker fields
@@ -265,6 +272,7 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 - `cb_is_tripped()` -- check if breaker is tripped
 - `cb_increment_fix_attempts()` -- per-phase fix budget
 - `cb_increment_stage_restarts()` -- loop-back budget
+- `cb_reset_for_run()` -- reset all circuit breaker counters at pswarm run boundary
 
 ### task-pool.sh (A3 task dispatch)
 - `pool_init()` -- initialize pool from architect's A1-tasks.json
@@ -324,7 +332,7 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 {
   "version": 4,
   "plugin": "ants",
-  "pipeline": "swarm",
+  "pipeline": "swarm|pswarm",
   "status": "in_progress|blocked|complete",
   "task": "<task description>",
   "ownerPpid": "<process ID>",
@@ -383,6 +391,15 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 | `lintConfig` | object/null | null | Lint configuration (`{"enabled": true/false}`) for PostToolUse lint-on-save |
 | `configSnapshot` | object/null | null | Last config change metadata (`{"lastChangeAt": ..., "source": ...}`) |
 | `compactMetadata` | object/null | null | Workflow state snapshot saved before context compaction |
+
+### New v0.4.2 State Fields (pswarm)
+
+These fields are present only when `pipeline == "pswarm"`:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `pswarmRun` | number | 1 | Current full run number; increments after each A5 ship before the next A0 starts |
+| `maxRuns` | number | 50 | Maximum full A0→A5 runs allowed (set from `--max-loops N` argument) |
 
 ## Graceful Shutdown (v0.4)
 

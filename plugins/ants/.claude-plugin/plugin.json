@@ -1,7 +1,7 @@
 {
   "name": "ants",
-  "version": "0.4.1",
-  "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track build, adversarial review, graceful shutdown, plan approval, teammate messaging, lint-on-save, and HTTP webhooks",
+  "version": "0.4.2",
+  "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams delegate mode, dual-track build, adversarial review, graceful shutdown, plan approval, teammate messaging, lint-on-save, and HTTP webhooks",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
@@ -9,5 +9,5 @@
   "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
   "repository": "https://github.com/kenkenmain/ken-cc-plugins",
   "license": "MIT",
-  "keywords": ["ants", "swarm", "workflow", "agents", "dual-track", "colony", "agent-teams", "delegate-mode"]
+  "keywords": ["ants", "swarm", "pswarm", "workflow", "agents", "dual-track", "colony", "agent-teams", "delegate-mode"]
 }

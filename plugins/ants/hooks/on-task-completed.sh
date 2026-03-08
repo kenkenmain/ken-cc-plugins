@@ -54,9 +54,9 @@ handle_a1() {
   local plan_approved
   plan_approved=$(state_get '.planApproved // false')
   if [[ "$plan_approved" != "true" ]]; then
-    # Plan not yet approved -- reject completion so TeammateIdle does not
-    # re-dispatch A1 while the plan sits awaiting external approval.
-    if ! update_state '.planApproved = false | .updatedAt = $ts | .phases.A1.status = "pending_approval" | .phases.A1.awaitingApproval = true'; then
+    # Plan not yet approved -- keep standard "pending" status and reject
+    # completion so TeammateIdle does not re-dispatch A1.
+    if ! update_state '.updatedAt = $ts | .phases.A1.status = "pending"'; then
       echo "ERROR: Failed to mark plan as awaiting approval." >&2
       exit 2
     fi
@@ -99,15 +99,22 @@ handle_a2() {
     exit 2
   fi
 
+  # Batch-read review status and high-severity count in a single jq pass
+  local review_meta
+  if ! review_meta=$(jq -r '{status: (.status // .verdict // ""), high_count: ([.issues[]? | select(.severity == "HIGH" or .severity == "critical")] | length)} | "\(.status)\t\(.high_count)"' "${phases_dir}/A2-review.json" 2>/dev/null); then
+    teams_reject_completion "Failed to parse A2-review.json"
+    exit 2
+  fi
   local review_status
-  review_status=$(jq -r '.status // .verdict // empty' "${phases_dir}/A2-review.json")
+  review_status=$(printf '%s' "$review_meta" | cut -f1)
+  local high_count
+  high_count=$(printf '%s' "$review_meta" | cut -f2)
+  high_count="${high_count:-0}"
+  high_count=$(require_int "$high_count" "high_count")
   if [[ -z "$review_status" ]]; then
     teams_reject_completion "A2-review.json has neither .status nor .verdict field. Review must produce a verdict."
     exit 2
   fi
-
-  local high_count
-  high_count=$(jq -r '[.issues[]? | select(.severity == "HIGH" or .severity == "critical")] | length' "${phases_dir}/A2-review.json")
 
   if [[ "$review_status" == "needs_revision" && "$high_count" -gt 0 ]]; then
     teams_log "Blueprint review needs revision with ${high_count} HIGH/critical issues -- looping back to A1"
@@ -241,10 +248,18 @@ handle_a3_arbiter() {
     exit 2
   fi
 
+  # Batch-read arbiter verdict and critical count in a single jq pass
+  local arbiter_meta
+  if ! arbiter_meta=$(jq -r '{verdict: (.verdict // ""), critical_count: ([.issues[]? | select(.severity == "critical")] | length)} | "\(.verdict)\t\(.critical_count)"' "${phases_dir}/A3-quality.json" 2>/dev/null); then
+    teams_reject_completion "Failed to parse A3-quality.json"
+    exit 2
+  fi
   local arbiter_verdict
-  arbiter_verdict=$(jq -r '.verdict // empty' "${phases_dir}/A3-quality.json")
+  arbiter_verdict=$(printf '%s' "$arbiter_meta" | cut -f1)
   local critical_count
-  critical_count=$(jq -r '[.issues[]? | select(.severity == "critical")] | length' "${phases_dir}/A3-quality.json")
+  critical_count=$(printf '%s' "$arbiter_meta" | cut -f2)
+  critical_count="${critical_count:-0}"
+  critical_count=$(require_int "$critical_count" "critical_count")
 
   if [[ "$arbiter_verdict" == "issues_found" && "$critical_count" -gt 0 ]]; then
     teams_log "Arbiter found ${critical_count} critical issues, recording failure"
@@ -381,13 +396,76 @@ handle_a5() {
     exit 2
   fi
 
-  if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
-    echo "ERROR: Failed to mark workflow as complete." >&2
-    exit 2
+  local pipeline
+  pipeline=$(state_get '.pipeline // "swarm"')
+
+  if [[ "$pipeline" == "pswarm" ]]; then
+    local pswarm_run
+    pswarm_run=$(state_get '.pswarmRun // 1')
+    pswarm_run=$(require_int "$pswarm_run" "pswarmRun")
+    local max_runs
+    max_runs=$(state_get '.maxRuns // 50')
+    max_runs=$(require_int "$max_runs" "maxRuns")
+
+    if [[ "$pswarm_run" -ge "$max_runs" ]]; then
+      # Max runs exhausted — mark complete
+      if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
+        echo "ERROR: Failed to mark pswarm workflow as complete." >&2
+        exit 2
+      fi
+      webhook_phase_event "A5" "completed" || true
+      webhook_workflow_event "completed" || true
+      teams_log "pswarm complete: maxRuns ($max_runs) reached after run $pswarm_run"
+    else
+      local next_run
+      next_run=$((pswarm_run + 1))
+
+      # Re-check shutdown flag before starting next run
+      local is_shutdown
+      is_shutdown=$(state_get '.shutdown // false')
+      if [[ "$is_shutdown" == "true" ]]; then
+        if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
+          echo "ERROR: Failed to mark pswarm workflow as complete after shutdown." >&2
+          exit 2
+        fi
+        webhook_phase_event "A5" "completed" || true
+        webhook_workflow_event "completed" || true
+        teams_log "pswarm: shutdown requested, completing after run $pswarm_run"
+        return
+      fi
+
+      # Atomic reset for next pswarm run — combines state fields, phase resets,
+      # and circuit breaker resets into a single update_state call to avoid
+      # non-atomic intermediate states and redundant lock/jq cycles.
+      if ! update_state --argjson nextRun "$next_run" \
+        '.pswarmRun = $nextRun | .loop = 1 | .planApproved = false | .taskPool = []
+         | .currentPhase = "A0" | .status = "in_progress" | .updatedAt = $ts
+         | .phases = (.phases // {})
+         | .phases.A0 = {"status": "pending"}
+         | .phases.A1 = {"status": "pending"}
+         | .phases.A2 = {"status": "pending"}
+         | .phases.A3 = {"status": "pending"}
+         | .phases.A4 = {"status": "pending"}
+         | .phases.A5 = {"status": "pending"}
+         | .circuitBreaker.stageRestarts = 0
+         | .circuitBreaker.fixAttempts = {}
+         | .circuitBreaker.consecutiveFailures = 0'; then
+        echo "ERROR: Failed to reset state for next pswarm run." >&2
+        exit 2
+      fi
+      webhook_phase_event "A5" "completed" || true
+      teams_log "pswarm: run $pswarm_run shipped, starting run $next_run of $max_runs"
+    fi
+  else
+    # Original swarm behavior
+    if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts | .phases.A5.status = "complete"'; then
+      echo "ERROR: Failed to mark workflow as complete." >&2
+      exit 2
+    fi
+    webhook_phase_event "A5" "completed" || true
+    webhook_workflow_event "completed" || true
+    teams_log "A5 complete, workflow DONE"
   fi
-  webhook_phase_event "A5" "completed" || true
-  webhook_workflow_event "completed" || true
-  teams_log "A5 complete, workflow DONE"
 }
 
 # ---------------------------------------------------------------------------

@@ -312,6 +312,18 @@ All outputs live under `.agents/tmp/phases/`:
 | BUILD -> SYNC | `loop-{L}/A3-build.json` + `loop-{L}/A3-quality.json` | After Phase A3 |
 | SYNC -> SHIP | `loop-{L}/A4-queen-verdict.json` with verdict `clean` | After Phase A4 |
 
+## Verdict Field Naming
+
+Different phases use different JSON field names for their decision outputs. The hook reads both for compatibility:
+
+| Phase | File | Decision Field | Values |
+|-------|------|---------------|--------|
+| A2 | A2-review.json | `.status` or `.verdict` | `approved`, `needs_revision` |
+| A3 | A3-quality.json | `.verdict` | `clean`, `issues_found` |
+| A4 | A4-queen-verdict.json | `.verdict` | `clean`, `issues_found` |
+
+The A2 hook accepts either `.status` or `.verdict` (`jq '.status // .verdict'`). A3 and A4 use `.verdict` consistently.
+
 ## Difference from Minions
 
 | Aspect | ants:swarm | minions:superlaunch |
@@ -323,3 +335,67 @@ All outputs live under `.agents/tmp/phases/`:
 | Agents | 16 specialized colony roles | 26+ agents |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Complexity | Streamlined for medium tasks | Thorough for complex tasks |
+
+## pswarm Pipeline
+
+The `pswarm` (persistent swarm) command extends the swarm pipeline into a continuously-running loop. After each full A0→A5 cycle ships a commit, pswarm automatically resets all phases and starts a fresh run — re-exploring the changed codebase, re-planning remaining work, and shipping again.
+
+### Command Syntax
+
+```
+/ants:pswarm <task description> [--max-loops N] [--worktree]
+```
+
+- `<task description>`: Required. The task to solve.
+- `--max-loops N`: Maximum number of full runs (default: 50). Each run is a complete A0→A5 cycle.
+- `--worktree`: Create a git worktree for isolated development.
+
+### How It Differs from Swarm
+
+| Aspect | swarm | pswarm |
+|--------|-------|--------|
+| Runs | Single A0→A5 cycle | Multiple A0→A5 cycles |
+| After A5 ships | Workflow completes | Resets to A0, starts next run |
+| Inner loops (A4→A1) | Up to 5 re-plan cycles per run | Same — up to 5 per run |
+| Max iterations | 1 run × 5 inner loops | N runs × 5 inner loops each |
+| State field | `pipeline: "swarm"` | `pipeline: "pswarm"` |
+
+### pswarm-Specific State Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `pswarmRun` | number | 1 | Current full run number (increments after each A5 ship) |
+| `maxRuns` | number | 50 | Maximum full runs allowed (from `--max-loops N`) |
+
+### Run Lifecycle
+
+```
+Run 1: A0 → A1 → A2 → A3 → A4 → A5 (ship commit)
+        ↓ reset all phases + circuit breaker
+Run 2: A0 → A1 → A2 → A3 → A4 → A5 (ship commit)
+        ↓ reset all phases + circuit breaker
+Run N: A0 → A1 → A2 → A3 → A4 → A5 (ship commit)
+        ↓ maxRuns reached → workflow complete
+```
+
+Each run boundary resets:
+- All phases (A0-A5) to pending
+- Inner loop counter to 1
+- Circuit breaker counters (stageRestarts, fixAttempts, consecutiveFailures)
+- planApproved to false
+- taskPool to empty
+
+### Termination Conditions
+
+pswarm stops when:
+1. `pswarmRun >= maxRuns` — maximum runs exhausted
+2. `shutdown = true` in state.json — user requested graceful shutdown
+3. Circuit breaker tripped within a run — workflow blocks (user intervention needed)
+
+### Implementation Details
+
+The pswarm pipeline reuses all existing swarm infrastructure:
+- Same agents (forager, architect, worker, queen, etc.)
+- Same hooks (on-task-completed.sh branches on `pipeline` field)
+- Same circuit breaker and task pool
+- Two new library functions: `reset_phases_for_pswarm()` (dag.sh) and `cb_reset_for_run()` (circuit-breaker.sh)

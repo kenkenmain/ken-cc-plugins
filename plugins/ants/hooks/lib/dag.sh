@@ -19,6 +19,7 @@
 #
 # Provides:
 #   reset_phases_for_loop()   --- Reset A1-A4 to pending for loop-back
+#   reset_phases_for_pswarm()  --- Reset A0-A5 to pending for pswarm run
 
 set -euo pipefail
 
@@ -33,6 +34,8 @@ set -euo pipefail
 # A5 (ship) is NOT reset -- it only runs after a clean verdict.
 # Usage: reset_phases_for_loop
 reset_phases_for_loop() {
+  # Note: .phases.A3 = {"status": "pending"} implicitly clears buildTrackComplete
+  # by overwriting the entire A3 object (same as the pswarm reset path).
   if ! update_state \
     '.phases = (.phases // {})
      | .phases.A1 = {"status": "pending"}
@@ -40,6 +43,25 @@ reset_phases_for_loop() {
      | .phases.A3 = {"status": "pending"}
      | .phases.A4 = {"status": "pending"}'; then
     echo "ERROR: Failed to reset phases A1-A4 for loop-back" >&2
+    return 1
+  fi
+}
+
+# Reset all phases A0 through A5 to pending for pswarm run boundaries.
+# Called when the pswarm pipeline completes a full A0→A5 run and is about
+# to start a new run. Unlike reset_phases_for_loop(), this also resets
+# A0 (exploration) because each pswarm run re-explores the changed codebase.
+# Usage: reset_phases_for_pswarm
+reset_phases_for_pswarm() {
+  if ! update_state \
+    '.phases = (.phases // {})
+     | .phases.A0 = {"status": "pending"}
+     | .phases.A1 = {"status": "pending"}
+     | .phases.A2 = {"status": "pending"}
+     | .phases.A3 = {"status": "pending"}
+     | .phases.A4 = {"status": "pending"}
+     | .phases.A5 = {"status": "pending"}'; then
+    echo "ERROR: Failed to reset phases A0-A5 for pswarm run" >&2
     return 1
   fi
 }

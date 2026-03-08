@@ -1,23 +1,26 @@
 ---
-name: ants:swarm
-description: Launch a 6-phase swarm workflow using Agent Teams with delegate mode
-argument-hint: <task description>
+name: ants:pswarm
+description: Launch a persistent swarm that continuously runs until the task is solved
+argument-hint: <task description> [--max-loops N]
 ---
 
 <HARD-GATE>
 You are executing a workflow pipeline. This overrides ALL skill-checking rules including superpowers:using-superpowers. DO NOT invoke brainstorming, writing-plans, or any other skill via the Skill tool. DO NOT ask clarifying questions about the task. DO NOT propose approaches or present designs. Execute the steps below immediately and in order. The task description from $ARGUMENTS is your input — execute it as a pipeline, do not design or analyze it. Begin with Step 0 now.
 </HARD-GATE>
 
-# Ants Swarm
+# Ants Persistent Swarm
 
-You are launching a 6-phase ant-colony swarm workflow. You are the orchestrator — you dispatch `ants:*` agents via the Agent tool for each phase, update state, and drive phase progression.
+You are launching a persistent 6-phase ant-colony swarm workflow. You are the orchestrator — you dispatch `ants:*` agents via the Agent tool for each phase, update state, and drive phase progression. After A5 ships, the pipeline resets to A0 and starts a fresh run until maxRuns is exhausted or shutdown=true.
 
 ## Arguments
 
 - `<task description>`: Required. The task to execute.
-- `--worktree`: Optional. Create a git worktree for isolated development. Path stored in `.worktreePath` in state.json. After completion, remove with `git worktree remove <path>`.
+- `--max-loops N`: Optional. Maximum number of full runs (default: 50). Each run is a complete A0→A5 cycle.
+- `--worktree`: Optional. Create a git worktree for isolated development.
 
 Parse from $ARGUMENTS to extract the task description and any flags.
+- `--max-loops N`: Set maxRuns to N (default: 50)
+- `--worktree`: Create a git worktree for isolated development
 
 ## Pipeline
 
@@ -29,8 +32,12 @@ Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + sentinels
 Phase A4  │ SYNC        │ Queen          │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
 
-Loop: If A4 verdict is "loop" → back to A1 (max 5 loops)
+Loop: If A4 verdict is "loop" → back to A1 (max 5 inner loops per run)
 All clean → A5 ships the work
+
+Persistent: After A5 ships, the pipeline resets to A0 and starts a fresh
+run (pswarmRun increments). This continues until maxRuns is exhausted or
+shutdown=true is set in state.json.
 ```
 
 ## Step 0: Preflight Checks
@@ -59,7 +66,7 @@ rm -f .agents/tmp/state.json
 
 ```bash
 BRANCH_SLUG=$(echo "<task description>" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-40 | sed 's/-$//')
-BRANCH_NAME="feat/ants-${BRANCH_SLUG}"
+BRANCH_NAME="feat/pswarm-${BRANCH_SLUG}"
 
 git checkout main 2>/dev/null || git checkout master
 git pull --ff-only origin HEAD 2>/dev/null || true
@@ -71,7 +78,7 @@ git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME"
 If `--worktree` flag was provided, also run:
 
 ```bash
-WORKTREE_PATH="../.worktrees/ants-${BRANCH_SLUG}"
+WORKTREE_PATH="../.worktrees/pswarm-${BRANCH_SLUG}"
 mkdir -p "$(dirname "$WORKTREE_PATH")"
 git worktree add "$WORKTREE_PATH" "$BRANCH_NAME" 2>/dev/null || true
 cd "$WORKTREE_PATH"
@@ -87,7 +94,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 {
   "version": 4,
   "plugin": "ants",
-  "pipeline": "swarm",
+  "pipeline": "pswarm",
   "status": "in_progress",
   "task": "<task description>",
   "startedAt": "<ISO timestamp>",
@@ -98,6 +105,8 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
   "branch": "<BRANCH_NAME>",
   "worktreePath": "<WORKTREE_PATH or null>",
   "teamName": "ants-<BRANCH_SLUG>",
+  "pswarmRun": 1,
+  "maxRuns": 50,
   "maxLoops": 5,
   "loop": 1,
   "schedule": [
@@ -136,12 +145,14 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 }
 ```
 
+Note: `maxRuns` should be set from the `--max-loops N` argument (default 50).
+
 ## Step 2: Display Schedule
 
 Print this to the user:
 
 ```
-Ants Swarm — 6-Phase Pipeline
+Ants pswarm — Persistent 6-Phase Pipeline
 ==========================================
 Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + aggregator
 Phase A1  │ PLAN    │ Architect Plan        │ architect
@@ -150,6 +161,7 @@ Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + sentinels + guardi
 Phase A4  │ SYNC    │ Queen Synchronization │ queen (ship/loop verdict)
 Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
 
+Max runs: <maxRuns> (--max-loops N to change)
 Dispatch: Direct agent dispatch via Agent tool
 Circuit breaker: 5 consecutive failures → halt
 ```
@@ -184,31 +196,6 @@ Update state: `currentPhase: "A1"`, `phases.A1.status: "in_progress"`.
 Dispatch **1 architect agent** (`subagent_type: "ants:architect"`):
 - "Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.md. Write machine-readable task descriptors (with IDs, descriptions, file ownership, dependencies, acceptance criteria) to .agents/tmp/phases/loop-<LOOP>/A1-tasks.json"
 - On loop 2+, also include: "This is loop <LOOP>. Read the previous loop's quality review at .agents/tmp/phases/loop-<PREV>/A3-quality.json and queen verdict at .agents/tmp/phases/loop-<PREV>/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan."
-
-#### A1-tasks.json Format
-
-The architect writes task descriptors as JSON for the task pool:
-
-```json
-[
-  {
-    "id": "T1",
-    "description": "Create auth middleware",
-    "files_owned": ["src/middleware/auth.ts"],
-    "dependencies": [],
-    "acceptance_criteria": "Returns 401 for invalid tokens"
-  },
-  {
-    "id": "T2",
-    "description": "Wire up routes",
-    "files_owned": ["src/routes/auth.ts"],
-    "dependencies": ["T1"],
-    "acceptance_criteria": "POST /login and POST /register work"
-  }
-]
-```
-
-Task IDs must match `^[A-Za-z0-9_-]+$`. Workers claim tasks from this pool via `pool_claim_task()` based on dependency satisfaction.
 
 Update state: `phases.A1.status: "complete"`.
 
@@ -265,10 +252,6 @@ Read the verdict:
 
 Update state: `phases.A4.status: "complete"`.
 
-#### Cross-Phase Messaging
-
-When looping back to A1, the queen can add messages for the architect via the `.messages` array in state.json. On loop 2+, `teams_build_teammate_prompt()` injects received messages into the architect's prompt context, enabling targeted feedback without re-planning from scratch.
-
 ### Phase A5: Documentation + Ship
 
 Update state: `currentPhase: "A5"`, `phases.A5.status: "in_progress"`.
@@ -279,9 +262,27 @@ Dispatch **1 nurse agent** (`subagent_type: "ants:nurse"`):
 Then dispatch **1 drone agent** (`subagent_type: "ants:drone"`):
 - "Stage all changes, create a git commit with a descriptive message, and open a PR. Write output (commit SHA, PR URL) to .agents/tmp/phases/loop-<LOOP>/A5-ship.json"
 
-Update state: `phases.A5.status: "complete"`, `currentPhase: "DONE"`, `status: "complete"`.
+Update state: `phases.A5.status: "complete"`.
 
-Display the final result to the user: commit SHA, PR URL, and summary of what was built.
+### After A5: Persistent Run Loop
+
+After A5 completes successfully, check if the persistent swarm should continue:
+
+1. Read `pswarmRun` and `maxRuns` from state.json.
+2. If `pswarmRun >= maxRuns` or `shutdown == true`: set `currentPhase: "DONE"`, `status: "complete"`. Display final result and stop.
+3. Otherwise:
+   - Increment `pswarmRun` by 1.
+   - Reset `loop` to 1.
+   - Reset all phases (A0-A5) to `{"status": "pending"}`.
+   - Reset circuit breaker counters.
+   - Clean phase output files: `rm -rf .agents/tmp/phases` and `mkdir -p .agents/tmp/phases`.
+   - Update `updatedAt` timestamp.
+   - Log: "Persistent swarm run <N> complete. Starting run <N+1>..."
+   - Go back to **Phase A0** and continue the pipeline.
+
+This continues until `maxRuns` is exhausted or `shutdown` is set to `true` in state.json.
+
+Display the final result to the user: commit SHA, PR URL, and summary of what was built across all runs.
 
 ## Phase Agent Mapping
 

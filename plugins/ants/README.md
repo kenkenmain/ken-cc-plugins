@@ -17,11 +17,16 @@ claude plugin install ./plugins/ants --scope project
 ```bash
 /ants:swarm Add a caching layer to the API endpoints
 /ants:swarm --worktree Add a caching layer to the API endpoints
+
+/ants:pswarm Continuously improve test coverage --max-loops 10
+/ants:pswarm Fix all lint warnings --worktree
 ```
 
 The `--worktree` flag creates a git worktree for isolated development, enabling multiple workflows to run concurrently on the same repository.
 
-This launches a 6-phase pipeline that explores the codebase, plans the implementation, builds with a self-organizing task pool, runs adversarial review, and ships the result.
+`/ants:swarm` launches a single 6-phase pipeline that explores the codebase, plans the implementation, builds with a self-organizing task pool, runs adversarial review, and ships the result.
+
+`/ants:pswarm` (persistent swarm) runs the same pipeline in a continuous loop — after each A5 ship it resets all phases and starts the next run from A0, re-exploring the evolved codebase. Use this for tasks that require multiple incremental passes (e.g., progressively improving coverage, fixing lint warnings across many files).
 
 ## Pipeline Overview
 
@@ -45,6 +50,13 @@ This launches a 6-phase pipeline that explores the codebase, plans the implement
    |
   A5 Ship             update docs, commit, open PR
 ```
+
+### What's New in v0.4.2
+
+- **Persistent swarm (`/ants:pswarm`)** -- New command that runs the full A0→A5 pipeline in a continuous loop. After each ship, all phases reset and the colony starts a fresh run. Stops when `--max-loops N` is exhausted, `shutdown = true` is set in state.json, or the circuit breaker trips. Each run gets a fresh codebase exploration so the architect re-plans incrementally on the evolved state.
+- **`reset_phases_for_pswarm()`** (dag.sh) -- resets all phases A0-A5 to pending at each pswarm run boundary
+- **`cb_reset_for_run()`** (circuit-breaker.sh) -- resets all circuit breaker counters at the run boundary so each run starts with a clean slate
+- **State fields** -- `pswarmRun` (current run number) and `maxRuns` (from `--max-loops`) added for pswarm pipelines
 
 ### What's New in v0.4
 

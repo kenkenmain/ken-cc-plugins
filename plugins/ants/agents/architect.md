@@ -74,7 +74,11 @@ Read `.agents/tmp/phases/A0-explore.md` if it exists. This file contains pre-gat
 - **Tests**: test frameworks, patterns, coverage
 - **Patterns**: coding conventions, error handling, shared utilities
 
-Use this context to skip redundant exploration and focus on planning. If the file does not exist, explore the codebase yourself as usual.
+Use this context to skip redundant exploration and focus on planning. If the file does not exist or is empty, explore the codebase yourself:
+- Use Glob to map the project file structure
+- Use Grep to find related implementations and patterns
+- Use Read to understand key files, test frameworks, and conventions
+- Then proceed with planning as normal
 
 ## Previous Loop Context
 
