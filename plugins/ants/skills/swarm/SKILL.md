@@ -13,7 +13,7 @@ Ant-colony themed 6-phase development pipeline with dual-track parallel executio
 - `plugin: "ants"` -- so ants hooks fire
 - Other plugins' hooks silently exit (they check `plugin` field in state.json)
 - All agents are `ants:*` prefixed -- they exist in the ants plugin
-- State schema v4 with `phases`, `circuitBreaker`, `taskPool`, `teamName`, `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`, and `worktreePath` fields
+- State schema v4 with `phases`, `circuitBreaker`, `taskPool`, `teamName`, `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`, `worktreePath`, and `webSearch` fields
 
 ## 6-Phase Pipeline
 
@@ -278,7 +278,8 @@ On loop 2+:
   "webhookUrl": null,
   "lintConfig": null,
   "configSnapshot": null,
-  "compactMetadata": null
+  "compactMetadata": null,
+  "webSearch": false
 }
 ```
 
@@ -343,12 +344,13 @@ The `pswarm` (persistent swarm) command extends the swarm pipeline into a contin
 ### Command Syntax
 
 ```
-/ants:pswarm <task description> [--max-loops N] [--worktree]
+/ants:pswarm <task description> [--max-loops N] [--worktree] [--web]
 ```
 
 - `<task description>`: Required. The task to solve.
 - `--max-loops N`: Maximum number of full runs (default: 50). Each run is a complete A0→A5 cycle.
 - `--worktree`: Create a git worktree for isolated development.
+- `--web`: Enable WebSearch for forager agents during exploration (A0) and planning (A1) phases. Opt-in, default: disabled.
 
 ### How It Differs from Swarm
 
@@ -366,6 +368,9 @@ The `pswarm` (persistent swarm) command extends the swarm pipeline into a contin
 |-------|------|---------|-------------|
 | `pswarmRun` | number | 1 | Current full run number (increments after each A5 ship) |
 | `maxRuns` | number | 50 | Maximum full runs allowed (from `--max-loops N`) |
+| `webSearch` | boolean | false | When true, forager agents can use WebSearch to research external libraries and APIs |
+
+Note: `webSearch` persists across pswarm runs (not reset between runs).
 
 ### Run Lifecycle
 

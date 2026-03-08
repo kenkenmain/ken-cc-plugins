@@ -1,7 +1,7 @@
 {
   "name": "ants",
-  "version": "0.4.2",
-  "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams delegate mode, dual-track build, adversarial review, graceful shutdown, plan approval, teammate messaging, lint-on-save, and HTTP webhooks",
+  "version": "0.4.3",
+  "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams delegate mode, dual-track build, adversarial review, graceful shutdown, plan approval, teammate messaging, lint-on-save, HTTP webhooks, and opt-in WebSearch support",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"

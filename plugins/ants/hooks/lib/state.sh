@@ -45,7 +45,7 @@ check_ants_workflow() {
     exit 0
   fi
 
-  # Migrate state schema if needed (fall-through: v1->v2->v3->v4)
+  # Migrate state schema if needed (fall-through: v1->v2->v3->v4->v5)
   local version
   version=$(jq -r '.version // 1' "$STATE_FILE")
   if [[ "$version" == "1" ]]; then
@@ -58,6 +58,11 @@ check_ants_workflow() {
   fi
   if [[ "$version" == "3" ]]; then
     migrate_state_v3_to_v4
+    version="4"
+  fi
+  if [[ "$version" == "4" ]]; then
+    migrate_state_v4_to_v5
+    version="5"
   fi
 
   return 0
@@ -352,6 +357,22 @@ migrate_state_v3_to_v4() {
     return 1
   fi
   echo "INFO: State migration v3->v4 complete" >&2
+  return 0
+}
+
+# Migrate state.json from v4 to v5.
+# Adds webSearch field if missing (defaults to false).
+# Usage: migrate_state_v4_to_v5
+migrate_state_v4_to_v5() {
+  echo "INFO: Migrating state.json from v4 to v5" >&2
+  if ! update_state '
+    .version = 5 |
+    .webSearch //= false
+  '; then
+    echo "ERROR: Failed to migrate state from v4 to v5" >&2
+    return 1
+  fi
+  echo "INFO: State migration v4->v5 complete" >&2
   return 0
 }
 

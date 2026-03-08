@@ -67,7 +67,7 @@ plugins/ants/
 
 | # | Agent | Role | Model | Tools | Leaf? |
 |---|-------|------|-------|-------|-------|
-| 1 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write | Yes |
+| 1 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
 | 2 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
 | 3 | explore-aggregator | Merges explorer outputs into report | haiku | Read, Write, Glob | Yes |
 | 4 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch | Yes |
@@ -252,7 +252,7 @@ Eight hooks drive the workflow via Agent Teams delegate mode:
 State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 
 ### state.sh (core)
-- `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v4
+- `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v5
 - `state_get()` -- read fields with optional required validation
 - `update_state()` -- atomic state update with file locking (flock with mkdir fallback on macOS)
 - `validate_json_file()` -- check file exists and contains valid JSON
@@ -304,7 +304,7 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 
 ```
 .agents/tmp/
-├── state.json                           # Workflow state (v4)
+├── state.json                           # Workflow state (v5)
 ├── phases/
 │   ├── A0-explore.forager.1.tmp         # Forager results
 │   ├── A0-explore.forager.2.tmp
@@ -326,11 +326,11 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 │   │   └── ...
 ```
 
-## State Schema (v4)
+## State Schema (v5)
 
 ```json
 {
-  "version": 4,
+  "version": 5,
   "plugin": "ants",
   "pipeline": "swarm|pswarm",
   "status": "in_progress|blocked|complete",
@@ -375,7 +375,8 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
   "webhookUrl": null,
   "lintConfig": null,
   "configSnapshot": null,
-  "compactMetadata": null
+  "compactMetadata": null,
+  "webSearch": false
 }
 ```
 
@@ -391,6 +392,12 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 | `lintConfig` | object/null | null | Lint configuration (`{"enabled": true/false}`) for PostToolUse lint-on-save |
 | `configSnapshot` | object/null | null | Last config change metadata (`{"lastChangeAt": ..., "source": ...}`) |
 | `compactMetadata` | object/null | null | Workflow state snapshot saved before context compaction |
+
+### New v0.4.3 State Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `webSearch` | boolean | false | When true, forager agents receive guidance to use WebSearch for external library/API research during A0 exploration and A1 planning |
 
 ### New v0.4.2 State Fields (pswarm)
 

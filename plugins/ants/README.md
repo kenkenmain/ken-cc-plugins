@@ -17,12 +17,16 @@ claude plugin install ./plugins/ants --scope project
 ```bash
 /ants:swarm Add a caching layer to the API endpoints
 /ants:swarm --worktree Add a caching layer to the API endpoints
+/ants:swarm --web Integrate a third-party payment SDK
 
 /ants:pswarm Continuously improve test coverage --max-loops 10
 /ants:pswarm Fix all lint warnings --worktree
+/ants:pswarm Research and implement OAuth2 --web --max-loops 5
 ```
 
 The `--worktree` flag creates a git worktree for isolated development, enabling multiple workflows to run concurrently on the same repository.
+
+The `--web` flag enables WebSearch for forager agents (A0 exploration) and the architect (A1 planning). Use this when the task requires researching external libraries, API documentation, or best practices that are not in the codebase. Off by default.
 
 `/ants:swarm` launches a single 6-phase pipeline that explores the codebase, plans the implementation, builds with a self-organizing task pool, runs adversarial review, and ships the result.
 
@@ -50,6 +54,12 @@ The `--worktree` flag creates a git worktree for isolated development, enabling 
    |
   A5 Ship             update docs, commit, open PR
 ```
+
+### What's New in v0.4.3
+
+- **Opt-in WebSearch (`--web`)** -- New flag for both `/ants:swarm` and `/ants:pswarm`. When set, forager agents during A0 exploration and the architect during A1 planning can use WebSearch to research external library documentation, API references, and best practices. Stored as `webSearch: true` in state.json (v5). Off by default to avoid unnecessary web requests.
+- **Message content sanitization** -- Agent prompt messages injected via teams.sh are now truncated to 500 characters per message, preventing runaway context inflation from large cross-phase messages.
+- **State schema v5** -- Adds `webSearch` field; auto-migration from v4 (and earlier) is handled by state.sh.
 
 ### What's New in v0.4.2
 
@@ -188,7 +198,7 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 
 ## State and Output
 
-Workflow state lives in `.agents/tmp/state.json` (v4 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
+Workflow state lives in `.agents/tmp/state.json` (v5 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
 
 All state and output files are gitignored. They are temporary artifacts of the workflow execution.
 

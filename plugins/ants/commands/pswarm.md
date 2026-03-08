@@ -1,7 +1,7 @@
 ---
 name: ants:pswarm
 description: Launch a persistent swarm that continuously runs until the task is solved
-argument-hint: <task description> [--max-loops N]
+argument-hint: <task description> [--max-loops N] [--web]
 ---
 
 <HARD-GATE>
@@ -17,10 +17,12 @@ You are launching a persistent 6-phase ant-colony swarm workflow. You are the or
 - `<task description>`: Required. The task to execute.
 - `--max-loops N`: Optional. Maximum number of full runs (default: 50). Each run is a complete A0→A5 cycle.
 - `--worktree`: Optional. Create a git worktree for isolated development.
+- `--web`: Optional. Opt-in flag that enables WebSearch for forager agents during the A0 exploration phase.
 
 Parse from $ARGUMENTS to extract the task description and any flags.
 - `--max-loops N`: Set maxRuns to N (default: 50)
 - `--worktree`: Create a git worktree for isolated development
+- `--web`: Enable WebSearch tool for forager agents during exploration
 
 ## Pipeline
 
@@ -92,7 +94,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 
 ```json
 {
-  "version": 4,
+  "version": 5,
   "plugin": "ants",
   "pipeline": "pswarm",
   "status": "in_progress",
@@ -137,6 +139,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
   "failure": null,
   "messages": [],
   "planApproved": false,
+  "webSearch": false,
   "shutdown": false,
   "webhookUrl": null,
   "lintConfig": null,
@@ -146,6 +149,15 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 ```
 
 Note: `maxRuns` should be set from the `--max-loops N` argument (default 50).
+
+### 1d. Apply --web flag
+
+If `--web` was provided, update `webSearch` to `true` in state.json:
+
+```bash
+# Only if --web flag was parsed
+jq '.webSearch = true' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
+```
 
 ## Step 2: Display Schedule
 

@@ -251,7 +251,7 @@ teams_build_teammate_prompt() {
 
   # Batch-read task and loop in a single jq pass to avoid multiple lock/fork cycles
   local task_and_loop
-  if ! task_and_loop="$(jq -r '"\(.task // "")\t\(.loop // 1)"' "$STATE_FILE" 2>/dev/null)"; then
+  if ! task_and_loop="$(jq -r '[(.task // ""), (.loop // 1 | tostring)] | join("\t")' "$STATE_FILE" 2>/dev/null)"; then
     echo "ERROR: Failed to read task and loop from state.json" >&2
     return 1
   fi
@@ -269,6 +269,9 @@ teams_build_teammate_prompt() {
   local loop
   loop="$(printf '%s' "$task_and_loop" | cut -f2)"
   loop=$(require_int "$loop" "loop")
+  # Read webSearch separately to avoid tab-delimiter collision if task contains tabs
+  local web_search
+  web_search="$(jq -r '.webSearch // false | tostring' "$STATE_FILE" 2>/dev/null || echo "false")"
 
   local phases_dir
   if [[ "$phase" == "A0" ]]; then
@@ -310,7 +313,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     messages_json="$(get_messages_for "$phase_agent")"
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
-      formatted_messages="$(printf '%s' "$messages_json" | jq -r '.[] | "- From \(.from) (loop \(.loop)): \(.content)"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo ""; })"
+      formatted_messages="$(printf '%s' "$messages_json" | jq -r '.[] | "- From \(.from // "unknown") (loop \(.loop // 0)): \(.content // "" | tostring | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo ""; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases
 ${formatted_messages}"
@@ -361,6 +364,9 @@ Use Read, Glob, and Grep tools to explore. Cover:
 - Test patterns and conventions
 - Architecture and dependencies
 RULES
+      if [[ "$web_search" == "true" ]]; then
+        printf '\n%s\n' 'Web search is enabled — use WebSearch to research library ecosystems, discover relevant external APIs, and gather external context for the task.'
+      fi
       ;;
     A1)
       cat <<'RULES'
@@ -373,6 +379,9 @@ Break the work into discrete tasks with:
 Write the plan as markdown to the output file.
 Also write task descriptors as JSON to A1-tasks.json in the same directory.
 RULES
+      if [[ "$web_search" == "true" ]]; then
+        printf '\n%s\n' 'Web search is enabled — use WebSearch to research libraries, frameworks, and external APIs when evaluating implementation approaches.'
+      fi
       ;;
     A2)
       cat <<'RULES'
