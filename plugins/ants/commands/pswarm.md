@@ -27,7 +27,7 @@ Parse from $ARGUMENTS to extract the task description and any flags.
 ## Pipeline
 
 ```
-Phase A0  │ EXPLORE     │ Forage         │ 3-5 parallel foragers + cartographer → aggregator
+Phase A0  │ EXPLORE     │ Forage         │ 3-5 parallel foragers + cartographer (queen aggregates)
 Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md + A1-tasks.json
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
 Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + sentinels + guardians
@@ -140,6 +140,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
   "messages": [],
   "planApproved": false,
   "webSearch": false,
+  "queenDispatched": false,
   "shutdown": false,
   "webhookUrl": null,
   "lintConfig": null,
@@ -166,7 +167,7 @@ Print this to the user:
 ```
 Ants pswarm — Persistent 6-Phase Pipeline
 ==========================================
-Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + aggregator
+Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer
 Phase A1  │ PLAN    │ Architect Plan        │ architect
 Phase A2  │ PLAN    │ Blueprint Review      │ blueprint-reviewer
 Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + sentinels + guardians
@@ -195,9 +196,9 @@ Dispatch **in parallel** using the Agent tool:
 
 2. **1 cartographer agent** (`subagent_type: "ants:cartographer"`) — "Trace the architecture, execution paths, and dependency graph relevant to task: <task>. Write findings to .agents/tmp/phases/A0-explore.cartographer.tmp"
 
-After all return, dispatch **1 explore-aggregator** (`subagent_type: "ants:explore-aggregator"`) — "Read all .agents/tmp/phases/A0-explore.*.tmp files and merge into a single consolidated exploration report. Write to .agents/tmp/phases/A0-explore.md"
+After all return, read the forager and cartographer output files (`.agents/tmp/phases/A0-explore.*.tmp`) and aggregate findings directly into `.agents/tmp/phases/A0-explore.md`. No separate aggregator agent is needed — the queen aggregates findings from forager/cartographer results via SendMessage.
 
-Update state: `phases.A0.status: "complete"`.
+Update state: `phases.A0.status: "complete"`, `queenDispatched: true`.
 
 ### Phase A1: Architect Plan
 
@@ -255,8 +256,9 @@ Update state: `phases.A3.status: "complete"`.
 
 Update state: `currentPhase: "A4"`, `phases.A4.status: "in_progress"`.
 
-Dispatch **1 queen agent** (`subagent_type: "ants:queen"`):
-- "Read build results at .agents/tmp/phases/loop-<LOOP>/A3-build.json and quality review at .agents/tmp/phases/loop-<LOOP>/A3-quality.json. Render verdict: 'clean' (ship) or 'issues_found' (loop back). Write to .agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json"
+Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
+
+Note: pswarm uses orchestrator-driven dispatch (not queen-driven). The orchestrator evaluates the A4 verdict directly rather than dispatching a queen agent.
 
 Read the verdict:
 - **"clean"**: Advance to A5.
@@ -321,7 +323,6 @@ If this command fails (file missing, corrupt JSON, jq error), set `status: "bloc
 |-------|-------|---------------|
 | A0 | forager (batch) | `ants:forager` |
 | A0 | cartographer | `ants:cartographer` |
-| A0 | explore-aggregator | `ants:explore-aggregator` |
 | A1 | architect | `ants:architect` |
 | A2 | blueprint-reviewer | `ants:blueprint-reviewer` |
 | A3 | worker (task pool) | `ants:worker` |

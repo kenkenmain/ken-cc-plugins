@@ -82,12 +82,11 @@ cb_record_success() {
 # Returns 0 (true) if tripped, 1 (false) if healthy.
 # Usage: if cb_is_tripped; then echo "TRIPPED"; fi
 cb_is_tripped() {
-  local failures
-  failures=$(state_get '.circuitBreaker.consecutiveFailures // 0')
+  local cb_meta
+  cb_meta=$(jq -r "[(.circuitBreaker.consecutiveFailures // 0), (.circuitBreaker.maxConsecutiveFailures // $CB_MAX_CONSECUTIVE_FAILURES)] | map(tostring) | join(\"\t\")" "$STATE_FILE")
+  local failures max_failures
+  IFS=$'\t' read -r failures max_failures <<< "$cb_meta"
   failures=$(require_int "$failures" "circuitBreaker.consecutiveFailures")
-
-  local max_failures
-  max_failures=$(state_get ".circuitBreaker.maxConsecutiveFailures // $CB_MAX_CONSECUTIVE_FAILURES")
   max_failures=$(require_int "$max_failures" "circuitBreaker.maxConsecutiveFailures")
 
   [[ "$failures" -ge "$max_failures" ]]

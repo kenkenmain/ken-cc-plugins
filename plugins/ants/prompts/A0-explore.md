@@ -6,13 +6,11 @@ Dispatch **forager** and **cartographer** agents in parallel to gather codebase 
 
 - **forager** (`ants:forager`) x N — breadth-first codebase scouts, each assigned a focused query
 - **cartographer** (`ants:cartographer`) x 1 — depth-first architecture tracer
-- **explore-aggregator** (`ants:explore-aggregator`) x 1 — merges all temp files into final report
-
-Foragers run on the `haiku` model. Cartographer runs on `sonnet`. Aggregator runs on `haiku`.
+Foragers run on the `haiku` model. Cartographer runs on `sonnet`. The queen aggregates all temp files into the final report.
 
 ## Dispatch Timing
 
-A0 runs at workflow start, **before** any planning phase. The orchestrator dispatches all foragers and the cartographer simultaneously. After all complete, the aggregator merges results.
+A0 runs at workflow start, **before** any planning phase. The orchestrator dispatches all foragers and the cartographer simultaneously. After all complete, the queen aggregates results.
 
 ## Process
 
@@ -22,7 +20,7 @@ A0 runs at workflow start, **before** any planning phase. The orchestrator dispa
    - The cartographer gets the full task for deep architecture tracing
 3. Each agent reads the codebase through its lens and writes findings to a temp file
 4. **Wait for all agents to complete**
-5. **Dispatch the explore-aggregator** to merge all temp files into a single report
+5. **Queen aggregates** forager and cartographer results directly into `.agents/tmp/phases/A0-explore.md` via SendMessage received reports
 6. The consolidated report is passed to the next phase as supplementary context
 
 ## Forager Dispatch Template
@@ -64,17 +62,6 @@ Trace execution paths, dependency graphs, and architectural layers.
 Focus on how components connect and where the task will need to integrate.
 
 Temp output file: .agents/tmp/phases/A0-explore.cartographer.tmp
-```
-
-## Aggregator Dispatch Template
-
-After all foragers and the cartographer have completed:
-
-```
-Read all A0 exploration temp files and merge them into a single report.
-
-Temp file pattern: .agents/tmp/phases/A0-explore.*.tmp
-Output file: .agents/tmp/phases/A0-explore.md
 ```
 
 ## Output Paths

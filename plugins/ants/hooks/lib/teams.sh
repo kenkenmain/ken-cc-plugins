@@ -14,7 +14,8 @@
 # TeammateIdle hooks assign work, TaskCompleted hooks enforce quality gates.
 #
 # Key functions:
-#   teams_create_phase_tasks()     — Creates TaskCreate entries for A0-A5
+#   teams_send_message()           — Convenience wrapper for SendMessage patterns
+#   teams_create_phase_tasks()     — Creates a single queen pipeline task
 #   teams_add_a3_subtasks()        — Dynamically adds worker/sentinel/arbiter tasks
 #   teams_get_next_ready_task()    — Finds next dispatchable phase from state
 #   teams_build_teammate_prompt()  — Generates execution prompt for a teammate
@@ -34,13 +35,66 @@ teams_log() {
 }
 
 # ---------------------------------------------------------------------------
+# teams_send_message
+# ---------------------------------------------------------------------------
+# Convenience wrapper for the SendMessage tool pattern used by hooks.
+# Generates JSON output that hooks can emit on stdout (exit 0) to instruct
+# the orchestrator to deliver a message to a teammate via SendMessage.
+#
+# This wraps the add_message() state helper with a structured JSON envelope
+# that hooks can use for cross-phase communication without manually
+# constructing the JSON.
+#
+# Arguments:
+#   $1 — sender agent name (e.g., "queen", "architect")
+#   $2 — recipient agent name (e.g., "worker", "sentinel-correctness")
+#   $3 — message content (plain text, max 500 chars recommended)
+#
+# Usage:
+#   teams_send_message "queen" "architect" "Fix auth module in next loop"
+#
+# Side effects:
+#   - Appends message to state.json via add_message()
+#   - Outputs JSON envelope to stdout for hook consumers
+# ---------------------------------------------------------------------------
+teams_send_message() {
+  local from="${1:?teams_send_message requires from}"
+  local to="${2:?teams_send_message requires to}"
+  local content="${3:?teams_send_message requires content}"
+
+  # Persist the message in state.json for cross-phase retrieval
+  add_message "$from" "$to" "$content"
+
+  # Emit structured JSON for hook consumers
+  jq -n \
+    --arg from "$from" \
+    --arg to "$to" \
+    --arg content "$content" \
+    '{
+      "sendMessage": {
+        "from": $from,
+        "to": $to,
+        "content": $content
+      }
+    }'
+}
+
+# ---------------------------------------------------------------------------
 # teams_create_phase_tasks
 # ---------------------------------------------------------------------------
-# Outputs JSON array of phase task descriptors for the orchestrator to create
-# via TaskCreate. Each entry includes subject, description, and blockedBy
-# for dependency chains: A0 → A1 → A2 → A3 → A4 → A5.
+# Creates a SINGLE queen pipeline task for the orchestrator. The queen drives
+# all phases (A0 through A5) internally via SendMessage, rather than creating
+# a 6-task chain with blockedBy dependencies.
 #
-# The orchestrator reads this JSON and calls TaskCreate for each entry.
+# Single-task model rationale:
+#   The queen is the sole pipeline orchestrator. She uses SendMessage to
+#   coordinate teammates through phases sequentially. This eliminates the
+#   need for external dependency chains (blockedBy) since the queen manages
+#   phase ordering internally. The hooks (TeammateIdle, TaskCompleted) still
+#   validate outputs and advance state, but the task graph is flat: one task,
+#   one owner, all phases driven by SendMessage.
+#
+# The orchestrator reads this JSON and calls TaskCreate for the single entry.
 #
 # Usage:
 #   local tasks_json
@@ -51,50 +105,13 @@ teams_create_phase_tasks() {
   local task
   task="$(state_get '.task' --required)"
 
-  # Note: descriptions reference loop-1 as initial hints. On loop-back,
-  # teams_build_teammate_prompt() provides the correct loop-N path dynamically.
   jq -n --arg task "$task" '[
     {
-      "phaseId": "A0",
-      "subject": "A0: Colony Exploration",
-      "description": ("Explore the codebase for task: " + $task + ". Dispatch forager and cartographer agents. Write output to .agents/tmp/phases/A0-explore.md"),
-      "activeForm": "Exploring codebase",
+      "phaseId": "queen-pipeline",
+      "subject": "Queen Pipeline: Full A0-A5 execution",
+      "description": ("Drive all phases (A0 Explore, A1 Plan, A2 Review, A3 Build, A4 Sync, A5 Ship) for task: " + $task + ". Use SendMessage to coordinate teammates through each phase. Read state.json for current phase and loop. Write phase outputs to .agents/tmp/phases/."),
+      "activeForm": "Driving colony pipeline",
       "blockedBy": []
-    },
-    {
-      "phaseId": "A1",
-      "subject": "A1: Architect Plan",
-      "description": ("Create implementation plan for: " + $task + ". Read A0-explore.md. Write plan to .agents/tmp/phases/loop-1/A1-plan.md and task descriptors to A1-tasks.json"),
-      "activeForm": "Planning implementation",
-      "blockedBy": ["A0"]
-    },
-    {
-      "phaseId": "A2",
-      "subject": "A2: Blueprint Review",
-      "description": "Review the architect plan for completeness, feasibility, and dependency correctness. Write review JSON to .agents/tmp/phases/loop-1/A2-review.json",
-      "activeForm": "Reviewing plan",
-      "blockedBy": ["A1"]
-    },
-    {
-      "phaseId": "A3",
-      "subject": "A3: Dual-Track Build",
-      "description": "Execute the build: workers implement tasks from the pool, sentinels review, arbiter consolidates. Write output to .agents/tmp/phases/loop-1/A3-build.json and A3-quality.json",
-      "activeForm": "Building implementation",
-      "blockedBy": ["A2"]
-    },
-    {
-      "phaseId": "A4",
-      "subject": "A4: Queen Synchronization",
-      "description": "Synchronize build and quality track results. Render clean/issues_found verdict. Write to .agents/tmp/phases/loop-1/A4-queen-verdict.json",
-      "activeForm": "Reviewing verdict",
-      "blockedBy": ["A3"]
-    },
-    {
-      "phaseId": "A5",
-      "subject": "A5: Ship",
-      "description": "Update documentation, create git commit, and open PR. Write output to .agents/tmp/phases/loop-1/A5-ship.json",
-      "activeForm": "Shipping implementation",
-      "blockedBy": ["A4"]
     }
   ]'
 }
@@ -249,29 +266,23 @@ teams_get_next_ready_task() {
 teams_build_teammate_prompt() {
   local phase="${1:?teams_build_teammate_prompt requires a phase ID}"
 
-  # Batch-read task and loop in a single jq pass to avoid multiple lock/fork cycles
-  local task_and_loop
-  if ! task_and_loop="$(jq -r '[(.task // ""), (.loop // 1 | tostring)] | join("\t")' "$STATE_FILE" 2>/dev/null)"; then
-    echo "ERROR: Failed to read task and loop from state.json" >&2
+  # Batch-read task, loop, webSearch, and worktreePath in a single jq pass
+  local batch_fields
+  if ! batch_fields="$(jq -r '[(.task // ""), (.loop // 1 | tostring), (.webSearch // false | tostring), (.worktreePath // "")] | join("\t")' "$STATE_FILE" 2>/dev/null)"; then
+    echo "ERROR: Failed to read fields from state.json" >&2
     return 1
   fi
-  # Validate output contains a tab delimiter (guards against jq producing unexpected output)
-  if [[ "$task_and_loop" != *$'\t'* ]]; then
+  if [[ "$batch_fields" != *$'\t'* ]]; then
     echo "ERROR: Unexpected jq output format from state.json (no tab delimiter)" >&2
     return 1
   fi
-  local task
-  task="$(printf '%s' "$task_and_loop" | cut -f1)"
+  local task loop web_search worktree_path_raw
+  IFS=$'\t' read -r task loop web_search worktree_path_raw <<< "$batch_fields"
   if [[ -z "$task" ]]; then
     echo "ERROR: state.json missing required field: .task" >&2
     return 1
   fi
-  local loop
-  loop="$(printf '%s' "$task_and_loop" | cut -f2)"
   loop=$(require_int "$loop" "loop")
-  # Read webSearch separately to avoid tab-delimiter collision if task contains tabs
-  local web_search
-  web_search="$(jq -r '.webSearch // false | tostring' "$STATE_FILE" 2>/dev/null || echo "false")"
 
   local phases_dir
   if [[ "$phase" == "A0" ]]; then
@@ -313,7 +324,8 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     messages_json="$(get_messages_for "$phase_agent")"
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
-      formatted_messages="$(printf '%s' "$messages_json" | jq -r '.[] | "- From \(.from // "unknown") (loop \(.loop // 0)): \(.content // "" | tostring | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo ""; })"
+      local known_agents='["queen","forager","cartographer","architect","blueprint-reviewer","worker","sentinel-correctness","sentinel-security","sentinel-perf","review-arbiter","review-fixer","guardian","nurse","drone"]'
+      formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo ""; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases
 ${formatted_messages}"
@@ -325,7 +337,7 @@ ${formatted_messages}"
   local worktree_context=""
   if [[ "$phase" == "A5" ]]; then
     local worktree_path
-    worktree_path="$(state_get '.worktreePath // empty')"
+    worktree_path="${worktree_path_raw:-}"
     if [[ -n "$worktree_path" ]]; then
       worktree_context="IMPORTANT: This workflow uses a git worktree at: ${worktree_path}
 All git operations must be performed within the worktree directory."
@@ -349,6 +361,13 @@ ${input_files}
 Output: ${phases_dir}/${output_file}
 
 Create the directory first: mkdir -p ${phases_dir}
+
+## Teammate Communication
+
+Use SendMessage to communicate with other agents in the team. SendMessage
+enables cross-phase coordination — send status updates, request input, or
+relay findings to teammates working on related phases. Messages are persisted
+in state.json and delivered when the recipient's phase activates.
 
 PROMPT
 

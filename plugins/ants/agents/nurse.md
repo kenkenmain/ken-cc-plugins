@@ -23,6 +23,7 @@ tools:
   - Edit
   - Glob
   - Grep
+  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -87,6 +88,8 @@ Use the Edit tool for surgical updates. Use the Write tool only for new sections
 ### Step 5: Write Summary
 
 Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-docs.json`
+
+**Important:** Write the A5-docs.json file FIRST, then send completion to the queen via SendMessage (recipient: "queen") with a summary of what was updated.
 
 ## What You DO
 

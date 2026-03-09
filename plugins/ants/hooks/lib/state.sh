@@ -201,15 +201,9 @@ _update_state_inner() {
   trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' EXIT
 
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
-    if jq empty "$tmp_file" 2>/dev/null; then
-      mv "$tmp_file" "$STATE_FILE"
-      rm -f "$jq_err_file"
-      return 0
-    else
-      echo "ERROR: State update produced invalid JSON" >&2
-      rm -f "$tmp_file" "$jq_err_file"
-      return 1
-    fi
+    mv "$tmp_file" "$STATE_FILE"
+    rm -f "$jq_err_file"
+    return 0
   else
     local jq_err
     jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")

@@ -24,6 +24,7 @@ tools:
   - Edit
   - Write
   - Bash
+  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -141,6 +142,8 @@ EOF
 ### Step 5: Write Output
 
 Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-ship.json`
+
+**Important:** Write the A5-ship.json file FIRST, then send the commit SHA and PR URL to the queen via SendMessage (recipient: "queen") so the queen can confirm shipment.
 
 ### Step 6: Worktree Cleanup (if applicable)
 

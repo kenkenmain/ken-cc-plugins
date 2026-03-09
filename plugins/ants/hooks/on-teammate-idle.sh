@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# on-teammate-idle.sh — TeammateIdle handler for Agent Teams dispatch
-# Fires when a teammate goes idle. Finds the next ready task from state.json,
-# generates a teammate execution prompt, and assigns it via exit 2.
+# on-teammate-idle.sh — TeammateIdle handler for queen-driven dispatch model
+#
+# In the queen-driven model, the queen dispatches work to teammates via
+# SendMessage. This hook's role is simplified:
+#   1. Check preconditions (circuit breaker, shutdown, session ownership)
+#   2. If queen is already dispatched, exit 0 (queen handles dispatch via SendMessage)
+#   3. If queen is NOT dispatched yet and a phase is pending, create the initial queen task
 #
 # Exit codes:
-#   0 silent — allow idle (no tasks ready or workflow complete/blocked)
-#   2 with stderr — assign work (teammate continues with new task)
+#   0 silent — allow idle (queen is dispatching, or workflow complete/blocked)
+#   2 with stderr — assign initial queen kickoff task
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
-source "$SCRIPT_DIR/lib/swarm.sh"
 source "$SCRIPT_DIR/lib/circuit-breaker.sh"
 source "$SCRIPT_DIR/lib/teams.sh"
 
@@ -20,8 +23,18 @@ check_ants_workflow
 # Read stdin (Agent Teams passes hook input JSON)
 INPUT=$(cat)
 
+# Batch-read all needed state fields in a single jq call
+local_fields=$(jq -r '[
+  (.shutdown // false | tostring),
+  (.queenDispatched // false | tostring),
+  (.status // "unknown"),
+  (.currentPhase // "DONE"),
+  (.task // ""),
+  ((.loop // 1) | tostring)
+] | join("\t")' "$STATE_FILE")
+IFS=$'\t' read -r shutdown_flag queen_dispatched status current_phase task loop <<< "$local_fields"
+
 # Check for graceful shutdown
-shutdown_flag=$(state_get '.shutdown // false')
 if [[ "$shutdown_flag" == "true" ]]; then
   teams_log "Shutdown flag set, allowing idle (graceful shutdown)"
   exit 0
@@ -37,34 +50,61 @@ if cb_is_tripped; then
   exit 0
 fi
 
-# Find next ready task
-NEXT_PHASE="$(teams_get_next_ready_task)"
+# ---------------------------------------------------------------------------
+# Queen-driven dispatch logic
+# ---------------------------------------------------------------------------
 
-if [[ -z "$NEXT_PHASE" ]]; then
-  # No tasks ready — workflow is complete, blocked, or waiting
-  teams_log "No tasks ready, allowing idle"
+# If queen is already dispatched and workflow is in progress, do nothing.
+# The queen handles all task dispatch via SendMessage.
+if [[ "$queen_dispatched" == "true" && "$status" == "in_progress" ]]; then
+  teams_log "Queen already dispatched, allowing idle (queen handles dispatch)"
   exit 0
 fi
 
-# Generate teammate execution prompt
-PROMPT=""
-if ! PROMPT="$(teams_build_teammate_prompt "$NEXT_PHASE")" || [[ -z "$PROMPT" ]]; then
-  FAILURE_DESC="prompt generation"
-  [[ -z "$PROMPT" ]] && FAILURE_DESC="empty prompt generation"
-  teams_log "ERROR: Failed to generate prompt for phase $NEXT_PHASE ($FAILURE_DESC) — recording failure"
-  if cb_record_failure; then
-    teams_log "Circuit breaker TRIPPED after $FAILURE_DESC failure"
-    if ! update_state --arg fail "Circuit breaker tripped: $FAILURE_DESC failure" \
-      '.status = "blocked" | .updatedAt = $ts | .failure = $fail'; then
-      echo "ERROR: Failed to persist blocked status — breaker is tripped but state.json not updated" >&2
+# Queen is NOT dispatched yet — check if there is a pending phase to kick off
+case "$current_phase" in
+  A0|A1|A2|A3|A4|A5)
+    # Check phase status — need a separate read since phase is dynamic
+    phase_status=$(state_get ".phases.${current_phase}.status // \"unknown\"")
+    if [[ "$phase_status" == "pending" ]]; then
+      teams_log "Queen not dispatched, phase $current_phase is pending — creating initial queen task"
+
+      if [[ -z "$task" ]]; then
+        echo "ERROR: state.json field '.task' is missing or empty. Workflow state is incomplete." >&2
+        exit 2
+      fi
+
+      # Sanitize task description before interpolation into prompt
+      task="$(printf '%s' "$task" | head -c 2000 | tr -d '\000-\031')"
+
+      # Mark queen as dispatched to prevent duplicate kickoffs
+      if ! update_state '.queenDispatched = true | .updatedAt = $ts'; then
+        echo "ERROR: Failed to mark queenDispatched in state.json" >&2
+        exit 2
+      fi
+
+      # Build a queen kickoff prompt
+      PROMPT="## Ants Colony — Queen Kickoff
+
+Task: ${task}
+Current Phase: ${current_phase}
+Loop: ${loop}
+Status: ${status}
+
+You are the queen. Dispatch the appropriate agents for phase ${current_phase} using SendMessage.
+Read the workflow state from .agents/tmp/state.json and the phase prompt templates to determine
+which agents to dispatch and what instructions to give them.
+
+Coordinate the colony. Assign work to teammates via SendMessage. Monitor progress and advance
+phases as agents complete their work."
+
+      # Assign the queen kickoff via exit 2
+      printf '%s\n' "$PROMPT" >&2
       exit 2
     fi
-  else
-    teams_log "Failure recorded (breaker not yet tripped), will retry on next idle"
-  fi
-  exit 0  # Allow idle — don't send error text as work assignment
-fi
+    ;;
+esac
 
-# Assign work via exit 2
-teams_assign_idle_teammate "$PROMPT"
-exit 2
+# No actionable state — allow idle
+teams_log "No action needed (phase=$current_phase, queenDispatched=$queen_dispatched), allowing idle"
+exit 0
