@@ -48,7 +48,6 @@ Repeat until workflow complete or blocked
 |-------|-----------|-------|-------|
 | A0 | `ants:forager` | haiku | Parallel batch: dispatch 2-4 foragers |
 | A0 | `ants:cartographer` | sonnet | Single: deep architecture trace |
-| A0 | `ants:explore-aggregator` | haiku | Single: merge temp files |
 | A1 | `ants:architect` | sonnet | Single: plan with task assignments |
 | A2 | `ants:blueprint-reviewer` | sonnet | Single: validate plan |
 | A3 | `ants:worker` | inherit | Parallel batch: one per task from pool |

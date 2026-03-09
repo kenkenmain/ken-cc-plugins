@@ -23,6 +23,7 @@ tools:
   - Grep
   - Bash
   - Write
+  - SendMessage
 disallowedTools:
   - Edit
   - Task
@@ -113,6 +114,16 @@ Write your output as valid JSON to stdout. Use SEC- prefix for all issue IDs, nu
 ### Output File
 
 Write your JSON output to: `.agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-security.json`
+
+### Notify Arbiter
+
+After writing the output file, send your findings to the review-arbiter via SendMessage:
+
+```
+SendMessage(recipient: "review-arbiter", content: "<your JSON output>")
+```
+
+This ensures the arbiter receives your results even if file-based coordination has timing issues.
 
 ## Anti-Patterns
 

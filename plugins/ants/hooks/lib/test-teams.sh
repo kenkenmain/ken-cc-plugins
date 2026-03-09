@@ -84,19 +84,20 @@ echo "=== teams_create_phase_tasks ==="
 setup
 tasks=$(teams_create_phase_tasks)
 count=$(echo "$tasks" | jq 'length')
-assert_eq "creates 6 phase tasks" "6" "$count"
+assert_eq "creates 1 queen pipeline task" "1" "$count"
 
-first_phase=$(echo "$tasks" | jq -r '.[0].phaseId')
-assert_eq "first task is A0" "A0" "$first_phase"
+pipeline_phase=$(echo "$tasks" | jq -r '.[0].phaseId')
+assert_eq "single task is queen-pipeline" "queen-pipeline" "$pipeline_phase"
 
-last_phase=$(echo "$tasks" | jq -r '.[-1].phaseId')
-assert_eq "last task is A5" "A5" "$last_phase"
+pipeline_blocked=$(echo "$tasks" | jq -r '.[0].blockedBy | length')
+assert_eq "queen-pipeline has no blockedBy" "0" "$pipeline_blocked"
 
-a1_blocked=$(echo "$tasks" | jq -r '.[1].blockedBy | join(",")')
-assert_eq "A1 blocked by A0" "A0" "$a1_blocked"
-
-a0_blocked=$(echo "$tasks" | jq -r '.[0].blockedBy | length')
-assert_eq "A0 has no blockedBy" "0" "$a0_blocked"
+pipeline_desc=$(echo "$tasks" | jq -r '.[0].description')
+if echo "$pipeline_desc" | grep -q "SendMessage"; then
+  PASS=$((PASS + 1)); echo "  PASS: description mentions SendMessage"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: description should mention SendMessage"
+fi
 
 # =========================================================================
 echo "=== teams_reject_completion ==="

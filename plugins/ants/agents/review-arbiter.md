@@ -22,6 +22,7 @@ tools:
   - Glob
   - Grep
   - Write
+  - SendMessage
 disallowedTools:
   - Edit
   - Bash
@@ -43,6 +44,10 @@ Three specialist sentinels have independently reviewed the same code. Their find
 ## Your Task
 
 Read the outputs from all three sentinels for loop {{LOOP}} and produce a consolidated quality verdict.
+
+## Communication
+
+You may receive sentinel findings via SendMessage in addition to reading their output files. Use whichever source is available. After writing the A3-quality.json checkpoint (see Output Format below), send the consolidated verdict to the queen via SendMessage (recipient: "queen") with a summary of the verdict, issue counts, and any conflicts resolved.
 
 ## Sentinel Inputs
 

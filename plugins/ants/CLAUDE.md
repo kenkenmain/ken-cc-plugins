@@ -7,18 +7,17 @@ Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track para
 ```
 plugins/ants/
 ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-├── agents/                        # Agent definitions (20 agents)
+├── agents/                        # Agent definitions (19 agents)
 │   ├── architect.md               # Plan writer with task assignments
 │   ├── blueprint-reviewer.md      # Plan validator
 │   ├── bug-scout.md               # Parallel bug investigator (debug D0)
 │   ├── cartographer.md            # Deep architecture tracer
 │   ├── drone.md                   # Commit + PR shipper
-│   ├── explore-aggregator.md      # Merges forager/cartographer outputs
 │   ├── fix-worker.md              # Implements debug fix with tests (debug D3)
 │   ├── forager.md                 # Breadth-first codebase scout
 │   ├── guardian.md                # Test writer for quality track
 │   ├── nurse.md                   # Documentation updater
-│   ├── queen.md                   # Track sync + ship/loop verdict
+│   ├── queen.md                   # Persistent central dispatcher, phase driver, A0→A5 orchestrator
 │   ├── review-arbiter.md          # Consolidates adversarial sentinel findings
 │   ├── review-fixer.md            # Targeted repair agent for review-fix cycles
 │   ├── sentinel.md                # (deprecated) Generic sentinel reviewer -- use specialist sentinels
@@ -75,31 +74,30 @@ plugins/ants/
 
 | # | Agent | Role | Model | Tools | Leaf? |
 |---|-------|------|-------|-------|-------|
-| 1 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write | Yes |
-| 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep | Yes |
+| 1 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write, SendMessage | Yes |
+| 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
 | 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | Yes |
-| 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
-| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write | Yes |
-| 6 | explore-aggregator | Merges explorer outputs into report | haiku | Read, Write, Glob | Yes |
-| 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
-| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
-| 9 | guardian | Test writer for quality track | sonnet | Read, Glob, Grep, Edit, Write, Bash | Yes |
-| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep | Yes |
-| 11 | queen | Merges track results and renders ship/loop verdict | sonnet | Read, Glob, Grep | Yes |
-| 12 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep | Yes |
-| 13 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep | Yes |
-| 14 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
-| 15 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 16 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 17 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 18 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | Yes |
-| 19 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | Yes |
-| 20 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
-| 21 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
+| 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
+| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 6 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
+| 7 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch, SendMessage | Yes |
+| 8 | guardian | Test writer for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch, SendMessage | Yes |
+| 9 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep, SendMessage | Yes |
+| 10 | queen | Persistent central dispatcher, phase driver, A0→A5 orchestrator | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
+| 11 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
+| 12 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep, SendMessage | Yes |
+| 13 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
+| 14 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 15 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 16 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 17 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | Yes |
+| 18 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | Yes |
+| 19 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes |
+| 20 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
 
-All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The orchestrator (hooks) manages task assignment and quality gates via TeammateIdle/TaskCompleted hooks.
+All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The queen coordinates all phase transitions via SendMessage. The orchestrator (hooks) manages task assignment and quality gates via TeammateIdle/TaskCompleted hooks.
 
-**Sentinel tool design:** Specialist sentinels (rows 15-17) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
+**Sentinel tool design:** Specialist sentinels (rows 14-16) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
 
 ### Deprecated Agents
 
@@ -119,13 +117,18 @@ WebSearch is opt-in. The `--web` CLI flag sets `webSearch: true` in state.json, 
 ## Pipeline Phases (A0-A5)
 
 ```
-EXPLORE ──> PLAN ──> BUILD ──> SYNC ──> SHIP
-  A0        A1,A2     A3       A4       A5
-                               |
-                          verdict?
-                         /        \
-                      ship       loop ──> back to A1
+EXPLORE ──> PLAN ──> BUILD ──────────────> SHIP
+  A0        A1,A2     A3                    A5
+                       |
+                  queen evaluates
+                  (A4 internal)
+                       |
+                   verdict?
+                  /        \
+               ship       loop ──> back to A1
 ```
+
+Queen drives all phase transitions via SendMessage. A4 (sync/verdict) is not a separate agent dispatch -- it is evaluated internally by the queen after receiving all A3 results.
 
 Two pipeline variants are supported, selected by the `pipeline` field in state.json:
 
@@ -134,11 +137,11 @@ Two pipeline variants are supported, selected by the `pipeline` field in state.j
 
 | Phase | Stage | Agent(s) | Description |
 |-------|-------|----------|-------------|
-| A0 | EXPLORE | forager x2-4, cartographer x1, explore-aggregator x1 | Parallel codebase exploration |
+| A0 | EXPLORE | forager x2-4, cartographer x1 | Parallel codebase exploration (queen aggregates results) |
 | A1 | PLAN | architect x1 | Structured plan with task assignments |
 | A2 | PLAN | blueprint-reviewer x1 | Plan validation |
 | A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf (adversarial review), review-arbiter x1, guardian xN | Self-organizing task pool with adversarial review teams |
-| A4 | SYNC | queen x1 | Merge tracks, ship/loop verdict (circuit breaker aware) |
+| A4 | SYNC | queen (internal) | Queen evaluates all A3 evidence internally, renders ship/loop verdict (circuit breaker aware) |
 | A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
 
 ## Debug Pipeline (D0-D5)
@@ -239,7 +242,7 @@ The swarm command uses ToolSearch to load Agent Teams tools (TaskCreate, TaskGet
 
 ## Hook Architecture
 
-Eight hooks drive the workflow via Agent Teams delegate mode:
+Eight hooks support the workflow alongside the queen's SendMessage-based coordination. The queen drives all phase transitions by dispatching agents via SendMessage and receiving their results back. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots, compaction) and lifecycle support:
 
 ### on-teammate-idle.sh (TeammateIdle event)
 
@@ -455,7 +458,8 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
   "lintConfig": null,
   "configSnapshot": null,
   "compactMetadata": null,
-  "webSearch": false
+  "webSearch": false,
+  "queenDispatched": false
 }
 ```
 
@@ -471,6 +475,7 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 | `lintConfig` | object/null | null | Lint configuration (`{"enabled": true/false}`) for PostToolUse lint-on-save |
 | `configSnapshot` | object/null | null | Last config change metadata (`{"lastChangeAt": ..., "source": ...}`) |
 | `compactMetadata` | object/null | null | Workflow state snapshot saved before context compaction |
+| `queenDispatched` | boolean | false | Whether the queen has been spawned for the current workflow run (prevents duplicate dispatches) |
 
 ### New v0.4.3 State Fields
 
@@ -499,6 +504,31 @@ When `.planApproved` is `false` (default), the TaskCompleted hook holds the work
 
 Cross-phase communication via the `messages` array in state.json. Agents can send messages to other agents using `add_message "from" "to" "content"` and retrieve them with `get_messages_for "recipient"`. Messages are tagged with the current loop number and timestamp. This enables feedback loops without re-planning (e.g., queen sending targeted notes to the architect for the next loop).
 
+## Communication
+
+The queen orchestrates all phase transitions via SendMessage. The naming contract for recipient strings is:
+
+### Recipient Naming Contract
+
+| Sender | Recipient | Purpose |
+|--------|-----------|---------|
+| All agents (except sentinels) | `"queen"` | Report results, completion status, findings |
+| sentinel-correctness | `"review-arbiter"` | Send correctness findings for consolidation |
+| sentinel-security | `"review-arbiter"` | Send security findings for consolidation |
+| sentinel-perf | `"review-arbiter"` | Send performance findings for consolidation |
+| review-arbiter | `"queen"` | Send consolidated quality verdict |
+| Queen | Any agent by name | Dispatch phase work (e.g., `"forager"`, `"architect"`, `"worker"`) |
+
+**Key rules:**
+- All agents send results back to `"queen"` -- the queen is the central hub
+- Exception: specialist sentinels send findings to `"review-arbiter"` for consolidation before the arbiter reports to queen
+- Queen dispatches to agents by their exact agent name (e.g., `"forager"`, `"cartographer"`, `"architect"`, `"worker"`, `"nurse"`, `"drone"`)
+- A4 (sync/verdict) is internal to queen -- no separate agent is dispatched for this phase
+
+### queenDispatched State Field
+
+The `queenDispatched` field in state.json tracks whether the queen has been spawned for the current workflow run. This prevents duplicate queen dispatches and ensures the queen is the single coordinator for the pipeline. The field is set to `true` when the queen is first dispatched and checked before any subsequent dispatch attempt.
+
 ## Worktree Isolation (v0.4)
 
 When `.worktreePath` is set, the workflow operates in a git worktree at the specified path. This isolates the workflow's file changes from the main branch, enabling multiple workflows to run concurrently on the same repository. Hooks always execute from the main project root directory, not from the worktree. The `worktreePath` field in state.json directs worker agents to read/write files in the isolated worktree directory.
@@ -514,7 +544,7 @@ Set `.webhookUrl` in state.json to receive fire-and-forget HTTP POST notificatio
 ## Code Style
 
 - **Markdown:** YAML frontmatter, follow existing agent structure
-- **Naming:** kebab-case for files (e.g., `blueprint-reviewer.md`, `explore-aggregator.md`)
+- **Naming:** kebab-case for files (e.g., `blueprint-reviewer.md`, `sentinel-correctness.md`)
 - **Agent theme:** Ant colony roles (forager, cartographer, architect, worker, sentinel, queen, nurse, drone)
 - **Shell hooks:** `set -euo pipefail`, use `local var; var="$(cmd)"` (not `local var="$(cmd)"`), source libs from `$SCRIPT_DIR/lib/`
 - **Shell validation:** Run `bash -n <script>` after modifying hook shell scripts

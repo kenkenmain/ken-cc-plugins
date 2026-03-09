@@ -122,6 +122,14 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
 
+### What's New in v0.5.1
+
+- **Queen as persistent central dispatcher** -- The queen agent is now the sole orchestrator of the A0→A5 pipeline. It dispatches each phase via SendMessage, receives results from agents, and evaluates the A4 verdict internally. This replaces the previous model where TeammateIdle/TaskCompleted hooks drove phase transitions.
+- **explore-aggregator removed** -- The queen aggregates A0 exploration results directly, eliminating the explore-aggregator agent. All phase outputs are routed through the queen.
+- **teams.sh SendMessage helpers** -- New helper functions for constructing and routing SendMessage payloads. Single-task model replaces multi-task dispatch. Control character stripping and `.from` allowlist validation added for message security.
+- **Hook simplification** -- on-teammate-idle.sh, on-task-completed.sh, and on-stop.sh simplified. Hooks now handle supplementary gates only; all phase coordination is queen-driven.
+- **Security and performance fixes** -- Unsanitized task_id input validated via `^[A-Za-z0-9_-]+$` regex gate; hot-path sequential `state_get` calls consolidated to single batched `jq` calls in on-teammate-idle.sh, circuit-breaker.sh, and teams.sh.
+
 ### What's New in v0.5.0
 
 - **Self-improvement pipeline (`/ants:improve`)** -- New stateless pipeline that iteratively reviews code using adversarial sentinels and fixes all issues from info severity upwards. Reuses existing sentinel, arbiter, and review-fixer agents in a focused review-fix loop (up to 5 iterations). No state.json, no hooks -- follows the same stateless direct-dispatch model as `/ants:debug`.
@@ -187,7 +195,6 @@ This catches issues from multiple perspectives rather than relying on a single r
 |-------|------|-------|-------|
 | forager | Breadth-first codebase scout (x2-4) | haiku | A0 |
 | cartographer | Deep architecture tracer | sonnet | A0 |
-| explore-aggregator | Merges exploration results | haiku | A0 |
 | architect | Plans implementation with task assignments | sonnet | A1 |
 | blueprint-reviewer | Validates plan completeness and task logic | sonnet | A2 |
 | worker | Implements a single task (x1 per task) | inherit | A3 build |
@@ -197,7 +204,7 @@ This catches issues from multiple perspectives rather than relying on a single r
 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality, I0 |
 | review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
 | guardian | Test writer for quality track | sonnet | A3 quality |
-| queen | Merges tracks, renders ship/loop verdict | sonnet | A4 |
+| queen | Persistent central dispatcher — drives A0→A5 via SendMessage, evaluates A4 verdict internally | sonnet | A0-A5 |
 | nurse | Updates documentation | sonnet | A5 |
 | drone | Commits and opens PR | inherit | A5 |
 | bug-scout | Parallel bug investigator (×3) | haiku | D0 |
@@ -206,19 +213,20 @@ This catches issues from multiple perspectives rather than relying on a single r
 | fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 20 agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by Agent Teams hooks (TeammateIdle/TaskCompleted). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
+All 19 agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
 
 ## How It Works
 
-### Agent Teams Delegate Mode
+### Queen-Driven Orchestration
 
-The workflow is driven by Agent Teams, not conversation memory:
+The workflow is driven by the **queen agent** via SendMessage — not by TeammateIdle/TaskCompleted hooks:
 
-1. The `/ants:swarm` command auto-enables Agent Teams, creates a team, and populates the task list
-2. Lead spawns 3-5 teammates and enters delegate mode (coordination-only)
-3. When a teammate goes idle, the **TeammateIdle hook** assigns the next ready phase
-4. When a teammate completes a task, the **TaskCompleted hook** validates output and advances state
-5. This repeats until the workflow completes or blocks
+1. The `/ants:swarm` command creates a team and spawns the queen as the persistent coordinator
+2. The queen dispatches each phase by sending messages to specialist agents (forager, cartographer, architect, etc.)
+3. Each agent reports results back to the queen via SendMessage
+4. The queen evaluates A4 (verdict) internally — no separate agent is dispatched for sync
+5. On a clean verdict the queen dispatches A5 (ship); on issues found it loops back to A1
+6. Hooks provide supplementary gates: edit control (on-edit-gate.sh), lint-on-save, config snapshots, and compaction metadata
 
 ### Dual-Track Phase A3
 
