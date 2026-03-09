@@ -1,6 +1,6 @@
 # ants Plugin -- Agent Instructions
 
-Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track parallel build, and adversarial quality review.
+Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track parallel build, adversarial quality review, and self-improvement pipeline.
 
 ## Plugin Structure
 
@@ -28,8 +28,9 @@ plugins/ants/
 │   ├── solution-aggregator.md     # Ranks and selects best fix (debug D2)
 │   ├── solution-proposer.md       # Proposes one specific fix approach (debug D1)
 │   └── worker.md                  # Task implementer (one per task)
-├── commands/                      # Slash commands
+├── commands/                      # Slash commands (4 commands: swarm, pswarm, debug, improve)
 │   ├── debug.md                   # /ants:debug <bug description>
+│   ├── improve.md                 # /ants:improve <description>
 │   ├── swarm.md                   # /ants:swarm <task>
 │   └── pswarm.md                  # /ants:pswarm <task> [--max-loops N] [--worktree]
 ├── docs/                          # Architecture documentation
@@ -63,6 +64,7 @@ plugins/ants/
 │   └── A5-ship.md                 # Documentation + ship dispatch
 ├── skills/                        # Workflow documentation
 │   ├── debug/SKILL.md             # Debug pipeline reference
+│   ├── improve/SKILL.md           # Improve pipeline reference
 │   ├── swarm/SKILL.md             # Swarm pipeline reference
 │   └── workflow/SKILL.md          # Agent Teams delegate mode
 ├── CLAUDE.md                      # This file -- architecture docs
@@ -162,6 +164,36 @@ D5 SHIP      — nurse + drone
 | D5 | SHIP | nurse ×1, drone ×1 | Documentation + commit/PR |
 
 Output files: `.agents/tmp/debug/` (see `skills/debug/SKILL.md` for complete layout).
+
+## Improve Pipeline (I0-I2)
+
+Stateless iterative review-fix pipeline dispatched directly by `/ants:improve`. No state.json, no hooks, no Agent Teams -- the command orchestrates all agents synchronously, like the debug pipeline.
+
+```
+I0 REVIEW    -- 3x sentinels (parallel) + review-arbiter
+I1 FIX       -- review-fixer applies targeted fixes
+[loop back to I0 if issues remain, up to 5 iterations]
+I2 REPORT    -- summary of all iterations
+```
+
+| Phase | Stage | Agent(s) | Description |
+|-------|-------|----------|-------------|
+| I0 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + review-arbiter | Parallel adversarial review, arbiter consolidates |
+| I1 | FIX | review-fixer x1 | Applies targeted fixes for all issues (info severity and above) |
+| I2 | REPORT | (orchestrator) | Displays iteration-by-iteration summary |
+
+**Key differences from swarm pipeline:**
+- Fixes ALL severities (info, warning, critical) -- not just critical/warning
+- No exploration, planning, building, or shipping phases -- purely review and fix
+- Stateless with iteration limit (max 5) instead of circuit breaker
+- No state.json -- iteration progress tracked in command conversation context
+
+**Key differences from debug pipeline:**
+- Iterative loop (review-fix-review) vs single-pass (investigate-fix-ship)
+- No exploration or proposal phases -- goes straight to review
+- Does not ship (no commit, no PR) -- user decides what to do after
+
+Output files: `.agents/tmp/improve/` with per-iteration subdirectories (`iter-1/`, `iter-2/`, etc.). Each iteration produces `I0-quality.json` (arbiter verdict) and `I1-fix.json` (fixer output, if issues found). The arbiter captures all severities by default -- no threshold override needed. See `skills/improve/SKILL.md` for complete layout.
 
 ## Dual-Track Build + Quality Design
 

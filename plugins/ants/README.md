@@ -1,6 +1,6 @@
 # ants
 
-Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while specialist sentinels review from three angles, an arbiter consolidates findings, and a queen decides to ship or loop.
+Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while specialist sentinels review from three angles, an arbiter consolidates findings, and a queen decides to ship or loop. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
 
 ## Installation
 
@@ -25,6 +25,10 @@ claude plugin install ./plugins/ants --scope project
 
 # Debug: 6-phase bug investigation and fix pipeline
 /ants:debug Fix the authentication middleware returning 500 on expired tokens
+
+# Improve: iterative review-fix pipeline (fixes all issues, info severity and up)
+/ants:improve Review and fix all issues in the authentication module
+/ants:improve Clean up error handling across the API layer
 ```
 
 The `--worktree` flag creates a git worktree for isolated development, enabling multiple workflows to run concurrently on the same repository.
@@ -88,6 +92,39 @@ Use `/ants:debug` when you have a specific bug to investigate, want parallel inv
 The debug pipeline is **stateless** -- no state.json, no hooks, no Agent Teams. The `/ants:debug` command orchestrates all agents synchronously. Output files are written to `.agents/tmp/debug/`.
 
 **Choose debug when:** You have a specific bug to investigate, want parallel investigation from multiple angles, and want user confirmation before applying the fix.
+
+## Improve Pipeline
+
+Use `/ants:improve` when you want to iteratively review existing code and fix all issues -- from info severity upwards -- until the code is clean or the iteration limit is reached.
+
+```
+  I0 Review          3 specialist sentinels review in parallel
+       |                (correctness, security, performance)
+       |              review-arbiter consolidates findings
+       |
+  I1 Fix             review-fixer applies targeted fixes
+       |                (processes all severities: critical > warning > info)
+       |
+  [loop]             re-review after fixes, up to 5 iterations
+       |
+  I2 Report          summary of all iterations and remaining issues
+```
+
+| Phase | Stage | Agent(s) | Description |
+|-------|-------|----------|-------------|
+| I0 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + review-arbiter | Parallel adversarial review + consolidation |
+| I1 | FIX | review-fixer x1 | Apply targeted minimal fixes for all issues |
+| I2 | REPORT | (orchestrator) | Display iteration-by-iteration summary |
+
+The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams. The `/ants:improve` command orchestrates all agents synchronously. Output files are written to `.agents/tmp/improve/`.
+
+**Choose improve when:** You have existing code that works but want to systematically clean up all issues across correctness, security, and performance. Unlike swarm (which builds new features) or debug (which investigates specific bugs), improve focuses purely on iterating review-fix cycles until the code is clean.
+
+**Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
+
+### What's New in v0.5.0
+
+- **Self-improvement pipeline (`/ants:improve`)** -- New stateless pipeline that iteratively reviews code using adversarial sentinels and fixes all issues from info severity upwards. Reuses existing sentinel, arbiter, and review-fixer agents in a focused review-fix loop (up to 5 iterations). No state.json, no hooks -- follows the same stateless direct-dispatch model as `/ants:debug`.
 
 ### What's New in v0.4.4
 
@@ -154,11 +191,11 @@ This catches issues from multiple perspectives rather than relying on a single r
 | architect | Plans implementation with task assignments | sonnet | A1 |
 | blueprint-reviewer | Validates plan completeness and task logic | sonnet | A2 |
 | worker | Implements a single task (x1 per task) | inherit | A3 build |
-| sentinel-correctness | Bugs, logic errors, error handling | sonnet | A3 quality |
-| sentinel-security | OWASP, injection, secrets, access control | sonnet | A3 quality |
-| sentinel-perf | N+1 queries, blocking I/O, complexity | sonnet | A3 quality |
-| review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality |
-| review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality |
+| sentinel-correctness | Bugs, logic errors, error handling | sonnet | A3 quality, I0 |
+| sentinel-security | OWASP, injection, secrets, access control | sonnet | A3 quality, I0 |
+| sentinel-perf | N+1 queries, blocking I/O, complexity | sonnet | A3 quality, I0 |
+| review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality, I0 |
+| review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
 | guardian | Test writer for quality track | sonnet | A3 quality |
 | queen | Merges tracks, renders ship/loop verdict | sonnet | A4 |
 | nurse | Updates documentation | sonnet | A5 |
