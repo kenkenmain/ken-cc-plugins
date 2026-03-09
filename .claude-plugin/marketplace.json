@@ -78,7 +78,7 @@
       "name": "ants",
       "source": "./plugins/ants",
       "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams delegate mode, dual-track build, adversarial review, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, teammate messaging, lint-on-save, HTTP webhooks, and opt-in WebSearch support",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
