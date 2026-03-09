@@ -22,6 +22,9 @@ claude plugin install ./plugins/ants --scope project
 /ants:pswarm Continuously improve test coverage --max-loops 10
 /ants:pswarm Fix all lint warnings --worktree
 /ants:pswarm Research and implement OAuth2 --web --max-loops 5
+
+# Debug: 6-phase bug investigation and fix pipeline
+/ants:debug Fix the authentication middleware returning 500 on expired tokens
 ```
 
 The `--worktree` flag creates a git worktree for isolated development, enabling multiple workflows to run concurrently on the same repository.
@@ -54,6 +57,37 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
    |
   A5 Ship             update docs, commit, open PR
 ```
+
+## Debug Pipeline
+
+Use `/ants:debug` when you have a specific bug to investigate, want parallel investigation from multiple angles, and want user confirmation before applying the fix.
+
+```
+  D0 Explore         3 bug-scouts investigate in parallel
+       |               (error analysis, execution path, test gaps)
+  D1 Propose         3 solution-proposers generate fix approaches
+       |               (minimal, comprehensive, defensive)
+  D2 Aggregate       solution-aggregator ranks proposals
+       |               → user selects preferred approach
+  D3 Implement       fix-worker implements fix + writes tests
+       |
+  D4 Review          adversarial sentinel review of the fix
+       |               (correctness, security, performance)
+  D5 Ship            update docs, commit, open PR
+```
+
+| Phase | Stage | Agent(s) | Description |
+|-------|-------|----------|-------------|
+| D0 | EXPLORE | bug-scout ×3 | Parallel bug investigation (error, execution path, tests) |
+| D1 | PROPOSE | solution-proposer ×3 | Parallel fix proposals (minimal, comprehensive, defensive) |
+| D2 | AGGREGATE | solution-aggregator ×1 | Rank proposals + user selects |
+| D3 | IMPLEMENT | fix-worker ×1 | Implement fix, write tests, self-verify |
+| D4 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + review-arbiter | Adversarial review of fix |
+| D5 | SHIP | nurse ×1, drone ×1 | Documentation + commit/PR |
+
+The debug pipeline is **stateless** -- no state.json, no hooks, no Agent Teams. The `/ants:debug` command orchestrates all agents synchronously. Output files are written to `.agents/tmp/debug/`.
+
+**Choose debug when:** You have a specific bug to investigate, want parallel investigation from multiple angles, and want user confirmation before applying the fix.
 
 ### What's New in v0.4.4
 
@@ -129,9 +163,13 @@ This catches issues from multiple perspectives rather than relying on a single r
 | queen | Merges tracks, renders ship/loop verdict | sonnet | A4 |
 | nurse | Updates documentation | sonnet | A5 |
 | drone | Commits and opens PR | inherit | A5 |
+| bug-scout | Parallel bug investigator (×3) | haiku | D0 |
+| solution-proposer | Proposes one specific fix approach (×3) | sonnet | D1 |
+| solution-aggregator | Ranks and selects best fix | sonnet | D2 |
+| fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 16 agent definitions are leaf agents (cannot spawn subagents). The workflow is driven by Agent Teams hooks (TeammateIdle/TaskCompleted).
+All 20 agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by Agent Teams hooks (TeammateIdle/TaskCompleted). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
 
 ## How It Works
 
@@ -193,7 +231,7 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 | Build model | Task pool + adversarial review teams | Sequential with review-fix cycles |
 | Review style | 3 specialist sentinels + arbiter | Single reviewer per phase |
 | Loop type | Queen verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
-| Agents | 16 colony-themed | 26+ generic |
+| Agents | 20 colony-themed | 26+ generic |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Best for | Medium complexity tasks | Complex tasks needing thorough coverage |
 | Theme | Ant colony | Minions |

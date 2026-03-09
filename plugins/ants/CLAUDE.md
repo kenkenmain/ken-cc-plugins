@@ -7,12 +7,14 @@ Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track para
 ```
 plugins/ants/
 ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-├── agents/                        # Agent definitions (16 agents)
+├── agents/                        # Agent definitions (20 agents)
 │   ├── architect.md               # Plan writer with task assignments
 │   ├── blueprint-reviewer.md      # Plan validator
+│   ├── bug-scout.md               # Parallel bug investigator (debug D0)
 │   ├── cartographer.md            # Deep architecture tracer
 │   ├── drone.md                   # Commit + PR shipper
 │   ├── explore-aggregator.md      # Merges forager/cartographer outputs
+│   ├── fix-worker.md              # Implements debug fix with tests (debug D3)
 │   ├── forager.md                 # Breadth-first codebase scout
 │   ├── guardian.md                # Test writer for quality track
 │   ├── nurse.md                   # Documentation updater
@@ -23,8 +25,11 @@ plugins/ants/
 │   ├── sentinel-correctness.md    # Specialist: bugs, logic errors, error handling
 │   ├── sentinel-perf.md           # Specialist: N+1 queries, blocking I/O, complexity
 │   ├── sentinel-security.md       # Specialist: OWASP, injection, secrets, access control
+│   ├── solution-aggregator.md     # Ranks and selects best fix (debug D2)
+│   ├── solution-proposer.md       # Proposes one specific fix approach (debug D1)
 │   └── worker.md                  # Task implementer (one per task)
 ├── commands/                      # Slash commands
+│   ├── debug.md                   # /ants:debug <bug description>
 │   ├── swarm.md                   # /ants:swarm <task>
 │   └── pswarm.md                  # /ants:pswarm <task> [--max-loops N] [--worktree]
 ├── docs/                          # Architecture documentation
@@ -57,6 +62,7 @@ plugins/ants/
 │   ├── A4-sync.md                 # Queen synchronization dispatch
 │   └── A5-ship.md                 # Documentation + ship dispatch
 ├── skills/                        # Workflow documentation
+│   ├── debug/SKILL.md             # Debug pipeline reference
 │   ├── swarm/SKILL.md             # Swarm pipeline reference
 │   └── workflow/SKILL.md          # Agent Teams delegate mode
 ├── CLAUDE.md                      # This file -- architecture docs
@@ -67,27 +73,31 @@ plugins/ants/
 
 | # | Agent | Role | Model | Tools | Leaf? |
 |---|-------|------|-------|-------|-------|
-| 1 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
-| 2 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
-| 3 | explore-aggregator | Merges explorer outputs into report | haiku | Read, Write, Glob | Yes |
-| 4 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write | Yes |
-| 5 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep | Yes |
-| 6 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
-| 7 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
-| 8 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 9 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 10 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 11 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep | Yes |
-| 12 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep | Yes |
-| 13 | guardian | Test writer for quality track | sonnet | Read, Glob, Grep, Edit, Write, Bash | Yes |
-| 14 | queen | Merges track results and renders ship/loop verdict | sonnet | Read, Glob, Grep | Yes |
-| 15 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep | Yes |
-| 16 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write | Yes |
-| 17 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
+| 1 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write | Yes |
+| 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep | Yes |
+| 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | Yes |
+| 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
+| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write | Yes |
+| 6 | explore-aggregator | Merges explorer outputs into report | haiku | Read, Write, Glob | Yes |
+| 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
+| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
+| 9 | guardian | Test writer for quality track | sonnet | Read, Glob, Grep, Edit, Write, Bash | Yes |
+| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep | Yes |
+| 11 | queen | Merges track results and renders ship/loop verdict | sonnet | Read, Glob, Grep | Yes |
+| 12 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep | Yes |
+| 13 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep | Yes |
+| 14 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
+| 15 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write | Yes |
+| 16 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write | Yes |
+| 17 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write | Yes |
+| 18 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | Yes |
+| 19 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | Yes |
+| 20 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
+| 21 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
 
 All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The orchestrator (hooks) manages task assignment and quality gates via TeammateIdle/TaskCompleted hooks.
 
-**Sentinel tool design:** Specialist sentinels (rows 8-10) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
+**Sentinel tool design:** Specialist sentinels (rows 15-17) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
 
 ### Deprecated Agents
 
@@ -128,6 +138,30 @@ Two pipeline variants are supported, selected by the `pipeline` field in state.j
 | A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf (adversarial review), review-arbiter x1, guardian xN | Self-organizing task pool with adversarial review teams |
 | A4 | SYNC | queen x1 | Merge tracks, ship/loop verdict (circuit breaker aware) |
 | A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
+
+## Debug Pipeline (D0-D5)
+
+Stateless 6-phase debugging pipeline dispatched directly by `/ants:debug`. No state.json, no hooks, no Agent Teams -- the command orchestrates all agents synchronously.
+
+```
+D0 EXPLORE   — 3× bug-scout (parallel)
+D1 PROPOSE   — 3× solution-proposer (parallel)
+D2 AGGREGATE — solution-aggregator + user confirmation
+D3 IMPLEMENT — fix-worker (implements fix + tests)
+D4 REVIEW    — 3× sentinels + review-arbiter
+D5 SHIP      — nurse + drone
+```
+
+| Phase | Stage | Agent(s) | Description |
+|-------|-------|----------|-------------|
+| D0 | EXPLORE | bug-scout ×3 | Parallel bug investigation (error, execution path, tests) |
+| D1 | PROPOSE | solution-proposer ×3 | Parallel fix proposals (minimal, comprehensive, defensive) |
+| D2 | AGGREGATE | solution-aggregator ×1 | Rank proposals + user selects |
+| D3 | IMPLEMENT | fix-worker ×1 | Implement fix, write tests, self-verify |
+| D4 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + review-arbiter | Adversarial review of fix |
+| D5 | SHIP | nurse ×1, drone ×1 | Documentation + commit/PR |
+
+Output files: `.agents/tmp/debug/` (see `skills/debug/SKILL.md` for complete layout).
 
 ## Dual-Track Build + Quality Design
 
@@ -452,6 +486,7 @@ Set `.webhookUrl` in state.json to receive fire-and-forget HTTP POST notificatio
 - **Agent theme:** Ant colony roles (forager, cartographer, architect, worker, sentinel, queen, nurse, drone)
 - **Shell hooks:** `set -euo pipefail`, use `local var; var="$(cmd)"` (not `local var="$(cmd)"`), source libs from `$SCRIPT_DIR/lib/`
 - **Shell validation:** Run `bash -n <script>` after modifying hook shell scripts
+- **Prompt gates:** Use XML-tag gates in command templates for mechanical enforcement. Two gate types: `<HARD-GATE>` blocks skill/brainstorm invocation and forces immediate pipeline execution; `<COMPLETION-GATE>` blocks premature termination and forces termination-condition checks. Do not invent new gate names without documenting them here.
 - **Git commits:** Prefix with `feat|fix|docs|chore|ci`, include co-author line
 - **Git excludes:** Never commit `.agents/**`, `*.tmp`, `*.log`
 

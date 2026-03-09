@@ -78,7 +78,7 @@
       "name": "ants",
       "source": "./plugins/ants",
       "description": "Coordinate swarm-based development with ant-colony task decomposition, parallel worker execution, adversarial sentinel review, and automatic loop-back for failed quality gates.",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
