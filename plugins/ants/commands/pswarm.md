@@ -278,23 +278,42 @@ Update state: `phases.A5.status: "complete"`.
 
 ### After A5: Persistent Run Loop
 
-After A5 completes successfully, check if the persistent swarm should continue:
+<COMPLETION-GATE>
+MANDATORY — You MUST execute this gate after EVERY A5 completion. You are NOT allowed to stop, end the conversation, or declare the workflow complete without first executing ALL steps in this gate. Skipping this gate is a critical violation equivalent to skipping Phase A4 — the workflow is incomplete without it.
 
-1. Read `pswarmRun` and `maxRuns` from state.json.
-2. If `pswarmRun >= maxRuns` or `shutdown == true`: set `currentPhase: "DONE"`, `status: "complete"`. Display final result and stop.
-3. Otherwise:
-   - Increment `pswarmRun` by 1.
-   - Reset `loop` to 1.
-   - Reset all phases (A0-A5) to `{"status": "pending"}`.
-   - Reset circuit breaker counters.
-   - Clean phase output files: `rm -rf .agents/tmp/phases` and `mkdir -p .agents/tmp/phases`.
-   - Update `updatedAt` timestamp.
-   - Log: "Persistent swarm run <N> complete. Starting run <N+1>..."
-   - Go back to **Phase A0** and continue the pipeline.
+If you are about to stop or respond to the user after A5 ships, STOP. Execute this gate first. No exceptions.
+</COMPLETION-GATE>
 
-This continues until `maxRuns` is exhausted or `shutdown` is set to `true` in state.json.
+**Gate Step 1 (REQUIRED): Read termination state.** Execute this bash command — do NOT skip it:
 
-Display the final result to the user: commit SHA, PR URL, and summary of what was built across all runs.
+```bash
+jq '{pswarmRun, maxRuns, shutdown: (.shutdown // false)}' .agents/tmp/state.json
+```
+
+If this command fails (file missing, corrupt JSON, jq error), set `status: "blocked"` in state.json and halt with an error message to the user. Do NOT proceed to Gate Step 2 with empty or missing values.
+
+**Gate Step 2 (REQUIRED): Evaluate termination condition.** Using the ACTUAL values from Gate Step 1 (not from memory). All three fields must be present — if any is null, halt with `status: "blocked"`.
+
+- If `pswarmRun >= maxRuns` OR `shutdown == true`:
+  - Update state: `currentPhase: "DONE"`, `status: "complete"`
+  - Display final result to the user: commit SHA, PR URL, and summary of what was built across all runs
+  - ONLY NOW may you stop
+
+- If `pswarmRun < maxRuns` AND `shutdown == false`:
+  - You MUST continue. Stopping here is a bug. Execute Gate Step 3.
+
+**Gate Step 3 (REQUIRED when continuing): Reset for next run.**
+  - Read and store the commit SHA and PR URL from `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` BEFORE cleanup
+  - Increment `pswarmRun` by 1
+  - Reset `loop` to 1
+  - Reset all phases (A0-A5) to `{"status": "pending"}`
+  - Reset circuit breaker counters (`consecutiveFailures: 0`, `fixAttempts: {}`, `stageRestarts: 0`)
+  - Clean phase output files: `rm -rf .agents/tmp/phases` and `mkdir -p .agents/tmp/phases`
+  - Update `updatedAt` timestamp
+  - Log: "Persistent swarm run <N> complete (commit: <SHA>, PR: <URL>). Starting run <N+1>..."
+  - Go back to **Phase A0** and continue the pipeline
+
+**Anti-skip rule:** If you find yourself about to say "the workflow is complete" or "all done" after A5 without having run the `jq` command in Gate Step 1 during THIS turn, you are violating the completion gate. Go back and execute Gate Step 1 now. If the `jq` command was attempted but failed or returned null/unexpected output, do NOT proceed with either path — halt with `status: "blocked"` and report the error to the user.
 
 ## Phase Agent Mapping
 

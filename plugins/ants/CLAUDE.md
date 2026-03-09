@@ -486,6 +486,7 @@ Set `.webhookUrl` in state.json to receive fire-and-forget HTTP POST notificatio
 - **Agent theme:** Ant colony roles (forager, cartographer, architect, worker, sentinel, queen, nurse, drone)
 - **Shell hooks:** `set -euo pipefail`, use `local var; var="$(cmd)"` (not `local var="$(cmd)"`), source libs from `$SCRIPT_DIR/lib/`
 - **Shell validation:** Run `bash -n <script>` after modifying hook shell scripts
+- **Prompt gates:** Use XML-tag gates in command templates for mechanical enforcement. Two gate types: `<HARD-GATE>` blocks skill/brainstorm invocation and forces immediate pipeline execution; `<COMPLETION-GATE>` blocks premature termination and forces termination-condition checks. Do not invent new gate names without documenting them here.
 - **Git commits:** Prefix with `feat|fix|docs|chore|ci`, include co-author line
 - **Git excludes:** Never commit `.agents/**`, `*.tmp`, `*.log`
 
