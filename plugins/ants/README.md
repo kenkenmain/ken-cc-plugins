@@ -122,6 +122,14 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
 
+### What's New in v0.5.2
+
+- **Pipeline completion summaries** — All four pipelines now print a human-readable summary after execution completes:
+  - `/ants:swarm` — displays "Ants Swarm — Complete" block with commit SHA, PR URL, files changed, tests added, loops taken, quality counts (critical/warning/info), and key evidence from the A4 verdict. Blocked and incomplete states also show structured diagnostic info.
+  - `/ants:pswarm` — displays a per-run summary after each A5 ship, and a final "Ants pswarm — All Runs Complete" table with one row per run (commit, PR URL, files changed) and a total row when the pipeline stops.
+  - `/ants:debug` — Step 8 now reads D4-quality.json for issue counts and D3-implementation.json for a files changed list, showing quality review results alongside the fix summary.
+  - `/ants:improve` — I2 REPORT now specifies exact JSON field paths for reliable data reading, adds a Total row to the iteration table, and shows a clear stop reason (clean vs max iterations reached).
+
 ### What's New in v0.5.1
 
 - **Queen as persistent central dispatcher** -- The queen agent is now the sole orchestrator of the A0→A5 pipeline. It dispatches each phase via SendMessage, receives results from agents, and evaluates the A4 verdict internally. This replaces the previous model where TeammateIdle/TaskCompleted hooks drove phase transitions.

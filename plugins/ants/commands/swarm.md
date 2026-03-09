@@ -220,12 +220,55 @@ jq '.queenDispatched = true | .updatedAt = (now | todate)' .agents/tmp/state.jso
 
 ### 3d. Wait for queen to complete
 
-The queen manages all phase transitions, loop-backs, and the final ship decision. When the queen returns:
+The queen manages all phase transitions, loop-backs, and the final ship decision. When the queen returns, read `.agents/tmp/state.json` to check the final status and display a summary:
 
-- Read state.json to check final status
-- If `status: "complete"` and `currentPhase: "DONE"`: display commit SHA, PR URL, and summary from `.agents/tmp/phases/loop-<LOOP>/A5-ship.json`
-- If `status: "blocked"`: display the failure reason and circuit breaker state
-- If `status: "in_progress"`: the queen stopped mid-pipeline — display current phase and any failure info
+**If `status: "complete"` and `currentPhase: "DONE"` (success):**
+
+Read the following files to build the summary (use the final `.loop` value from state.json for `<LOOP>`):
+- `state.json` — `.task`, `.branch`, `.loop`, `.maxLoops`
+- `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json` — `.buildTrackSummary.filesChanged[]`, `.buildTrackSummary.testsAdded`, `.qualityTrackSummary.critical`, `.qualityTrackSummary.warning`, `.qualityTrackSummary.info`, `.evidence[]`
+- `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` — `.commit_sha`, `.pr_url`, `.files_committed[]`
+
+Display:
+```
+Ants Swarm — Complete
+======================
+Task: <.task from state.json>
+Branch: <.branch>
+Commit: <.commit_sha from A5-ship.json>
+PR: <.pr_url>
+
+Build Summary:
+  Files changed: <count of .files_committed> (<first 5 files, comma-separated>; "and N more" if >5)
+  Tests added: <.buildTrackSummary.testsAdded, or 0 if missing>
+  Loops taken: <.loop> / <.maxLoops>
+
+Quality Review:
+  Critical: <.qualityTrackSummary.critical>  Warning: <.qualityTrackSummary.warning>  Info: <.qualityTrackSummary.info>
+
+Key evidence:
+  - <each item in .evidence[], one per line; show up to 8 items, then "(and N more)" if array is larger>
+```
+
+Use `.files_committed` from A5-ship.json as the primary files list (most accurate). Fall back to `.buildTrackSummary.filesChanged` if A5-ship.json is unavailable. If A4-queen-verdict.json is missing, omit the Quality Review and Key evidence sections.
+
+**If `status: "blocked"`:**
+```
+Ants Swarm — Blocked
+======================
+Reason: <.failure from state.json>
+Phase at failure: <.currentPhase>
+Circuit breaker: <.circuitBreaker.consecutiveFailures> consecutive failures, <.circuitBreaker.stageRestarts> loop-backs used
+```
+
+**If `status: "in_progress"` (queen stopped mid-pipeline):**
+```
+Ants Swarm — Incomplete
+========================
+Status: in_progress (queen stopped mid-pipeline)
+Current phase: <.currentPhase>
+<.failure if present>
+```
 
 ## Queen-Driven Phase Flow
 

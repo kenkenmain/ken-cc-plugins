@@ -129,9 +129,11 @@ Display to user: "Iteration {CURRENT_ITERATION}: Fixed {fixed} of {total} issues
 
 ## Step 3: I2 REPORT
 
-Read all iteration output files. For each iteration directory (`iter-1/`, `iter-2/`, etc.), read:
-- `I0-quality.json` (always present)
-- `I1-fix.json` (present only if issues were found in that iteration)
+For each iteration directory (`iter-1/`, `iter-2/`, etc.) that was created:
+
+- Read `I0-quality.json`: use `.summary.totalIssues` (Issues Found), `.summary.critical` (Critical), `.summary.warning` (Warning), `.summary.info` (Info), `.summary.verdict` (to determine if CLEAN)
+- Read `I1-fix.json` (only if it exists): use `.summary.fixed` (Fixed), `.summary.skipped` (Skipped)
+- If `I1-fix.json` is absent (no fix ran because code was already clean), show `--` for Fixed and Skipped
 
 Display a formatted summary to the user:
 
@@ -147,12 +149,20 @@ Iteration | Issues Found | Fixed | Skipped | Critical | Warning | Info
 1         | 12          | 10    | 2       | 2        | 5       | 5
 2         | 3           | 3     | 0       | 0        | 1       | 2
 3         | 0           | --    | --      | 0        | 0       | 0  (CLEAN)
+----------|-------------|-------|---------|----------|---------|-----
+Total     | <sum>       | <sum> | <sum>   | <sum>    | <sum>   | <sum>
 ```
 
-If the final iteration's arbiter returned "clean":
+Mark any iteration with `summary.verdict == "clean"` with `(CLEAN)` at the end of its row.
+
+Add a **Total** row at the bottom summing all numeric columns.
+
+Then display the stop reason:
+
+If the final iteration's arbiter returned `summary.verdict == "clean"`:
 - Display: "All issues resolved after {N} iterations."
 
-If max iterations reached with remaining issues:
-- Display: "Remaining issues after 5 iterations:"
-- List the unresolved issues from the last iteration's `I0-quality.json`
-- Display: "These issues may require human judgment to resolve."
+If max iterations (5) reached with remaining issues (final verdict is NOT "clean"):
+- Display: "Max iterations (5) reached with remaining issues:"
+- List the unresolved issues from the last iteration's `I0-quality.json` `.issues[]` array (show `id`, `severity`, `description` for each)
+- Display: "These issues may require manual review to resolve."
