@@ -48,11 +48,11 @@ ken-cc-plugins/
 │   ├── ants/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
 │   │   ├── agents/                        # Agent definitions (20 agents)
-│   │   ├── commands/                      # Slash commands (swarm.md, pswarm.md, debug.md)
+│   │   ├── commands/                      # Slash commands (swarm.md, pswarm.md, debug.md, improve.md)
 │   │   ├── hooks/                         # Shell hooks (9 hooks)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, swarm.sh, dag.sh, circuit-breaker.sh, task-pool.sh, teams.sh, webhook.sh, lint.sh)
 │   │   ├── prompts/                       # Phase prompt templates (A0-A5)
-│   │   ├── skills/                        # swarm, workflow, debug
+│   │   ├── skills/                        # swarm, workflow, debug, improve
 │   │   ├── README.md                      # User-facing documentation
 │   │   └── CLAUDE.md                      # Ants-specific architecture docs
 │   ├── minions/

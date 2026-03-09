@@ -77,8 +77,8 @@
     {
       "name": "ants",
       "source": "./plugins/ants",
-      "description": "Coordinate swarm-based development with ant-colony task decomposition, parallel worker execution, adversarial sentinel review, and automatic loop-back for failed quality gates.",
-      "version": "0.4.6",
+      "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams delegate mode, dual-track build, adversarial review, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, teammate messaging, lint-on-save, HTTP webhooks, and opt-in WebSearch support",
+      "version": "0.5.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -86,7 +86,7 @@
       "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
-      "keywords": ["ants", "swarm", "workflow", "agent-teams", "delegate-mode", "dual-track", "colony"],
+      "keywords": ["ants", "swarm", "pswarm", "improve", "self-improvement", "workflow", "agents", "dual-track", "colony", "agent-teams", "delegate-mode"],
       "tags": ["swarm-execution", "parallel-workers", "adversarial-review", "task-decomposition", "dual-track-build", "claude-only", "colony-pattern"],
       "category": "workflow"
     }

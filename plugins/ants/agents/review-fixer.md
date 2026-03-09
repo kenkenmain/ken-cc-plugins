@@ -36,7 +36,7 @@ hooks:
   Stop:
     - hooks:
         - type: prompt
-          prompt: "Evaluate if the review-fixer has completed its work. This is a HARD GATE. Check ALL criteria: 1) All issues from state.reviewFix were addressed (fixed or explicitly marked as wont_fix with justification), 2) Each fix is minimal and targeted (not refactoring beyond scope), 3) Output JSON has required fields (fixedIssues, skippedIssues, summary), 4) No new issues were introduced by the fixes (fixer should not expand scope). Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if fixes are incomplete."
+          prompt: "Evaluate if the review-fixer has completed its work. This is a HARD GATE. Check ALL criteria: 1) All issues from the provided source (state.reviewFix or dispatch-specified file) were addressed (fixed or explicitly marked as wont_fix with justification), 2) Each fix is minimal and targeted (not refactoring beyond scope), 3) Output JSON has required fields (fixedIssues, skippedIssues, summary), 4) No new issues were introduced by the fixes (fixer should not expand scope). Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if fixes are incomplete."
           timeout: 30
 ---
 
