@@ -6,7 +6,7 @@ Internal architecture documentation for agents working within or alongside the k
 
 The kenken plugin provides a 4-stage iterative development workflow for Claude Code. It orchestrates structured software delivery through PLAN, IMPLEMENT, TEST (optional), and FINAL stages, each composed of sequential phases. The workflow leverages Codex MCP tools for review gates and supports configurable model selection, bug-fixer delegation, and git integration (commit or branch+PR).
 
-**Version:** 2.6.1
+**Version:** 2.6.2
 **Plugin manifest:** `.claude-plugin/plugin.json`
 **State file:** `.agents/kenken-state.json`
 **Config files:** `~/.claude/kenken-config.json` (global), `.claude/kenken-config.json` (project; overrides global)

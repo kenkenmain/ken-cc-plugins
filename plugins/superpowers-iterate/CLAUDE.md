@@ -15,7 +15,7 @@ The plugin supports two modes:
 
 ```
 plugins/superpowers-iterate/
-  .claude-plugin/plugin.json       # Manifest (v1.9.1)
+  .claude-plugin/plugin.json       # Manifest (v1.9.2)
   agents/
     codex-reviewer.md              # Codex MCP review specialist
   commands/
