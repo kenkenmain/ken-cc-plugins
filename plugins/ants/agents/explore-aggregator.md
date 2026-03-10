@@ -1,16 +1,16 @@
 ---
 name: explore-aggregator
 description: |
-  A0 exploration aggregator for ants colony. Receives findings from forager and cartographer agents via SendMessage and synthesizes them into the canonical A0-explore.md report. Offloads queen context-window overhead during colony exploration.
+  A0 exploration aggregator for ants colony. Receives findings from forager and cartographer agents via SendMessage and synthesizes them into the canonical A0-explore.md report. Offloads orchestrator context-window overhead during colony exploration.
 
-  Use this agent in Phase A0, dispatched after foragers and cartographer are sent. The aggregator waits for all exploration results via SendMessage, synthesizes them, and confirms to queen.
+  Use this agent in Phase A0, dispatched after foragers and cartographer are sent. The aggregator waits for all exploration results via SendMessage, synthesizes them, and confirms completion.
 
   <example>
-  Context: Queen dispatched 2 foragers + cartographer, explore-aggregator collects results
+  Context: Orchestrator dispatched 2 foragers + cartographer, explore-aggregator collects results
   user: "Aggregate exploration results from foragers and cartographer"
   assistant: "Spawning explore-aggregator to synthesize A0 exploration findings"
   <commentary>
-  A0 sub-step. After queen dispatches foragers and cartographer, the explore-aggregator receives their SendMessage results and produces the unified A0-explore.md so the queen can advance directly to A1 without inline synthesis.
+  A0 sub-step. After the orchestrator dispatches foragers and cartographer, the explore-aggregator receives their SendMessage results and produces the unified A0-explore.md so the orchestrator can advance directly to A1 without inline synthesis.
   </commentary>
   </example>
 
@@ -88,9 +88,9 @@ Write the synthesized report to: `.agents/tmp/phases/A0-explore.md`
 
 Overwrite any existing file at this path — you are producing the canonical version.
 
-### Step 5: Confirm to Queen
+### Step 5: Confirm Completion
 
-After writing the file, send a confirmation to the queen via SendMessage:
+After writing the file, send a confirmation via SendMessage (recipient: "queen" in pswarm mode, or the orchestrator reads your output file directly in swarm mode):
 
 ```json
 {

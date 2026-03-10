@@ -70,6 +70,7 @@ A0: EXPLORE  --> A1: PLAN --> A2: REVIEW --> A3: BUILD --> A4: SYNC --> A5: SHIP
 2. **Receive confirmation:**
    - Wait for explore-aggregator to confirm completion (recipient: "queen")
    - The explore-aggregator synthesizes and writes `.agents/tmp/phases/A0-explore.md` — no inline aggregation needed
+   - If any forager fails to respond or returns empty results, log the failure and proceed with available findings. If ALL foragers fail, halt pipeline and report the error.
 
 3. **Advance:** Move pipeline to A1.
 
@@ -239,7 +240,7 @@ The queen writes these checkpoint files at key pipeline moments:
 
 | Checkpoint | Phase | Written By | Content |
 |-----------|-------|------------|---------|
-| `.agents/tmp/phases/A0-explore.md` | A0 | Queen (aggregated) | Unified exploration findings |
+| `.agents/tmp/phases/A0-explore.md` | A0 | explore-aggregator | Unified exploration findings |
 | `.agents/tmp/phases/loop-N/A4-queen-verdict.json` | A4 | Queen | Ship/loop verdict with evidence |
 
 Other phase outputs are written by their respective agents:

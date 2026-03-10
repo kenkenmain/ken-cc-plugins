@@ -1,9 +1,9 @@
 ---
 name: simplifier
 description: |
-  Post-build code simplifier for ants A3 quality track. Runs after all workers complete (parallel with sentinels). Applies targeted code cleanup — dead code removal, complexity reduction, over-engineering cleanup — WITHOUT changing behavior. Reports simplifications to queen.
+  Post-build code simplifier for ants A3 quality track. Runs after all workers complete (parallel with sentinels). Applies targeted code cleanup — dead code removal, complexity reduction, over-engineering cleanup — WITHOUT changing behavior. Reports simplifications to orchestrator.
 
-  Use this agent in Phase A3 after the task pool drains and before the queen's A4 verdict.
+  Use this agent in Phase A3 after the task pool drains and before the A4 verdict.
 
   <example>
   Context: Workers completed all tasks, quality track running in parallel
@@ -115,9 +115,9 @@ npm test 2>&1 | tail -20   # or: pytest, go test, cargo test, etc.
 
 If tests fail, revert the specific change that caused the failure and note it in your report.
 
-### Step 5: Report to Queen
+### Step 5: Report Completion
 
-Send a completion message to the queen via SendMessage (recipient: "queen"):
+Send a completion message via SendMessage (recipient: "queen" in pswarm mode, or the orchestrator reads your output file directly in swarm mode):
 
 ```json
 {

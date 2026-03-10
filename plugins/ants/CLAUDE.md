@@ -7,7 +7,7 @@ Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track para
 ```
 plugins/ants/
 ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-├── agents/                        # Agent definitions (19 agents)
+├── agents/                        # Agent definitions (22 agents)
 │   ├── architect.md               # Plan writer with task assignments
 │   ├── blueprint-reviewer.md      # Plan validator
 │   ├── bug-scout.md               # Parallel bug investigator (debug D0)
@@ -125,7 +125,7 @@ WebSearch is opt-in. The `--web` CLI flag sets `webSearch: true` in state.json, 
 EXPLORE ──> PLAN ──> BUILD ──────────────> SHIP
   A0        A1,A2     A3                    A5
                        |
-                  queen evaluates
+                  orchestrator evaluates
                   (A4 internal)
                        |
                    verdict?
@@ -433,12 +433,12 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
   "teamName": "ants-<branch-slug>",
   "startedAt": "ISO timestamp",
   "schedule": [
-    {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "teams"},
-    {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "teams"},
-    {"phase": "A2", "stage": "PLAN", "label": "Blueprint Review", "type": "teams"},
-    {"phase": "A3", "stage": "BUILD", "label": "Dual-Track Execution", "type": "teams"},
-    {"phase": "A4", "stage": "SYNC", "label": "Verdict", "type": "teams"},
-    {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "teams"}
+    {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "agents"},
+    {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "agents"},
+    {"phase": "A2", "stage": "PLAN", "label": "Blueprint Review", "type": "agents"},
+    {"phase": "A3", "stage": "BUILD", "label": "Dual-Track Execution", "type": "agents"},
+    {"phase": "A4", "stage": "SYNC", "label": "Verdict", "type": "agents"},
+    {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "agents"}
   ],
   "phases": {
     "A0": {"status": "complete", "startedAt": "...", "completedAt": "..."},

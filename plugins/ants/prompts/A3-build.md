@@ -284,7 +284,7 @@ If a worker reports `blocked` or fails:
 If a sentinel fails to complete:
 - Log the failure
 - Arbiter consolidates from available sentinel outputs (partial review)
-- If all three sentinels fail, treat as blocked
+- If all four sentinels fail, treat as blocked
 
 ### Pool Stall
 

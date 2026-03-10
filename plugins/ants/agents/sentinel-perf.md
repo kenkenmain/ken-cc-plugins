@@ -10,7 +10,7 @@ description: |
   user: "Run performance review on wave 1 output"
   assistant: "Spawning sentinel-perf to check for N+1 queries, blocking I/O, and algorithmic complexity"
   <commentary>
-  A3 quality track, adversarial review. One of three specialist sentinels that run in parallel.
+  A3 quality track, adversarial review. One of four specialist sentinels that run in parallel.
   </commentary>
   </example>
 

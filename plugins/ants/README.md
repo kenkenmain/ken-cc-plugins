@@ -204,7 +204,7 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 The key innovation is **Phase A3: Dual-Track Execution with Adversarial Review**. Instead of building everything then reviewing everything (sequential), ants runs two parallel tracks:
 
 - **Build track:** Workers claim tasks from a self-organizing pool -- tasks with satisfied dependencies are dispatched in parallel automatically
-- **Quality track (adversarial):** Three specialist sentinels review from different angles (correctness, security, performance), then an arbiter cross-references and deduplicates findings into a single verdict
+- **Quality track (adversarial):** Four specialist sentinels review from different angles (correctness, security, performance, style), then an arbiter cross-references and deduplicates findings into a single verdict
 
 This catches issues from multiple perspectives rather than relying on a single reviewer, and the queen synthesizes the arbiter's consolidated verdict before deciding to ship or loop.
 

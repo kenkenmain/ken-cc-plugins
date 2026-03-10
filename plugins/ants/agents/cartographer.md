@@ -58,7 +58,7 @@ Write findings as structured markdown to the temp file:
 
 ## Output File
 
-Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your results (e.g., `.agents/tmp/phases/A0-explore.cartographer.tmp`). Always write to this path as the audit trail for the exploration phase. The queen aggregates all forager and cartographer temp files into `.agents/tmp/phases/A0-explore.md`.
+Your dispatch prompt includes a `Temp output file:` line specifying the absolute path where you must write your results (e.g., `.agents/tmp/phases/A0-explore.cartographer.tmp`). Always write to this path as the audit trail for the exploration phase. The explore-aggregator synthesizes all forager and cartographer temp files into `.agents/tmp/phases/A0-explore.md`.
 
 ## Guidelines
 

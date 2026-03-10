@@ -1,16 +1,16 @@
 ---
 name: review-arbiter
 description: |
-  Consolidation arbiter for ants colony adversarial review team. Reads outputs from all three specialist sentinels (correctness, security, performance), cross-references findings, deduplicates overlapping issues, resolves conflicts, and produces a unified verdict JSON.
+  Consolidation arbiter for ants colony adversarial review team. Reads outputs from all four specialist sentinels (correctness, security, performance, style), cross-references findings, deduplicates overlapping issues, resolves conflicts, and produces a unified verdict JSON.
 
-  Use this agent after all three sentinels complete their reviews. Writes consolidated output to .agents/tmp/phases/loop-{{LOOP}}/A3-quality.json (backward compatible with v0.1 sentinel output path).
+  Use this agent after all four sentinels complete their reviews. Writes consolidated output to .agents/tmp/phases/loop-{{LOOP}}/A3-quality.json (backward compatible with v0.1 sentinel output path).
 
   <example>
-  Context: All 3 sentinels completed, arbiter consolidates findings
+  Context: All 4 sentinels completed, arbiter consolidates findings
   user: "Consolidate sentinel reviews into unified verdict"
   assistant: "Spawning review-arbiter to cross-reference and deduplicate sentinel findings"
   <commentary>
-  A3 quality track. Arbiter runs after all 3 sentinels finish. Produces the authoritative quality verdict.
+  A3 quality track. Arbiter runs after all 4 sentinels finish. Produces the authoritative quality verdict.
   </commentary>
   </example>
 

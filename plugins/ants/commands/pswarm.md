@@ -31,7 +31,7 @@ Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer + explo
 Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md + A1-tasks.json
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
 Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + 4 sentinels + guardian + simplifier
-Phase A4  │ SYNC        │ Queen          │ merge build+quality → ship/loop verdict
+Phase A4  │ SYNC        │ Verdict        │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
 
 Loop: If A4 verdict is "loop" → back to A1 (max 5 inner loops per run)
@@ -116,7 +116,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
     {"phase":"A1","stage":"PLAN","label":"Architect Plan","type":"agents"},
     {"phase":"A2","stage":"PLAN","label":"Blueprint Review","type":"agents"},
     {"phase":"A3","stage":"BUILD","label":"Dual-Track Execution","type":"agents"},
-    {"phase":"A4","stage":"SYNC","label":"Queen Synchronization","type":"agents"},
+    {"phase":"A4","stage":"SYNC","label":"Verdict","type":"agents"},
     {"phase":"A5","stage":"SHIP","label":"Documentation + Ship","type":"agents"}
   ],
   "phases": {
@@ -171,7 +171,7 @@ Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + ex
 Phase A1  │ PLAN    │ Architect Plan        │ architect
 Phase A2  │ PLAN    │ Blueprint Review      │ blueprint-reviewer
 Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
-Phase A4  │ SYNC    │ Queen Synchronization │ queen (ship/loop verdict)
+Phase A4  │ SYNC    │ Verdict               │ orchestrator (ship/loop verdict)
 Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
 
 Max runs: <maxRuns> (--max-loops N to change)
@@ -198,7 +198,7 @@ Dispatch **in parallel** using the Agent tool:
 
 After all return, dispatch **1 explore-aggregator** (`subagent_type: "ants:explore-aggregator"`) to synthesize all forager and cartographer findings into `.agents/tmp/phases/A0-explore.md`.
 
-Update state: `phases.A0.status: "complete"`, `queenDispatched: true`.
+Update state: `phases.A0.status: "complete"`.
 
 ### Phase A1: Architect Plan
 
@@ -253,11 +253,11 @@ If the arbiter finds critical issues, dispatch **1 review-fixer** (`subagent_typ
 
 Update state: `phases.A3.status: "complete"`.
 
-### Phase A4: Queen Synchronization
+### Phase A4: Verdict
 
 Update state: `currentPhase: "A4"`, `phases.A4.status: "in_progress"`.
 
-Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
+Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. If A3-quality.json is missing, treat this as `issues_found` with verdict reason: "quality review incomplete". If A3-build.json is missing, halt with `status: "blocked"`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
 
 Note: pswarm uses orchestrator-driven dispatch (not queen-driven). The orchestrator evaluates the A4 verdict directly rather than dispatching a queen agent.
 
@@ -371,6 +371,6 @@ If this command fails (file missing, corrupt JSON, jq error), set `status: "bloc
 | A3 | review-arbiter | `ants:review-arbiter` |
 | A3 | review-fixer | `ants:review-fixer` |
 | A3 | guardian | `ants:guardian` |
-| A4 | queen | `ants:queen` |
+| A4 | orchestrator (internal) | -- |
 | A5 | nurse | `ants:nurse` |
 | A5 | drone | `ants:drone` |

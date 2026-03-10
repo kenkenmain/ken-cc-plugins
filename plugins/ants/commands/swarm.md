@@ -223,11 +223,13 @@ Update state: `phases.A2.status: "complete"`.
 
 Update state: `currentPhase: "A3"`, `phases.A3.status: "in_progress"`.
 
-**Build Track:** Read `.agents/tmp/phases/loop-<LOOP>/A1-tasks.json` to get the task list. For each task, dispatch a **worker agent** (`subagent_type: "ants:worker"`):
+**Build Track:** Read `.agents/tmp/phases/loop-<LOOP>/A1-tasks.json` to get the task list. If the file is missing or contains zero tasks, halt with `status: "blocked"` and error: "No implementation tasks found. Do not proceed to quality track with zero workers."
+
+For each task, dispatch a **worker agent** (`subagent_type: "ants:worker"`):
 - "Implement task <ID>: <description>. Files to modify: <files>. Dependencies: <deps>. Acceptance criteria: <criteria>. Self-verify your work (run tests/lint if applicable)."
 - Dispatch workers in parallel when their dependencies are satisfied. Wait for workers with no deps first, then dispatch dependent workers as their deps complete.
 
-After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`.
+After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`. If any worker agent fails or returns no output, set `all_complete: false` in A3-build.json and record the failure. The quality track should still run to review partial implementation.
 
 **Quality Track:** After all workers complete, dispatch **6 agents in parallel**:
 1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes for bugs, logic errors, missing error handling. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json"
@@ -249,7 +251,7 @@ Update state: `phases.A3.status: "complete"`.
 
 Update state: `currentPhase: "A4"`, `phases.A4.status: "in_progress"`.
 
-Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
+Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. If A3-quality.json is missing, treat this as `issues_found` with verdict reason: "quality review incomplete". If A3-build.json is missing, halt with `status: "blocked"`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
 
 Note: The orchestrator evaluates the A4 verdict directly rather than dispatching a separate agent.
 

@@ -63,7 +63,10 @@ teams_send_message() {
   local content="${3:?teams_send_message requires content}"
 
   # Persist the message in state.json for cross-phase retrieval
-  add_message "$from" "$to" "$content"
+  if ! add_message "$from" "$to" "$content"; then
+    echo "ERROR: Failed to persist message" >&2
+    return 1
+  fi
 
   # Emit structured JSON for hook consumers
   jq -n \
@@ -158,7 +161,8 @@ teams_add_a3_subtasks() {
   fi
 
   # Read architect's tasks and build sub-task descriptors
-  jq '
+  local subtasks_output
+  subtasks_output=$(jq '
     # Collect all worker task IDs
     [.[].id] as $worker_ids |
     ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style"] as $sentinel_names |
@@ -215,7 +219,20 @@ teams_add_a3_subtasks() {
       agentType: "ants:review-arbiter",
       blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-guardian", "A3-simplifier"]
     }]
-  ' "$tasks_file"
+  ' "$tasks_file" 2>/dev/null)
+
+  if [[ -z "$subtasks_output" ]]; then
+    teams_log "ERROR: jq failed to produce subtask descriptors from $tasks_file"
+    return 1
+  fi
+
+  # Validate output is a non-empty JSON array
+  if ! printf '%s' "$subtasks_output" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+    teams_log "ERROR: subtask output is not a non-empty JSON array"
+    return 1
+  fi
+
+  printf '%s\n' "$subtasks_output"
 }
 
 # ---------------------------------------------------------------------------
@@ -336,7 +353,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
       local known_agents='["queen","forager","cartographer","architect","blueprint-reviewer","worker","sentinel-correctness","sentinel-security","sentinel-perf","review-arbiter","review-fixer","guardian","nurse","drone"]'
-      formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo ""; })"
+      formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed — check .agents/tmp/state.json .messages array directly)"; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases
 ${formatted_messages}"
