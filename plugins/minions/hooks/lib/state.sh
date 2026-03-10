@@ -3,10 +3,19 @@
 # Source this from hook scripts: source "$SCRIPT_DIR/lib/state.sh"
 
 # Bootstrap: STATE_FILE, jq check, ERR trap
-set -euo pipefail
-_MINIONS_STATE_DIR="${BASH_SOURCE[0]%/*}/../../../../lib"
-[[ -f "$_MINIONS_STATE_DIR/common-state.sh" ]] || { echo "ERROR: cannot locate common-state.sh" >&2; exit 2; }
-source "$_MINIONS_STATE_DIR/common-state.sh"
+# Inlined from lib/common-state.sh — plugins run from cache directories where
+# relative paths to the repo root do not resolve.
+set -Eeuo pipefail
+
+STATE_FILE=".agents/tmp/state.json"
+
+if ! command -v jq &>/dev/null; then
+  echo "ERROR: jq is required but not installed" >&2
+  exit 2
+fi
+
+# Note: ERR trap does NOT fire for arithmetic expansion or set -u violations (bash limitation).
+trap 'echo "ERROR: ${BASH_SOURCE[0]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
 
 # Check if workflow is active and owned by this session.
 # Returns 0 if we should proceed, exits 0 (allow) if we should not.
@@ -148,7 +157,7 @@ update_state() {
     (
       flock -x -w 5 200 || {
         echo "ERROR: Could not acquire state lock after 5 seconds" >&2
-        exit 1
+        exit 2
       }
 
       _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
@@ -167,6 +176,8 @@ update_state() {
       fi
 
       # Check for stale lock
+      # Note: TOCTOU race window between check-remove-acquire is small;
+      # atomic mv at write time prevents state corruption regardless.
       if [[ -d "$lock_dir" ]]; then
         local lock_mtime
         if lock_mtime=$(lock_dir_mtime_epoch "$lock_dir"); then

@@ -3,10 +3,19 @@
 # Source this from hook scripts: source "$SCRIPT_DIR/lib/state.sh"
 
 # Bootstrap: STATE_FILE, jq check, ERR trap
-set -euo pipefail
-_ANTS_STATE_DIR="${BASH_SOURCE[0]%/*}/../../../../lib"
-[[ -f "$_ANTS_STATE_DIR/common-state.sh" ]] || { echo "ERROR: cannot locate common-state.sh" >&2; exit 2; }
-source "$_ANTS_STATE_DIR/common-state.sh"
+# Inlined from lib/common-state.sh — plugins run from cache directories where
+# relative paths to the repo root do not resolve.
+set -Eeuo pipefail
+
+STATE_FILE=".agents/tmp/state.json"
+
+if ! command -v jq &>/dev/null; then
+  echo "ERROR: jq is required but not installed" >&2
+  exit 2
+fi
+
+# Note: ERR trap does NOT fire for arithmetic expansion or set -u violations (bash limitation).
+trap 'echo "ERROR: ${BASH_SOURCE[0]:-unknown} failed at line ${BASH_LINENO[0]:-?} (exit code $?)" >&2; exit 2' ERR
 
 # Check if an ants workflow is active and owned by this session.
 # Returns 0 if we should proceed, exits 0 (allow) if we should not.
@@ -114,7 +123,7 @@ command -v flock &>/dev/null && _FLOCK_AVAILABLE=true
 # Locking strategy:
 #   - Uses flock when available (Linux, macOS with util-linux)
 #   - Falls back to mkdir-based locking on stock macOS (flock unavailable)
-#   - mkdir fallback includes stale lock detection (30s timeout)
+#   - mkdir fallback includes stale lock detection (5s timeout)
 update_state() {
   local args=()
   while [[ $# -gt 1 ]]; do
@@ -130,7 +139,7 @@ update_state() {
     (
       flock -x -w 5 200 || {
         echo "ERROR: Could not acquire state lock after 5 seconds" >&2
-        exit 1
+        exit 2
       }
 
       _update_state_inner "$timestamp" "$filter" "${args[@]+"${args[@]}"}"
@@ -149,6 +158,8 @@ update_state() {
       fi
 
       # Check for stale lock
+      # Note: TOCTOU race window between check-remove-acquire is small;
+      # atomic mv at write time prevents state corruption regardless.
       if [[ -d "$lock_dir" ]]; then
         local lock_mtime
         if lock_mtime=$(lock_dir_mtime_epoch "$lock_dir"); then
@@ -201,9 +212,15 @@ _update_state_inner() {
   trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' EXIT
 
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
-    mv "$tmp_file" "$STATE_FILE"
-    rm -f "$jq_err_file"
-    return 0
+    if jq empty "$tmp_file" 2>/dev/null; then
+      mv "$tmp_file" "$STATE_FILE"
+      rm -f "$jq_err_file"
+      return 0
+    else
+      echo "ERROR: State update produced invalid JSON" >&2
+      rm -f "$tmp_file" "$jq_err_file"
+      return 1
+    fi
   else
     local jq_err
     jq_err=$(cat "$jq_err_file" 2>/dev/null || echo "unknown error")
