@@ -1,6 +1,6 @@
 # ants
 
-Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the orchestrator decides to ship or loop. Features a social swarm mode with competing architects and reviewers. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
+Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while eight specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the orchestrator decides to ship or loop. Features a social swarm mode with competing personality architects, adversarial blueprint reviewers, and competing brainstormers. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
 
 ## Installation
 
@@ -59,9 +59,13 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
        |                 sentinel-security (OWASP, injection)
        |                 sentinel-perf (N+1, blocking I/O)
        |                 sentinel-style (readability, dead code)
+       |                 sentinel-accessibility (ARIA, keyboard, contrast)
+       |                 sentinel-observability (logging, metrics, tracing)
+       |                 sentinel-api-contracts (API surface, backward compat)
+       |                 sentinel-data-integrity (consistency, validation)
        |               simplifier applies code cleanup
        |               guardian writes + runs tests
-       |               review-arbiter consolidates findings
+       |               review-arbiter consolidates findings (all 8 domains)
        |
   A4 Queen Sync       reads arbiter verdict, decides: ship or loop
       / \                (circuit breaker aware)
@@ -72,30 +76,38 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
 
 ## Social Swarm Pipeline
 
-`/ants:sswarm` extends swarm with **competing parallel agents**. Instead of one architect and one reviewer, sswarm dispatches three of each — and dedicated lead agents consolidate their outputs:
+`/ants:sswarm` extends swarm with **competing parallel agents** across brainstorming, planning, and review phases. Instead of single agents, sswarm dispatches multiple personality agents — and dedicated lead agents consolidate their outputs:
 
 ```
-  A0 Explore         same as swarm
+  A0 Explore         same as swarm, plus:
+       |             brainstorm-lead (lead, background)
+  A0 Brainstorm      brainstormer-pragmatist ──\
+                     brainstormer-perfectionist -+─SendMessage──→ brainstorm-lead
+                     brainstormer-adversarial ──/  brainstorm-lead synthesizes A0-brainstorm.md
        |
   A1 Competing       plan-arbiter (lead, background)
-     Architects      architect ×3 (parallel) ──SendMessage──→ plan-arbiter
-       |             plan-arbiter selects/merges best plan
+     Architects      architect-conservative ──\
+                     architect-bold            +─SendMessage──→ plan-arbiter
+                     architect-security-first ─/  plan-arbiter selects/merges best plan
+       |
   A2 Competing       review-lead (lead, background)
-     Reviews         blueprint-reviewer ×3 ──SendMessage──→ review-lead
-       |             review-lead consolidates verdicts
+     Reviews         blueprint-reviewer-skeptic ──\
+                     blueprint-reviewer-advocate   +─SendMessage──→ review-lead
+                     blueprint-reviewer-pragmatist ─/  review-lead consolidates verdicts
+       |
   A3-A5              same as swarm
 ```
 
 | Phase | Agent(s) | Lead? |
 |-------|----------|-------|
-| A0 | foragers + cartographer + explore-aggregator | explore-aggregator |
-| A1 | architect ×3 | plan-arbiter |
-| A2 | blueprint-reviewer ×3 | review-lead |
-| A3 | workers + sentinels + guardian + simplifier | review-arbiter |
+| A0 | foragers + cartographer + explore-aggregator + 3 brainstormers | brainstorm-lead |
+| A1 | architect-conservative + architect-bold + architect-security-first | plan-arbiter |
+| A2 | blueprint-reviewer-skeptic + blueprint-reviewer-advocate + blueprint-reviewer-pragmatist | review-lead |
+| A3 | workers + 8 sentinels + guardian + simplifier | review-arbiter |
 | A4 | orchestrator (internal) | — |
 | A5 | nurse + drone | drone |
 
-**Choose sswarm when:** Your task benefits from diverse planning perspectives — multiple architects explore different approaches, and the plan-arbiter selects the strongest design. Good for complex features where the "right approach" isn't obvious.
+**Choose sswarm when:** Your task benefits from diverse perspectives at every stage — competing brainstormers explore different approaches, personality architects design with different philosophies, and adversarial reviewers validate the plan from different angles. Good for complex features where the "right approach" isn't obvious.
 
 **Choose swarm when:** You want a faster, leaner pipeline with a single architect and reviewer. Better for well-understood tasks.
 
@@ -158,6 +170,15 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 **Choose improve when:** You have existing code that works but want to systematically clean up all issues across correctness, security, and performance. Unlike swarm (which builds new features) or debug (which investigates specific bugs), improve focuses purely on iterating review-fix cycles until the code is clean.
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
+
+### What's New in v0.5.7
+
+- **4 new specialist sentinels** — The quality track now runs 8 sentinels in parallel (up from 4): `sentinel-accessibility` (ARIA, keyboard nav, color contrast, screen reader compat), `sentinel-observability` (logging gaps, missing metrics, trace coverage), `sentinel-api-contracts` (API surface changes, backward compatibility, versioning), `sentinel-data-integrity` (data consistency, validation gaps, persistence correctness). All 8 sentinels are handled by the review-arbiter.
+- **Personality brainstormers (sswarm A0)** — Three competing brainstormers with distinct philosophies: `brainstormer-pragmatist` (ship-fast, reuse-first), `brainstormer-perfectionist` (thorough design, extensibility), `brainstormer-adversarial` (stress-tests assumptions, failure modes). The `brainstorm-lead` evaluates proposals on 4 criteria and writes the canonical A0-brainstorm.md.
+- **Personality architects (sswarm A1)** — Three competing architects replace the generic architect in sswarm: `architect-conservative` (minimal-change, proven patterns), `architect-bold` (ambitious design, greenfield solutions), `architect-security-first` (security-driven, threat modeling). Each sends its plan to the plan-arbiter for selection/synthesis.
+- **Adversarial blueprint reviewers (sswarm A2)** — Three adversarial reviewers replace the generic blueprint-reviewer in sswarm: `blueprint-reviewer-skeptic` (disputes assumptions, demands evidence), `blueprint-reviewer-advocate` (constructive, amplifies plan strengths), `blueprint-reviewer-pragmatist` (implementation-focused, tradeoff-aware). All findings consolidated by review-lead.
+- **Personality workers** — Three worker variants for future routing: `worker-defensive` (guard clauses, input validation, edge case coverage), `worker-minimal` (smallest possible diff), `worker-test-first` (TDD: tests written before implementation).
+- **41 agents** (up from 24) — 17 new agent files added across brainstormers, architects, blueprint reviewers, workers, and sentinels.
 
 ### What's New in v0.5.6
 
@@ -253,7 +274,7 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 The key innovation is **Phase A3: Dual-Track Execution with Adversarial Review**. Instead of building everything then reviewing everything (sequential), ants runs two parallel tracks:
 
 - **Build track:** Workers claim tasks from a self-organizing pool -- tasks with satisfied dependencies are dispatched in parallel automatically
-- **Quality track (adversarial):** Four specialist sentinels review from different angles (correctness, security, performance, style), then an arbiter cross-references and deduplicates findings into a single verdict
+- **Quality track (adversarial):** Eight specialist sentinels review from different angles (correctness, security, performance, style, accessibility, observability, API contracts, data integrity), then an arbiter cross-references and deduplicates findings into a single verdict
 
 This catches issues from multiple perspectives rather than relying on a single reviewer, and the queen synthesizes the arbiter's consolidated verdict before deciding to ship or loop.
 
@@ -264,29 +285,56 @@ This catches issues from multiple perspectives rather than relying on a single r
 | forager | Breadth-first codebase scout (x2-4) | haiku | A0 |
 | cartographer | Deep architecture tracer | sonnet | A0 |
 | explore-aggregator | Synthesizes forager+cartographer results into A0-explore.md | sonnet | A0 |
+| **Brainstormer personalities (sswarm A0)** | | | |
+| brainstormer-pragmatist | Ship-fast approaches; reuses existing code, minimal scope | sonnet | A0 sswarm |
+| brainstormer-perfectionist | Thorough design; extensibility, complete coverage | sonnet | A0 sswarm |
+| brainstormer-adversarial | Stress-tests assumptions, finds failure modes, proposes defensive alternatives | sonnet | A0 sswarm |
+| brainstorm-lead | Consolidates competing brainstormer proposals (evaluates feasibility, scope, alignment, risk) | sonnet | A0 sswarm |
+| **Planning** | | | |
 | architect | Plans implementation with task assignments | sonnet | A1 |
+| **Personality architects (sswarm A1)** | | | |
+| architect-conservative | Minimal-change plans; proven patterns, incremental evolution | sonnet | A1 sswarm |
+| architect-bold | Ambitious design; greenfield solutions, bold architecture | sonnet | A1 sswarm |
+| architect-security-first | Security-driven planning; threat modeling, defense-in-depth | sonnet | A1 sswarm |
+| plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best | sonnet | A1 sswarm |
+| **Review** | | | |
 | blueprint-reviewer | Validates plan completeness and task logic | sonnet | A2 |
+| **Adversarial blueprint reviewers (sswarm A2)** | | | |
+| blueprint-reviewer-skeptic | Disputes assumptions, demands evidence, stress-tests feasibility | sonnet | A2 sswarm |
+| blueprint-reviewer-advocate | Constructive reviewer, finds what works, amplifies plan strengths | sonnet | A2 sswarm |
+| blueprint-reviewer-pragmatist | Implementation-focused, tradeoff-aware, identifies practical gaps | sonnet | A2 sswarm |
+| review-lead | A2 lead: consolidates competing blueprint review verdicts | sonnet | A2 sswarm |
+| **Build** | | | |
 | worker | Implements a single task (x1 per task) | inherit | A3 build |
+| **Personality workers** | | | |
+| worker-defensive | Guard clauses, input validation, edge case coverage | sonnet | A3 build |
+| worker-minimal | Smallest possible diff, conservative changes | sonnet | A3 build |
+| worker-test-first | TDD: tests written before implementation | sonnet | A3 build |
+| **Quality (8 specialist sentinels)** | | | |
 | sentinel-correctness | Bugs, logic errors, error handling | sonnet | A3 quality, I0 |
 | sentinel-security | OWASP, injection, secrets, access control | sonnet | A3 quality, I0 |
 | sentinel-perf | N+1 queries, blocking I/O, complexity | sonnet | A3 quality, I0 |
 | sentinel-style | Code style, readability, maintainability | sonnet | A3 quality |
+| sentinel-accessibility | ARIA, keyboard navigation, color contrast, screen reader compat | sonnet | A3 quality |
+| sentinel-observability | Logging gaps, missing metrics, trace coverage, alerting blindspots | sonnet | A3 quality |
+| sentinel-api-contracts | API surface changes, backward compatibility, versioning violations | sonnet | A3 quality |
+| sentinel-data-integrity | Data consistency, validation gaps, persistence correctness | sonnet | A3 quality |
 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | A3 quality |
-| review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality, I0 |
+| review-arbiter | Consolidates adversarial sentinel findings from all 8 domains | sonnet | A3 quality, I0 |
 | review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
 | guardian | Test writer and runner for quality track | sonnet | A3 quality |
-| plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | A1 |
+| **Orchestration & Ship** | | | |
 | queen | Persistent central dispatcher — drives A0→A5 via SendMessage, evaluates A4 verdict internally | sonnet | A0-A5 |
-| review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | A2 |
 | nurse | Updates documentation | sonnet | A5 |
 | drone | Commits and opens PR | inherit | A5 |
+| **Debug pipeline** | | | |
 | bug-scout | Parallel bug investigator (×3) | haiku | D0 |
 | solution-proposer | Proposes one specific fix approach (×3) | sonnet | D1 |
 | solution-aggregator | Ranks and selects best fix | sonnet | D2 |
 | fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 24 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
+All 41 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
 
 ## How It Works
 
@@ -308,14 +356,18 @@ Build Track                    Quality Track (Adversarial + Cleanup)
 -----------                    ------------------------------------
 Task pool workers (parallel)
     |
-    pool drained ----------->  sentinel-correctness  \
-                                sentinel-security      \
-                                sentinel-perf           } parallel
-                                sentinel-style         /
-                                guardian              /
-                                simplifier           /
+    pool drained ----------->  sentinel-correctness    \
+                                sentinel-security        \
+                                sentinel-perf             \
+                                sentinel-style             } parallel
+                                sentinel-accessibility    /
+                                sentinel-observability   /
+                                sentinel-api-contracts  /
+                                sentinel-data-integrity /
+                                guardian               /
+                                simplifier            /
                                     |
-                                review-arbiter (consolidate all 6)
+                                review-arbiter (consolidate all 10)
                                     |
                                A3-quality.json
     |                               |
@@ -326,7 +378,7 @@ Task pool workers (parallel)
 
 Workers claim tasks from the pool as dependencies are satisfied. Each worker implements exactly one task, self-verifies (tests, lint, typecheck), and reports results. Workers cannot use git (blocked by hook).
 
-After all workers complete, six agents run in parallel: four specialist sentinels review from different angles (correctness, security, performance, style), the guardian writes and runs tests, and the simplifier applies structural code cleanup without behavioral changes. The review-arbiter then consolidates all sentinel findings into a single A3-quality.json.
+After all workers complete, ten agents run in parallel: eight specialist sentinels review from different angles (correctness, security, performance, style, accessibility, observability, API contracts, data integrity), the guardian writes and runs tests, and the simplifier applies structural code cleanup without behavioral changes. The review-arbiter then consolidates all sentinel findings into a single A3-quality.json.
 
 ### Circuit Breaker
 
@@ -350,9 +402,9 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 |---|-----------|---------------------|
 | Phases | 6 (A0-A5) | 15 (S0-S14) |
 | Build model | Task pool + adversarial review teams | Sequential with review-fix cycles |
-| Review style | 4 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
+| Review style | 8 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
 | Loop type | Queen verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
-| Agents | 24 colony-themed | 26+ generic |
+| Agents | 41 colony-themed | 26+ generic |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Best for | Medium complexity tasks | Complex tasks needing thorough coverage |
 | Theme | Ant colony | Minions |

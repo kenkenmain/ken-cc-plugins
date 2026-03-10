@@ -1,7 +1,7 @@
 {
   "name": "ants",
-  "version": "0.5.6",
-  "description": "Ant-colony themed swarm workflow with social swarm (sswarm) featuring competing parallel agents and per-phase lead consolidators, persistent pswarm mode, direct orchestrator-driven dispatch, dual-track build, adversarial review (4 specialist sentinels: correctness, security, perf, style), post-build simplifier, A0 explore-aggregator, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
+  "version": "0.5.7",
+  "description": "Ant-colony swarm workflow with 6 phases (explore→plan→build→quality→verdict→ship), five pipeline variants (swarm, sswarm, pswarm, debug, improve), dual-track build with 8 specialist sentinels, competing agents with per-phase lead consolidators (sswarm), and direct orchestrator-driven dispatch",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"

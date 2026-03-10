@@ -160,9 +160,21 @@ handle_a3_sentinel() {
 
   # Validate sentinel name against allowlist to prevent arbitrary file writes
   local sentinel_name
-  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel-(correctness|security|perf|style)' | head -1 | tr '[:upper:]' '[:lower:]' || echo "")
+  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel-(correctness|security|perf|style|accessibility|observability|api-contracts|data-integrity)' | head -1 | tr '[:upper:]' '[:lower:]' || echo "")
   if [[ -z "$sentinel_name" ]]; then
-    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, or sentinel-style."
+    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style, sentinel-accessibility, sentinel-observability, sentinel-api-contracts, or sentinel-data-integrity."
+    exit 2
+  fi
+
+  # Validate sentinel output JSON exists and is valid before accepting completion
+  local sentinel_output_file
+  sentinel_output_file="${phases_dir}/A3-review.${sentinel_name}.json"
+  if [[ ! -f "$sentinel_output_file" ]]; then
+    teams_reject_completion "${sentinel_name} output file not found at ${sentinel_output_file}. Sentinel must write review output before completing."
+    exit 2
+  fi
+  if ! validate_json_file "$sentinel_output_file" "A3-review.${sentinel_name}.json"; then
+    teams_reject_completion "${sentinel_name} output file is invalid JSON: ${sentinel_output_file}"
     exit 2
   fi
 
@@ -171,11 +183,13 @@ handle_a3_sentinel() {
   touch "$marker_file"
   teams_log "${sentinel_name} completed, marker written to ${marker_file}"
 
-  # Check if all four sentinels are done
-  if [[ -f "${phases_dir}/.sentinel-correctness.done" ]] \
-     && [[ -f "${phases_dir}/.sentinel-security.done" ]] \
-     && [[ -f "${phases_dir}/.sentinel-perf.done" ]] \
-     && [[ -f "${phases_dir}/.sentinel-style.done" ]]; then
+  # Check if all eight sentinels are done
+  local all_done=true
+  local s
+  for s in correctness security perf style accessibility observability api-contracts data-integrity; do
+    [[ -f "${phases_dir}/.sentinel-${s}.done" ]] || { all_done=false; break; }
+  done
+  if [[ "$all_done" == "true" ]]; then
     teams_log "All sentinels complete, arbiter can proceed"
   fi
 }

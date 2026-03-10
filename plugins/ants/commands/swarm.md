@@ -29,7 +29,7 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md + A1-tasks.json
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + 8 sentinels + guardian + simplifier
 Phase A4  │ SYNC        │ Verdict        │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
 
@@ -163,7 +163,7 @@ Ants Swarm — 6-Phase Pipeline
 Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN    │ Architect Plan        │ architect
 Phase A2  │ PLAN    │ Blueprint Review      │ blueprint-reviewer
-Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
+Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 8 sentinels + guardian + simplifier
 Phase A4  │ SYNC    │ Verdict               │ orchestrator (ship/loop verdict)
 Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
 
@@ -231,16 +231,20 @@ For each task, dispatch a **worker agent** (`subagent_type: "ants:worker"`):
 
 After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`. If any worker agent fails or returns no output, set `all_complete: false` in A3-build.json and record the failure. The quality track should still run to review partial implementation.
 
-**Quality Track:** After all workers complete, dispatch **6 agents in parallel**:
+**Quality Track:** After all workers complete, dispatch **10 agents in parallel**:
 1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes for bugs, logic errors, missing error handling. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json"
 2. `subagent_type: "ants:sentinel-security"` — "Review all changes for security vulnerabilities (OWASP top 10, injection, secrets). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-security.json"
 3. `subagent_type: "ants:sentinel-perf"` — "Review all changes for performance issues (N+1 queries, blocking I/O, complexity). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-perf.json"
 4. `subagent_type: "ants:sentinel-style"` — "Review all changes for code style, readability, and maintainability. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-style.json"
-5. `subagent_type: "ants:guardian"` — write tests for implemented code
-6. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
+5. `subagent_type: "ants:sentinel-accessibility"` — "Review all changes for accessibility issues (ARIA, keyboard nav, contrast, semantic HTML). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-accessibility.json"
+6. `subagent_type: "ants:sentinel-observability"` — "Review all changes for observability issues (logging, metrics, traces, health checks). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-observability.json"
+7. `subagent_type: "ants:sentinel-api-contracts"` — "Review all changes for API contract issues (versioning, breaking changes, schema validation). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-api-contracts.json"
+8. `subagent_type: "ants:sentinel-data-integrity"` — "Review all changes for data integrity issues (validation, migration safety, transactions). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-data-integrity.json"
+9. `subagent_type: "ants:guardian"` — write tests for implemented code
+10. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
 
-After all 6 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
-- "Read all sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-*.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
+After all 10 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
+- "Read all 8 sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json, A3-review.sentinel-security.json, A3-review.sentinel-perf.json, A3-review.sentinel-style.json, A3-review.sentinel-accessibility.json, A3-review.sentinel-observability.json, A3-review.sentinel-api-contracts.json, and A3-review.sentinel-data-integrity.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
 
 If the arbiter finds critical issues, dispatch **1 review-fixer** (`subagent_type: "ants:review-fixer"`):
 - "Read issues from .agents/tmp/phases/loop-<LOOP>/A3-quality.json and apply targeted fixes."
@@ -337,6 +341,10 @@ Current phase: <.currentPhase>
 | A3 | sentinel-security | `ants:sentinel-security` |
 | A3 | sentinel-perf | `ants:sentinel-perf` |
 | A3 | sentinel-style | `ants:sentinel-style` |
+| A3 | sentinel-accessibility | `ants:sentinel-accessibility` |
+| A3 | sentinel-observability | `ants:sentinel-observability` |
+| A3 | sentinel-api-contracts | `ants:sentinel-api-contracts` |
+| A3 | sentinel-data-integrity | `ants:sentinel-data-integrity` |
 | A3 | simplifier | `ants:simplifier` |
 | A3 | review-arbiter | `ants:review-arbiter` |
 | A3 | review-fixer | `ants:review-fixer` |
