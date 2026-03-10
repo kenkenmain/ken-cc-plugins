@@ -43,6 +43,17 @@ Debug variant: Explore -> Propose -> Aggregate -> Implement -> Review -> Documen
 claude plugin install ./plugins/subagents
 ```
 
+## Dependencies
+
+This plugin is **fully self-contained** with no required external plugin dependencies.
+
+The brainstormer agent (Phase 1.1) was previously dependent on the `superpowers-iterate` plugin
+for its `brainstorming` skill. As of v5, the brainstormer is self-contained and performs
+standalone analysis and approach design using only built-in tools.
+
+**Optional:** Codex MCP (`codex-high`) enhances review phases but is not required.
+The plugin automatically falls back to Claude-based reviewers when Codex is unavailable.
+
 ## Commands
 
 ### `/subagents:init <task>`

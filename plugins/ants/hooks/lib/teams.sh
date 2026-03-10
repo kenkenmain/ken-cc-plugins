@@ -85,6 +85,15 @@ teams_send_message() {
 # ---------------------------------------------------------------------------
 # teams_create_phase_tasks
 # ---------------------------------------------------------------------------
+# LEGACY: This function creates a 'queen-pipeline' TaskCreate entry for the
+# Agent Teams delegate mode. In the current orchestrator-driven swarm/pswarm
+# path (v0.5+), there is NO corresponding TaskCompleted handler for the
+# queen-pipeline task -- the orchestrator dispatches agents directly via the
+# Agent tool and drives phase transitions itself, bypassing TaskCreate
+# entirely. This function is only valid in Agent Teams delegate mode where
+# the queen agent processes task completions via TeammateIdle/TaskCompleted
+# hooks. Kept for potential Agent Teams reactivation.
+# ---------------------------------------------------------------------------
 # Creates a SINGLE queen pipeline task for the orchestrator. The queen drives
 # all phases (A0 through A5) internally via SendMessage, rather than creating
 # a 6-task chain with blockedBy dependencies.
@@ -352,7 +361,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     messages_json="$(get_messages_for "$phase_agent")"
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
-      local known_agents='["queen","forager","cartographer","architect","blueprint-reviewer","worker","sentinel-correctness","sentinel-security","sentinel-perf","review-arbiter","review-fixer","guardian","nurse","drone"]'
+      local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","drone","explore-aggregator","fix-worker","forager","guardian","nurse","queen","review-arbiter","review-fixer","sentinel-correctness","sentinel-perf","sentinel-security","sentinel-style","simplifier","solution-aggregator","solution-proposer","worker"]'
       formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed — check .agents/tmp/state.json .messages array directly)"; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases

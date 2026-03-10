@@ -87,7 +87,7 @@ ken-cc-plugins/
 │   │   ├── skills/                        # iterate, iterate-status, iterate-resume, iterate-configure, gh-repo-setup
 │   │   └── README.md
 ├── lib/
-│   └── common-state.sh                    # Shared bootstrap (flock/mkdir lock probe, macOS/Linux compat)
+│   └── common-state.sh                    # DEPRECATED since v0.5.3/v0.15.3 — bootstrap logic inlined into each plugin's state.sh
 ├── docs/
 │   └── cookbook.md                        # Plugin developer cookbook
 ├── .agents/                               # Runtime state (gitignored)
@@ -423,7 +423,7 @@ Event-specific fields go in `hookSpecificOutput`:
 - `set -euo pipefail` at top of every script
 - `local var; var="$(cmd)"` not `local var="$(cmd)"` (avoids masking exit codes)
 - Always run `bash -n <script>` after modifying shell scripts
-- Source plugin-local libs from `$SCRIPT_DIR/lib/`; source cross-plugin bootstrap from `lib/common-state.sh` (provides flock/mkdir lock probe, macOS/Linux `stat` compatibility)
+- Source plugin-local libs from `$SCRIPT_DIR/lib/`; do NOT source `lib/common-state.sh` (deprecated since v0.5.3 — bootstrap logic is now inlined into each plugin's own `state.sh`)
 
 ## Workflow Learnings
 

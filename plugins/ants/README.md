@@ -125,6 +125,14 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
 
+### What's New in v0.5.5
+
+- **`task_id` regex fix** — `on-task-completed.sh` now anchors the `task_id` fallback regex with `BASH_REMATCH`, preventing false positive matches on agent names that are substrings of other names (e.g., `worker` matching `review-fixer` worker tasks).
+- **`known_agents` allowlist expanded** — `teams.sh` now explicitly allows all current agents: `sentinel-style`, `explore-aggregator`, `simplifier`, `bug-scout`, `fix-worker`, `solution-aggregator`, `solution-proposer`. Previously these agents could be rejected by the allowlist guard despite being valid ants agents.
+- **A2 verdict field standardized** — `on-task-completed.sh` A2 gate reads `.status` only (the canonical field). The stale `.verdict` fallback that referenced the old field name has been removed.
+- **LEGACY comments** — `handle_a4_verdict()` in `swarm.sh`, `handle_a3_aggregate()` in `on-task-completed.sh`, and `teams_create_phase_tasks()` in `teams.sh` are marked as LEGACY stubs retained for backward compatibility with pre-v0.5.1 state files.
+- **`lib/common-state.sh` marked DEPRECATED** — The shared bootstrap file is no longer sourced by any plugin. Bootstrap logic has been inlined into each plugin's own `state.sh` to fix path resolution failures when plugins run from the Claude plugin cache.
+
 ### What's New in v0.5.4
 
 - **`sentinel-style`** — Fourth specialist sentinel in the A3 quality track. Reviews code for style and maintainability issues: excessive nesting (arrow code), magic numbers, overly long functions, dead code, poor naming conventions. Runs in parallel with correctness/security/perf sentinels. Sends findings to review-arbiter.

@@ -4,6 +4,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HOOKS_DIR="$SCRIPT_DIR"
 TEST_DIR="$(mktemp -d)"
 ORIG_DIR="$(pwd)"
 PASS=0
@@ -141,15 +142,16 @@ TASKS
 
 subtasks=$(teams_add_a3_subtasks ".agents/tmp/phases/loop-1/A1-tasks.json")
 subtask_count=$(echo "$subtasks" | jq 'length')
-assert_eq "creates worker + sentinel + guardian + arbiter tasks" "7" "$subtask_count"
+# 2 workers + 4 sentinels (correctness, security, perf, style) + 1 guardian + 1 simplifier + 1 arbiter = 9
+assert_eq "creates 9 subtasks: 2 workers + 4 sentinels + guardian + simplifier + arbiter" "9" "$subtask_count"
 
 # Check worker tasks
 worker_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId | startswith("A3-worker"))] | length')
 assert_eq "2 worker tasks" "2" "$worker_count"
 
-# Check sentinel tasks
+# Check sentinel tasks (4 specialist sentinels: correctness, security, perf, style)
 sentinel_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId | startswith("A3-sentinel"))] | length')
-assert_eq "3 sentinel tasks" "3" "$sentinel_count"
+assert_eq "4 sentinel tasks (correctness, security, perf, style)" "4" "$sentinel_count"
 
 # Check guardian task
 guardian_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-guardian")] | length')
@@ -181,6 +183,77 @@ if teams_add_a3_subtasks "/nonexistent/file.json" 2>/dev/null; then
 else
   PASS=$((PASS + 1)); echo "  PASS: rejects missing file"
 fi
+
+# Check simplifier task is present (T1: added to known subtask set)
+simplifier_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-simplifier")] | length')
+assert_eq "1 simplifier task" "1" "$simplifier_count"
+
+# Check sentinel-style is one of the four sentinels (T1: sentinel-style added)
+style_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-sentinel-style")] | length')
+assert_eq "A3-sentinel-style task present" "1" "$style_count"
+
+# Arbiter blockedBy must include A3-sentinel-style (T1: sentinel-style wired in)
+arbiter_blocked=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-arbiter") | .blockedBy | join(",")')
+if echo "$arbiter_blocked" | grep -q "A3-sentinel-style"; then
+  PASS=$((PASS + 1)); echo "  PASS: arbiter blocked by A3-sentinel-style"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: arbiter missing A3-sentinel-style dependency (got: $arbiter_blocked)"
+fi
+
+# Arbiter blockedBy must include A3-simplifier (T1: simplifier wired in)
+if echo "$arbiter_blocked" | grep -q "A3-simplifier"; then
+  PASS=$((PASS + 1)); echo "  PASS: arbiter blocked by A3-simplifier"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: arbiter missing A3-simplifier dependency (got: $arbiter_blocked)"
+fi
+
+# =========================================================================
+echo "=== known_agents allowlist in teams_build_teammate_prompt (T1) ==="
+
+setup
+# Add a message from sentinel-style and explore-aggregator to test allowlist
+jq '.messages = [
+  {"from": "sentinel-style",     "to": "architect", "loop": 1, "content": "Style OK"},
+  {"from": "explore-aggregator", "to": "architect", "loop": 1, "content": "Explored"},
+  {"from": "unknown-bot",        "to": "architect", "loop": 1, "content": "Spam"}
+]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+
+prompt=$(teams_build_teammate_prompt "A1")
+
+# sentinel-style should appear by name (it is in known_agents)
+if echo "$prompt" | grep -q "From sentinel-style"; then
+  PASS=$((PASS + 1)); echo "  PASS: sentinel-style appears as named sender"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: sentinel-style missing from prompt messages"
+fi
+
+# explore-aggregator should appear by name (it is in known_agents)
+if echo "$prompt" | grep -q "From explore-aggregator"; then
+  PASS=$((PASS + 1)); echo "  PASS: explore-aggregator appears as named sender"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: explore-aggregator missing from prompt messages"
+fi
+
+# unknown sender should be redacted to 'unknown'
+if echo "$prompt" | grep -q "From unknown"; then
+  PASS=$((PASS + 1)); echo "  PASS: unknown sender redacted to 'unknown'"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: unknown sender not redacted"
+fi
+
+# =========================================================================
+echo "=== bash -n syntax check on modified scripts ==="
+
+# HOOKS_DIR is captured at the top of the file (before any setup() cd calls)
+for script in \
+    "$HOOKS_DIR/lib/teams.sh" \
+    "$HOOKS_DIR/on-task-completed.sh"; do
+  if bash -n "$script" 2>/dev/null; then
+    PASS=$((PASS + 1)); echo "  PASS: bash -n $(basename "$script")"
+  else
+    FAIL=$((FAIL + 1)); echo "  FAIL: syntax error in $(basename "$script")"
+  fi
+done
 
 # =========================================================================
 echo ""

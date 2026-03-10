@@ -235,9 +235,9 @@ When the circuit breaker trips, the workflow halts with status `blocked` and req
 
 Library: `hooks/lib/circuit-breaker.sh`
 
-## Agent Teams (v0.3)
+## Agent Teams Helpers
 
-Ants v0.3 uses Agent Teams delegate mode exclusively. The `hooks/lib/teams.sh` library provides:
+In v0.5.x the orchestrator drives all phase transitions directly via the Agent tool. The `hooks/lib/teams.sh` library provides hooks and helpers for this orchestrator-driven pipeline (the original Agent Teams delegate mode functions are retained as legacy stubs):
 
 - `teams_create_phase_tasks()` -- Creates TaskCreate entries for A0→A5 with dependency chains
 - `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes sentinel-style; arbiter blockedBy includes all 4 sentinels + guardian + simplifier)
@@ -266,7 +266,7 @@ Eight hooks support the workflow. The orchestrator drives all phase transitions 
 - Phase-specific quality gates:
   - A0: A0-explore.md exists → advance to A1
   - A1: A1-plan.md exists → advance to A2 (checks A1-tasks.json for A3 sub-tasks)
-  - A2: Review verdict — needs_revision with HIGH → loop to A1; else → A3. Note: `.status` is the canonical verdict field in A2-review.json. The hook reads `.verdict` as a backward-compatibility fallback.
+  - A2: Review verdict — needs_revision with HIGH → loop to A1; else → A3. `.status` is the sole canonical verdict field in A2-review.json.
   - A3: Workers update task pool, sentinels write markers, arbiter consolidates
   - A4: Parse queen verdict — clean → A5, issues_found → loop to A1
   - A5: A5-ship.json with commit_sha → workflow DONE (swarm) or reset to A0 (pswarm)

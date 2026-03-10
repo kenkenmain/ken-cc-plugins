@@ -679,6 +679,22 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 │       └── ...
 ```
 
+## Verdict Field Contracts
+
+Different pipelines use different verdict field names because they serve distinct purposes:
+
+| Pipeline | File(s) | Field | Values | Semantics |
+|----------|---------|-------|--------|-----------|
+| launch | `f3-verdict.json` | `overall_verdict` | `"clean"` / `"issues_found"` | Review verdict -- did reviewers find problems? |
+| review | `r1-verdict.json` | `overall_verdict` | `"clean"` / `"issues_found"` | Review verdict -- same semantics as launch F3 |
+| cursor | `c2-tasks.json`, `c2.5-fixes.json` | `all_complete` | `true` / `false` | Task-completion flag -- did all builders finish? |
+
+**Why the fields differ:** `overall_verdict` is a review outcome (clean vs issues found) used by launch F3 and review R1 where parallel reviewers aggregate their findings. `all_complete` is a build-completion flag used by cursor C2/C2.5 where parallel cursor-builders report whether all tasks were implemented. The cursor pipeline defers its review verdict to the judge agent in C3 (`c3-judge.json`), which uses a three-way `verdict` field (`approve`/`fix`/`replan`).
+
+Cross-validation rules:
+- `overall_verdict: "clean"` is force-corrected to `"issues_found"` if `total_issues > 0` (fail-safe in `on-stop.sh` and `on-stop-review.sh`)
+- `all_complete: true` is validated against individual task statuses in `on-subagent-stop-cursor.sh`
+
 ## Code Style
 
 - **Markdown:** YAML frontmatter, follow existing agent structure
