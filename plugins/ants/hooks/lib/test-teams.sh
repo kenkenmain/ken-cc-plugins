@@ -171,9 +171,9 @@ fi
 s_deps=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-sentinel-correctness") | .blockedBy | length')
 assert_eq "sentinel depends on 2 workers" "2" "$s_deps"
 
-# Check arbiter depends on 3 sentinels
+# Check arbiter depends on 4 sentinels + guardian + simplifier
 a_deps=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-arbiter") | .blockedBy | length')
-assert_eq "arbiter depends on 3 sentinels" "3" "$a_deps"
+assert_eq "arbiter depends on 4 sentinels + guardian + simplifier" "6" "$a_deps"
 
 # Test with missing file
 if teams_add_a3_subtasks "/nonexistent/file.json" 2>/dev/null; then

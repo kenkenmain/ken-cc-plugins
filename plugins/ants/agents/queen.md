@@ -63,14 +63,14 @@ A0: EXPLORE  --> A1: PLAN --> A2: REVIEW --> A3: BUILD --> A4: SYNC --> A5: SHIP
 **Goal:** Gather codebase intelligence before planning.
 
 1. **Send in parallel** via SendMessage:
-   - Send exploration queries to 2-4 **forager** agents (breadth-first scouts)
-   - Send architecture tracing query to 1 **cartographer** agent (deep tracer)
-   - All agents send results back to recipient: "queen"
+   - Send exploration queries to 2-4 **forager** agents — tell them to send results to recipient: "explore-aggregator"
+   - Send architecture tracing query to 1 **cartographer** agent — tell it to send results to recipient: "explore-aggregator"
+   - Send synthesis task to 1 **explore-aggregator** agent — it receives forager + cartographer results and writes A0-explore.md
 
-2. **Receive and aggregate:**
-   - Wait for all forager and cartographer results to arrive
-   - Aggregate findings into a unified exploration report
-   - Write checkpoint: `.agents/tmp/phases/A0-explore.md`
+2. **Receive confirmation:**
+   - Wait for explore-aggregator to confirm completion (recipient: "queen")
+   - The explore-aggregator synthesizes and writes `.agents/tmp/phases/A0-explore.md` — no inline aggregation needed
+   - If any forager fails to respond or returns empty results, log the failure and proceed with available findings. If ALL foragers fail, halt pipeline and report the error.
 
 3. **Advance:** Move pipeline to A1.
 
@@ -128,12 +128,15 @@ After all workers complete:
    - Send review request to **sentinel-correctness** (bugs, logic errors)
    - Send review request to **sentinel-security** (OWASP, injection, secrets)
    - Send review request to **sentinel-perf** (N+1 queries, blocking I/O)
-   - Sentinels send findings to recipient: "review-arbiter" (NOT to queen)
+   - Send review request to **sentinel-style** (code style, readability, maintainability)
+   - All sentinels send findings to recipient: "review-arbiter" (NOT to queen)
    - Send test-writing request to **guardian** agent
    - Guardian sends completion report back to recipient: "queen"
+   - Send cleanup request to **simplifier** agent
+   - Simplifier sends completion report back to recipient: "queen"
 
 4. **Sentinel consolidation:**
-   - **review-arbiter** receives all sentinel findings, deduplicates, and consolidates
+   - **review-arbiter** waits for all 4 sentinels + guardian + simplifier, then deduplicates and consolidates
    - Review-arbiter sends consolidated verdict back to recipient: "queen"
 
 5. **Review-fix cycle (if needed):**
@@ -237,7 +240,7 @@ The queen writes these checkpoint files at key pipeline moments:
 
 | Checkpoint | Phase | Written By | Content |
 |-----------|-------|------------|---------|
-| `.agents/tmp/phases/A0-explore.md` | A0 | Queen (aggregated) | Unified exploration findings |
+| `.agents/tmp/phases/A0-explore.md` | A0 | explore-aggregator | Unified exploration findings |
 | `.agents/tmp/phases/loop-N/A4-queen-verdict.json` | A4 | Queen | Ship/loop verdict with evidence |
 
 Other phase outputs are written by their respective agents:
@@ -254,17 +257,20 @@ All agents send results back to the queen unless otherwise specified:
 
 | Agent | Sends To | Payload |
 |-------|----------|---------|
-| forager | queen | Exploration findings (structured report) |
-| cartographer | queen | Architecture trace (dependency map, layers) |
+| forager | explore-aggregator | Exploration findings (structured report) |
+| cartographer | explore-aggregator | Architecture trace (dependency map, layers) |
+| explore-aggregator | queen | Synthesis confirmation `{status, outputPath, summary}` |
 | architect | queen | Plan confirmation (paths to A1-plan.md, A1-tasks.json) |
 | blueprint-reviewer | queen | Review verdict (approved/needs_revision + issues) |
 | worker | queen | Task completion report (files changed, tests, status) |
 | sentinel-correctness | review-arbiter | Correctness findings (bugs, logic errors) |
 | sentinel-security | review-arbiter | Security findings (OWASP, injection, secrets) |
 | sentinel-perf | review-arbiter | Performance findings (N+1, blocking I/O) |
+| sentinel-style | review-arbiter | Style/maintainability findings |
 | review-arbiter | queen | Consolidated quality verdict |
 | review-fixer | queen | Fix completion report (files changed, issues resolved) |
 | guardian | queen | `{status, testsWritten, summary}` |
+| simplifier | queen | `{status, filesSimplified, changesApplied, summary}` |
 | nurse | queen | Documentation update confirmation |
 | drone | queen | `{commit_sha, pr_url}` |
 

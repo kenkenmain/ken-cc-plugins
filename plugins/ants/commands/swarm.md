@@ -1,6 +1,6 @@
 ---
 name: ants:swarm
-description: Launch a 6-phase swarm workflow by creating an Agent Team and delegating to queen
+description: Launch a 6-phase swarm workflow with direct orchestrator-driven agent dispatch
 argument-hint: <task description> [--web]
 ---
 
@@ -10,7 +10,7 @@ You are executing a workflow pipeline. This overrides ALL skill-checking rules i
 
 # Ants Swarm
 
-You are launching a 6-phase ant-colony swarm workflow. You create a single Agent Team containing all colony agents, then delegate the entire pipeline to the queen. The queen drives A0-A5 via SendMessage internally.
+You are launching a 6-phase ant-colony swarm workflow. You are the orchestrator — you dispatch `ants:*` agents via the Agent tool for each phase, update state, and drive phase progression.
 
 ## Arguments
 
@@ -26,17 +26,17 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 ## Pipeline
 
 ```
-Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer (queen aggregates)
+Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md + A1-tasks.json
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + sentinels + guardians
-Phase A4  │ SYNC        │ Queen          │ merge build+quality → ship/loop verdict
+Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A4  │ SYNC        │ Verdict        │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
 
 Loop: If A4 verdict is "loop" → back to A1 (max 5 loops)
 All clean → A5 ships the work
 
-Queen is the persistent pipeline driver — she orchestrates all phases via SendMessage.
+Dispatch: Direct agent dispatch via Agent tool
 ```
 
 ## Step 0: Preflight Checks
@@ -158,78 +158,131 @@ jq '.webSearch = true' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv
 Print this to the user:
 
 ```
-Ants Swarm — 6-Phase Pipeline (Queen-Driven)
-==========================================
-Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer
+Ants Swarm — 6-Phase Pipeline
+==============================
+Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN    │ Architect Plan        │ architect
 Phase A2  │ PLAN    │ Blueprint Review      │ blueprint-reviewer
-Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + sentinels + guardians
-Phase A4  │ SYNC    │ Queen Synchronization │ queen (ship/loop verdict)
+Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
+Phase A4  │ SYNC    │ Verdict               │ orchestrator (ship/loop verdict)
 Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
 
-Execution: Queen-driven — all phases orchestrated via SendMessage
+Dispatch: Direct agent dispatch via Agent tool
 Circuit breaker: 5 consecutive failures → halt
 ```
 
-## Step 3: Create Team and Delegate to Queen
+## Step 3: Execute Phases
 
-Instead of dispatching agents phase-by-phase, create a single Agent Team with all colony members, then delegate the full pipeline to the queen.
+You are the orchestrator. Execute each phase by dispatching `ants:*` agents via the Agent tool. After each phase completes, update state.json and advance to the next phase.
 
-### 3a. Create Agent Team
+### Phase A0: Colony Exploration
 
-Create a team with ALL the following teammates. The team name should be the `teamName` from state.json (e.g., `ants-<BRANCH_SLUG>`).
+Update state: `currentPhase: "A0"`, `phases.A0.status: "in_progress"`.
 
-**Teammates to add:**
+Dispatch **in parallel** using the Agent tool:
 
-| Agent | subagent_type | Role |
-|-------|---------------|------|
-| queen | `ants:queen` | Persistent pipeline driver (A0-A5 coordinator) |
-| forager | `ants:forager` | Breadth-first codebase scout (A0) |
-| cartographer | `ants:cartographer` | Deep architecture tracer (A0) |
-| architect | `ants:architect` | Plan writer with task assignments (A1) |
-| blueprint-reviewer | `ants:blueprint-reviewer` | Plan validator (A2) |
-| worker | `ants:worker` | Task implementer (A3, multiple instances) |
-| sentinel-correctness | `ants:sentinel-correctness` | Bugs, logic errors, error handling (A3) |
-| sentinel-security | `ants:sentinel-security` | OWASP, injection, secrets (A3) |
-| sentinel-perf | `ants:sentinel-perf` | N+1 queries, blocking I/O, complexity (A3) |
-| review-arbiter | `ants:review-arbiter` | Consolidates sentinel findings (A3) |
-| review-fixer | `ants:review-fixer` | Targeted repair agent (A3) |
-| guardian | `ants:guardian` | Test writer for quality track (A3) |
-| nurse | `ants:nurse` | Documentation updater (A5) |
-| drone | `ants:drone` | Commit + PR shipper (A5) |
+1. **2-3 forager agents** (`subagent_type: "ants:forager"`) — each with a focused query:
+   - Forager 1: "Explore the file structure, directory layout, and project organization for task: <task>. Write findings to .agents/tmp/phases/A0-explore.forager.1.tmp"
+   - Forager 2: "Find coding patterns, conventions, test frameworks, and related implementations for task: <task>. Write findings to .agents/tmp/phases/A0-explore.forager.2.tmp"
+   - Forager 3: "Search for existing code related to task: <task>. Look for similar implementations, relevant APIs, and integration points. Write findings to .agents/tmp/phases/A0-explore.forager.3.tmp"
 
-### 3b. Delegate to Queen
+2. **1 cartographer agent** (`subagent_type: "ants:cartographer"`) — "Trace the architecture, execution paths, and dependency graph relevant to task: <task>. Write findings to .agents/tmp/phases/A0-explore.cartographer.tmp"
 
-Send the task to the queen agent via SendMessage (or the Agent tool with `subagent_type: "ants:queen"`). The queen's prompt should include:
+After all return, dispatch **1 explore-aggregator** (`subagent_type: "ants:explore-aggregator"`) to synthesize all forager and cartographer findings into `.agents/tmp/phases/A0-explore.md`.
 
-- The full task description
-- The current state.json path: `.agents/tmp/state.json`
-- The phases directory: `.agents/tmp/phases/`
-- The loop directory pattern: `.agents/tmp/phases/loop-<LOOP>/`
-- Whether `--web` is enabled (so queen can pass WebSearch guidance to foragers)
+Update state: `phases.A0.status: "complete"`.
 
-The queen will then drive the entire A0-A5 pipeline internally via SendMessage, dispatching foragers, cartographer, architect, blueprint-reviewer, workers, sentinels, review-arbiter, review-fixer, guardian, nurse, and drone as needed.
+### Phase A1: Architect Plan
 
-### 3c. Update state after delegation
+Create loop directory: `mkdir -p .agents/tmp/phases/loop-<LOOP>`
 
-After the queen agent is dispatched, update state.json:
+Update state: `currentPhase: "A1"`, `phases.A1.status: "in_progress"`.
 
-```bash
-jq '.queenDispatched = true | .updatedAt = (now | todate)' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
-```
+Dispatch **1 architect agent** (`subagent_type: "ants:architect"`):
+- "Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.md. Write machine-readable task descriptors (with IDs, descriptions, file ownership, dependencies, acceptance criteria) to .agents/tmp/phases/loop-<LOOP>/A1-tasks.json"
+- On loop 2+, also include: "This is loop <LOOP>. Read the previous loop's quality review at .agents/tmp/phases/loop-<PREV>/A3-quality.json and queen verdict at .agents/tmp/phases/loop-<PREV>/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan."
 
-### 3d. Wait for queen to complete
+Update state: `phases.A1.status: "complete"`.
 
-The queen manages all phase transitions, loop-backs, and the final ship decision. When the queen returns, read `.agents/tmp/state.json` to check the final status and display a summary:
+### Phase A2: Blueprint Review
 
-**If `status: "complete"` and `currentPhase: "DONE"` (success):**
+Update state: `currentPhase: "A2"`, `phases.A2.status: "in_progress"`.
 
-Read the following files to build the summary (use the final `.loop` value from state.json for `<LOOP>`):
+Dispatch **1 blueprint-reviewer agent** (`subagent_type: "ants:blueprint-reviewer"`):
+- "Review the plan at .agents/tmp/phases/loop-<LOOP>/A1-plan.md and tasks at .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. Check for completeness, feasibility, dependency correctness, and risk. Write review JSON to .agents/tmp/phases/loop-<LOOP>/A2-review.json with format: {status: 'approved'|'needs_revision', issues: [...]}"
+
+Read the review output. If `status: "needs_revision"` with any HIGH severity issues:
+- Loop back to A1 (increment loop counter, reset A1-A4 to pending)
+- Check circuit breaker limits first
+
+If `status: "approved"` or only LOW/MEDIUM issues: advance to A3.
+
+Update state: `phases.A2.status: "complete"`.
+
+### Phase A3: Dual-Track Build
+
+Update state: `currentPhase: "A3"`, `phases.A3.status: "in_progress"`.
+
+**Build Track:** Read `.agents/tmp/phases/loop-<LOOP>/A1-tasks.json` to get the task list. If the file is missing or contains zero tasks, halt with `status: "blocked"` and error: "No implementation tasks found. Do not proceed to quality track with zero workers."
+
+For each task, dispatch a **worker agent** (`subagent_type: "ants:worker"`):
+- "Implement task <ID>: <description>. Files to modify: <files>. Dependencies: <deps>. Acceptance criteria: <criteria>. Self-verify your work (run tests/lint if applicable)."
+- Dispatch workers in parallel when their dependencies are satisfied. Wait for workers with no deps first, then dispatch dependent workers as their deps complete.
+
+After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`. If any worker agent fails or returns no output, set `all_complete: false` in A3-build.json and record the failure. The quality track should still run to review partial implementation.
+
+**Quality Track:** After all workers complete, dispatch **6 agents in parallel**:
+1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes for bugs, logic errors, missing error handling. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json"
+2. `subagent_type: "ants:sentinel-security"` — "Review all changes for security vulnerabilities (OWASP top 10, injection, secrets). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-security.json"
+3. `subagent_type: "ants:sentinel-perf"` — "Review all changes for performance issues (N+1 queries, blocking I/O, complexity). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-perf.json"
+4. `subagent_type: "ants:sentinel-style"` — "Review all changes for code style, readability, and maintainability. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-style.json"
+5. `subagent_type: "ants:guardian"` — write tests for implemented code
+6. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
+
+After all 6 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
+- "Read all sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-*.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
+
+If the arbiter finds critical issues, dispatch **1 review-fixer** (`subagent_type: "ants:review-fixer"`):
+- "Read issues from .agents/tmp/phases/loop-<LOOP>/A3-quality.json and apply targeted fixes."
+
+Update state: `phases.A3.status: "complete"`.
+
+### Phase A4: Verdict
+
+Update state: `currentPhase: "A4"`, `phases.A4.status: "in_progress"`.
+
+Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. If A3-quality.json is missing, treat this as `issues_found` with verdict reason: "quality review incomplete". If A3-build.json is missing, halt with `status: "blocked"`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
+
+Note: The orchestrator evaluates the A4 verdict directly rather than dispatching a separate agent.
+
+Read the verdict:
+- **"clean"**: Advance to A5.
+- **"issues_found"**: Check circuit breaker. If within limits, increment loop counter, reset A1-A4 to pending, go back to Phase A1. If circuit breaker tripped, halt workflow with `status: "blocked"`.
+
+Update state: `phases.A4.status: "complete"`.
+
+### Phase A5: Documentation + Ship
+
+Update state: `currentPhase: "A5"`, `phases.A5.status: "in_progress"`.
+
+Dispatch **1 nurse agent** (`subagent_type: "ants:nurse"`):
+- "Review all changes and update project documentation (README.md, CLAUDE.md, etc.) to reflect the implementation. Write summary to .agents/tmp/phases/loop-<LOOP>/A5-docs.json"
+
+Then dispatch **1 drone agent** (`subagent_type: "ants:drone"`):
+- "Stage all changes, create a git commit with a descriptive message, and open a PR. Write output (commit SHA, PR URL) to .agents/tmp/phases/loop-<LOOP>/A5-ship.json"
+
+Update state: `phases.A5.status: "complete"`, `currentPhase: "DONE"`, `status: "complete"`.
+
+## Step 4: Completion Summary
+
+After A5 completes, read the final state and display a summary.
+
+Read the following files (use the final `.loop` value from state.json for `<LOOP>`):
 - `state.json` — `.task`, `.branch`, `.loop`, `.maxLoops`
 - `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json` — `.buildTrackSummary.filesChanged[]`, `.buildTrackSummary.testsAdded`, `.qualityTrackSummary.critical`, `.qualityTrackSummary.warning`, `.qualityTrackSummary.info`, `.evidence[]`
 - `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` — `.commit_sha`, `.pr_url`, `.files_committed[]`
 
-Display:
+**If all succeeded:**
 ```
 Ants Swarm — Complete
 ======================
@@ -252,7 +305,7 @@ Key evidence:
 
 Use `.files_committed` from A5-ship.json as the primary files list (most accurate). Fall back to `.buildTrackSummary.filesChanged` if A5-ship.json is unavailable. If A4-queen-verdict.json is missing, omit the Quality Review and Key evidence sections.
 
-**If `status: "blocked"`:**
+**If blocked:**
 ```
 Ants Swarm — Blocked
 ======================
@@ -261,49 +314,32 @@ Phase at failure: <.currentPhase>
 Circuit breaker: <.circuitBreaker.consecutiveFailures> consecutive failures, <.circuitBreaker.stageRestarts> loop-backs used
 ```
 
-**If `status: "in_progress"` (queen stopped mid-pipeline):**
+**If stopped mid-pipeline:**
 ```
 Ants Swarm — Incomplete
 ========================
-Status: in_progress (queen stopped mid-pipeline)
+Status: in_progress (stopped mid-pipeline)
 Current phase: <.currentPhase>
 <.failure if present>
 ```
 
-## Queen-Driven Phase Flow
-
-The queen orchestrates all phases internally via SendMessage. The flow is:
-
-### A0: Colony Exploration
-
-Queen sends exploration queries in parallel to foragers and cartographer via SendMessage. All agents send results back to the queen. Queen aggregates findings into `.agents/tmp/phases/A0-explore.md` directly (no separate aggregator agent).
-
-### A1-A5: Remaining Phases
-
-Queen drives A1 through A5 following the same protocol documented in the queen agent definition:
-- A1: Sends to architect, receives plan
-- A2: Sends to blueprint-reviewer, receives verdict
-- A3: Sends to workers (dependency order), then sentinels → review-arbiter → review-fixer if needed, plus guardian
-- A4: Queen evaluates internally (ship/loop verdict)
-- A5: Sends to nurse then drone, receives ship confirmation
-
-Loop-back from A4 to A1 is handled by the queen internally when verdict is `issues_found`.
-
 ## Phase Agent Mapping
 
-| Phase | Agent | subagent_type | Scope |
-|-------|-------|---------------|-------|
-| -- | queen | `ants:queen` | **Persistent** (drives entire pipeline) |
-| A0 | forager (batch) | `ants:forager` | Phase-scoped |
-| A0 | cartographer | `ants:cartographer` | Phase-scoped |
-| A1 | architect | `ants:architect` | Phase-scoped |
-| A2 | blueprint-reviewer | `ants:blueprint-reviewer` | Phase-scoped |
-| A3 | worker (task pool) | `ants:worker` | Phase-scoped |
-| A3 | sentinel-correctness | `ants:sentinel-correctness` | Phase-scoped |
-| A3 | sentinel-security | `ants:sentinel-security` | Phase-scoped |
-| A3 | sentinel-perf | `ants:sentinel-perf` | Phase-scoped |
-| A3 | review-arbiter | `ants:review-arbiter` | Phase-scoped |
-| A3 | review-fixer | `ants:review-fixer` | Phase-scoped |
-| A3 | guardian | `ants:guardian` | Phase-scoped |
-| A5 | nurse | `ants:nurse` | Phase-scoped |
-| A5 | drone | `ants:drone` | Phase-scoped |
+| Phase | Agent | subagent_type |
+|-------|-------|---------------|
+| A0 | forager (batch) | `ants:forager` |
+| A0 | cartographer | `ants:cartographer` |
+| A0 | explore-aggregator | `ants:explore-aggregator` |
+| A1 | architect | `ants:architect` |
+| A2 | blueprint-reviewer | `ants:blueprint-reviewer` |
+| A3 | worker (task pool) | `ants:worker` |
+| A3 | sentinel-correctness | `ants:sentinel-correctness` |
+| A3 | sentinel-security | `ants:sentinel-security` |
+| A3 | sentinel-perf | `ants:sentinel-perf` |
+| A3 | sentinel-style | `ants:sentinel-style` |
+| A3 | simplifier | `ants:simplifier` |
+| A3 | review-arbiter | `ants:review-arbiter` |
+| A3 | review-fixer | `ants:review-fixer` |
+| A3 | guardian | `ants:guardian` |
+| A5 | nurse | `ants:nurse` |
+| A5 | drone | `ants:drone` |

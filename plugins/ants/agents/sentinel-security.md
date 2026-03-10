@@ -10,7 +10,7 @@ description: |
   user: "Run security review on wave 1 output"
   assistant: "Spawning sentinel-security to check for vulnerabilities, injection flaws, and secrets exposure"
   <commentary>
-  A3 quality track, adversarial review. One of three specialist sentinels that run in parallel.
+  A3 quality track, adversarial review. One of four specialist sentinels that run in parallel.
   </commentary>
   </example>
 

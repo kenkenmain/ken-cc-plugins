@@ -47,7 +47,7 @@ ken-cc-plugins/
 ├── plugins/
 │   ├── ants/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-│   │   ├── agents/                        # Agent definitions (19 agents)
+│   │   ├── agents/                        # Agent definitions (22 agents)
 │   │   ├── commands/                      # Slash commands (swarm.md, pswarm.md, debug.md, improve.md)
 │   │   ├── hooks/                         # Shell hooks (9 hooks)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, swarm.sh, dag.sh, circuit-breaker.sh, task-pool.sh, teams.sh, webhook.sh, lint.sh)

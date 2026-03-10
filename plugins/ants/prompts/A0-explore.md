@@ -6,21 +6,26 @@ Dispatch **forager** and **cartographer** agents in parallel to gather codebase 
 
 - **forager** (`ants:forager`) x N — breadth-first codebase scouts, each assigned a focused query
 - **cartographer** (`ants:cartographer`) x 1 — depth-first architecture tracer
-Foragers run on the `haiku` model. Cartographer runs on `sonnet`. The queen aggregates all temp files into the final report.
+- **explore-aggregator** (`ants:explore-aggregator`) x 1 — synthesizes forager + cartographer results into A0-explore.md
+
+Foragers run on the `haiku` model. Cartographer and explore-aggregator run on `sonnet`. The explore-aggregator receives forager/cartographer results via SendMessage and synthesizes the final report, offloading queen context overhead.
 
 ## Dispatch Timing
 
-A0 runs at workflow start, **before** any planning phase. The orchestrator dispatches all foragers and the cartographer simultaneously. After all complete, the queen aggregates results.
+A0 runs at workflow start, **before** any planning phase. The queen dispatches all foragers, the cartographer, and the explore-aggregator simultaneously. Foragers and cartographer send their results to the explore-aggregator (not the queen). The queen waits only for the explore-aggregator's confirmation.
 
 ## Process
 
 1. **Determine forager queries** based on the task description (typically 2-4 foragers)
-2. **Dispatch all foragers + cartographer in parallel:**
+2. **Dispatch all foragers + cartographer + explore-aggregator in parallel:**
    - Each forager gets a focused query (files, tests, patterns, dependencies, etc.)
+   - Foragers send their results to the explore-aggregator (recipient: "explore-aggregator")
    - The cartographer gets the full task for deep architecture tracing
-3. Each agent reads the codebase through its lens and writes findings to a temp file
-4. **Wait for all agents to complete**
-5. **Queen aggregates** forager and cartographer results directly into `.agents/tmp/phases/A0-explore.md` via SendMessage received reports
+   - Cartographer sends results to the explore-aggregator (recipient: "explore-aggregator")
+   - The explore-aggregator waits for results from all foragers + cartographer
+3. Each explorer reads the codebase through its lens and writes findings to a temp file and sends via SendMessage to explore-aggregator
+4. **Explore-aggregator synthesizes** all results into `.agents/tmp/phases/A0-explore.md`
+5. **Explore-aggregator confirms** to queen via SendMessage (recipient: "queen")
 6. The consolidated report is passed to the next phase as supplementary context
 
 ## Forager Dispatch Template
@@ -38,6 +43,9 @@ Read the codebase and write a concise summary relevant to the task.
 Focus only on what a planner would need to know.
 
 Temp output file: .agents/tmp/phases/A0-explore.forager.{{N}}.tmp
+
+After writing the temp file, send your findings to the explore-aggregator via SendMessage
+(recipient: "explore-aggregator") with a summary of your findings.
 ```
 
 ### Suggested Forager Queries
@@ -62,6 +70,29 @@ Trace execution paths, dependency graphs, and architectural layers.
 Focus on how components connect and where the task will need to integrate.
 
 Temp output file: .agents/tmp/phases/A0-explore.cartographer.tmp
+
+After writing the temp file, send your architecture trace to the explore-aggregator via SendMessage
+(recipient: "explore-aggregator") with a summary of your findings.
+```
+
+## Explore-Aggregator Dispatch Template
+
+```
+You are the explore-aggregator. Receive findings from all foragers and the cartographer
+and synthesize them into the canonical exploration report.
+
+Task: {{TASK}}
+
+Expected sources:
+- forager ×{{N}} — each will send their findings via SendMessage
+- cartographer ×1 — will send their architecture trace via SendMessage
+
+Wait for all results, then synthesize into a unified report.
+
+Output file: .agents/tmp/phases/A0-explore.md
+
+After writing the report, confirm to the queen via SendMessage (recipient: "queen")
+with {status: "complete", outputPath: ".agents/tmp/phases/A0-explore.md", summary: "..."}
 ```
 
 ## Output Paths

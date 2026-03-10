@@ -10,7 +10,7 @@ description: |
   user: "Run correctness review on wave 1 output"
   assistant: "Spawning sentinel-correctness to check for bugs, logic errors, and error handling gaps"
   <commentary>
-  A3 quality track, adversarial review. One of three specialist sentinels that run in parallel.
+  A3 quality track, adversarial review. One of four specialist sentinels that run in parallel.
   </commentary>
   </example>
 

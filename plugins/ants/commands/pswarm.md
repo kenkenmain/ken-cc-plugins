@@ -27,11 +27,11 @@ Parse from $ARGUMENTS to extract the task description and any flags.
 ## Pipeline
 
 ```
-Phase A0  │ EXPLORE     │ Forage         │ 3-5 parallel foragers + cartographer (queen aggregates)
+Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md + A1-tasks.json
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + sentinels + guardians
-Phase A4  │ SYNC        │ Queen          │ merge build+quality → ship/loop verdict
+Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A4  │ SYNC        │ Verdict        │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
 
 Loop: If A4 verdict is "loop" → back to A1 (max 5 inner loops per run)
@@ -116,7 +116,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
     {"phase":"A1","stage":"PLAN","label":"Architect Plan","type":"agents"},
     {"phase":"A2","stage":"PLAN","label":"Blueprint Review","type":"agents"},
     {"phase":"A3","stage":"BUILD","label":"Dual-Track Execution","type":"agents"},
-    {"phase":"A4","stage":"SYNC","label":"Queen Synchronization","type":"agents"},
+    {"phase":"A4","stage":"SYNC","label":"Verdict","type":"agents"},
     {"phase":"A5","stage":"SHIP","label":"Documentation + Ship","type":"agents"}
   ],
   "phases": {
@@ -167,11 +167,11 @@ Print this to the user:
 ```
 Ants pswarm — Persistent 6-Phase Pipeline
 ==========================================
-Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer
+Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN    │ Architect Plan        │ architect
 Phase A2  │ PLAN    │ Blueprint Review      │ blueprint-reviewer
-Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + sentinels + guardians
-Phase A4  │ SYNC    │ Queen Synchronization │ queen (ship/loop verdict)
+Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
+Phase A4  │ SYNC    │ Verdict               │ orchestrator (ship/loop verdict)
 Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
 
 Max runs: <maxRuns> (--max-loops N to change)
@@ -196,9 +196,9 @@ Dispatch **in parallel** using the Agent tool:
 
 2. **1 cartographer agent** (`subagent_type: "ants:cartographer"`) — "Trace the architecture, execution paths, and dependency graph relevant to task: <task>. Write findings to .agents/tmp/phases/A0-explore.cartographer.tmp"
 
-After all return, read the forager and cartographer output files (`.agents/tmp/phases/A0-explore.*.tmp`) and aggregate findings directly into `.agents/tmp/phases/A0-explore.md`. No separate aggregator agent is needed — the queen aggregates findings from forager/cartographer results via SendMessage.
+After all return, dispatch **1 explore-aggregator** (`subagent_type: "ants:explore-aggregator"`) to synthesize all forager and cartographer findings into `.agents/tmp/phases/A0-explore.md`.
 
-Update state: `phases.A0.status: "complete"`, `queenDispatched: true`.
+Update state: `phases.A0.status: "complete"`.
 
 ### Phase A1: Architect Plan
 
@@ -237,26 +237,27 @@ Update state: `currentPhase: "A3"`, `phases.A3.status: "in_progress"`.
 
 After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`.
 
-**Quality Track:** After all workers complete, dispatch **3 sentinel agents in parallel**:
+**Quality Track:** After all workers complete, dispatch **6 agents in parallel**:
 1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes for bugs, logic errors, missing error handling. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json"
 2. `subagent_type: "ants:sentinel-security"` — "Review all changes for security vulnerabilities (OWASP top 10, injection, secrets). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-security.json"
 3. `subagent_type: "ants:sentinel-perf"` — "Review all changes for performance issues (N+1 queries, blocking I/O, complexity). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-perf.json"
+4. `subagent_type: "ants:sentinel-style"` — "Review all changes for code style, readability, and maintainability. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-style.json"
+5. `subagent_type: "ants:guardian"` — write tests for implemented code
+6. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
 
-After all sentinels complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
+After all 6 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
 - "Read all sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-*.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
 
 If the arbiter finds critical issues, dispatch **1 review-fixer** (`subagent_type: "ants:review-fixer"`):
 - "Read issues from .agents/tmp/phases/loop-<LOOP>/A3-quality.json and apply targeted fixes."
 
-Optionally dispatch **1 guardian** (`subagent_type: "ants:guardian"`) to write tests for implemented code.
-
 Update state: `phases.A3.status: "complete"`.
 
-### Phase A4: Queen Synchronization
+### Phase A4: Verdict
 
 Update state: `currentPhase: "A4"`, `phases.A4.status: "in_progress"`.
 
-Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
+Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. If A3-quality.json is missing, treat this as `issues_found` with verdict reason: "quality review incomplete". If A3-build.json is missing, halt with `status: "blocked"`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
 
 Note: pswarm uses orchestrator-driven dispatch (not queen-driven). The orchestrator evaluates the A4 verdict directly rather than dispatching a queen agent.
 
@@ -358,15 +359,18 @@ If this command fails (file missing, corrupt JSON, jq error), set `status: "bloc
 |-------|-------|---------------|
 | A0 | forager (batch) | `ants:forager` |
 | A0 | cartographer | `ants:cartographer` |
+| A0 | explore-aggregator | `ants:explore-aggregator` |
 | A1 | architect | `ants:architect` |
 | A2 | blueprint-reviewer | `ants:blueprint-reviewer` |
 | A3 | worker (task pool) | `ants:worker` |
 | A3 | sentinel-correctness | `ants:sentinel-correctness` |
 | A3 | sentinel-security | `ants:sentinel-security` |
 | A3 | sentinel-perf | `ants:sentinel-perf` |
+| A3 | sentinel-style | `ants:sentinel-style` |
+| A3 | simplifier | `ants:simplifier` |
 | A3 | review-arbiter | `ants:review-arbiter` |
 | A3 | review-fixer | `ants:review-fixer` |
 | A3 | guardian | `ants:guardian` |
-| A4 | queen | `ants:queen` |
+| A4 | orchestrator (internal) | -- |
 | A5 | nurse | `ants:nurse` |
 | A5 | drone | `ants:drone` |

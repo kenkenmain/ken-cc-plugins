@@ -1,11 +1,6 @@
 # [PHASE A4] Synchronize Tracks
 
-Dispatch the **queen** agent to read the arbiter's consolidated quality verdict and the build track results, then render a ship/loop decision.
-
-## Agent
-
-- **Type:** `ants:queen`
-- **Mode:** Single subagent (foreground)
+The orchestrator reads the arbiter's consolidated quality verdict and the build track results, then internally renders a ship/loop decision. No separate agent is dispatched for A4 — the orchestrator evaluates the evidence directly.
 
 ## Prerequisites
 
@@ -21,34 +16,23 @@ Dispatch the **queen** agent to read the arbiter's consolidated quality verdict 
 5. Render verdict: `clean` or `issues_found`
 6. Write output to `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json`
 
-## Prompt Template
+## Evaluation Logic
 
-```
-You are queen. Synchronize the build and quality track results for loop {{LOOP}}.
+The orchestrator evaluates the A4 verdict internally:
 
-Task: {{TASK}}
-
-Read:
-- .agents/tmp/phases/loop-{{LOOP}}/A3-build.json (build track output)
-- .agents/tmp/phases/loop-{{LOOP}}/A3-quality.json (arbiter's consolidated quality verdict)
-
-The quality verdict was produced by the review-arbiter after consolidating findings
-from three specialist sentinels (correctness, security, performance). It contains
-deduplicated, cross-referenced issues with severity classifications.
-
-Cross-reference all issues against the implementation. Decide: clean or issues_found.
-
-Circuit breaker context:
-- Current loop: {{LOOP}} of {{MAX_LOOPS}}
-- Stage restarts so far: {{STAGE_RESTARTS}} of {{MAX_STAGE_RESTARTS}}
-- Consecutive failures: {{CONSECUTIVE_FAILURES}} of {{MAX_CONSECUTIVE_FAILURES}}
-
-If recommending issues_found, verify the circuit breaker has budget remaining
-for another loop-back. If the budget is exhausted, note this in your verdict
-so the orchestrator can block the workflow instead of looping.
-
-Write your output to: .agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json
-```
+1. Read build track output (A3-build.json) and quality verdict (A3-quality.json)
+2. The quality verdict was produced by the review-arbiter after consolidating findings
+   from four specialist sentinels (correctness, security, performance, style). It contains
+   deduplicated, cross-referenced issues with severity classifications.
+3. Cross-reference all issues against the implementation. Decide: clean or issues_found.
+4. Check circuit breaker context:
+   - Current loop: {{LOOP}} of {{MAX_LOOPS}}
+   - Stage restarts so far: {{STAGE_RESTARTS}} of {{MAX_STAGE_RESTARTS}}
+   - Consecutive failures: {{CONSECUTIVE_FAILURES}} of {{MAX_CONSECUTIVE_FAILURES}}
+5. If recommending issues_found, verify the circuit breaker has budget remaining
+   for another loop-back. If the budget is exhausted, note this in the verdict
+   so the workflow can block instead of looping.
+6. Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json`
 
 ## Verdict Format
 
@@ -89,7 +73,7 @@ Write your output to: .agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json
 | Circuit breaker: stage restarts exhausted | `issues_found` + `stageRestartsRemaining: 0` | Workflow blocks |
 | Loop count = max loops | `issues_found` | Workflow blocks with report |
 
-When the circuit breaker indicates no budget remains, the orchestrator (SubagentStop hook) reads `circuitBreaker.loopBudgetRemaining` from the verdict and halts the workflow with `status: "blocked"` instead of looping back to A1.
+When the circuit breaker indicates no budget remains, the orchestrator reads `circuitBreaker.loopBudgetRemaining` from the verdict and halts the workflow with `status: "blocked"` instead of looping back to A1.
 
 ## Gate
 

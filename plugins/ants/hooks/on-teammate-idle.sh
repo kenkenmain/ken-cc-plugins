@@ -20,8 +20,8 @@ source "$SCRIPT_DIR/lib/teams.sh"
 
 check_ants_workflow
 
-# Read stdin (Agent Teams passes hook input JSON)
-INPUT=$(cat)
+# Read stdin (Agent Teams passes hook input JSON) — cap at 1MB to prevent memory pressure
+INPUT=$(head -c 1048576)
 
 # Batch-read all needed state fields in a single jq call
 local_fields=$(jq -r '[

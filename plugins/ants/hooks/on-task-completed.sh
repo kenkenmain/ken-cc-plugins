@@ -157,9 +157,9 @@ handle_a3_sentinel() {
 
   # Validate sentinel name against allowlist to prevent arbitrary file writes
   local sentinel_name
-  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel-(correctness|security|perf)' | head -1 | tr '[:upper:]' '[:lower:]' || echo "")
+  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel-(correctness|security|perf|style)' | head -1 | tr '[:upper:]' '[:lower:]' || echo "")
   if [[ -z "$sentinel_name" ]]; then
-    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, or sentinel-perf."
+    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, or sentinel-style."
     exit 2
   fi
 
@@ -168,10 +168,11 @@ handle_a3_sentinel() {
   touch "$marker_file"
   teams_log "${sentinel_name} completed, marker written to ${marker_file}"
 
-  # Check if all three sentinels are done
+  # Check if all four sentinels are done
   if [[ -f "${phases_dir}/.sentinel-correctness.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-security.done" ]] \
-     && [[ -f "${phases_dir}/.sentinel-perf.done" ]]; then
+     && [[ -f "${phases_dir}/.sentinel-perf.done" ]] \
+     && [[ -f "${phases_dir}/.sentinel-style.done" ]]; then
     teams_log "All sentinels complete, arbiter can proceed"
   fi
 }

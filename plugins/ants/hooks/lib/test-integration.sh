@@ -237,7 +237,7 @@ assert_exit "lint disabled when configured" 1 lint_check_enabled
 echo "Test 11: on-subagent-start.sh outputs valid hookSpecificOutput JSON"
 setup_v4
 # Add schedule to state so stage lookup works
-jq '.schedule = [{"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "teams"}] | .currentPhase = "A1"' \
+jq '.schedule = [{"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "agents"}] | .currentPhase = "A1"' \
   .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
 # Run on-subagent-start.sh in a subshell with the test state
 output=$(cd "$TEST_DIR" && bash "$SCRIPT_DIR/on-subagent-start.sh" < /dev/null 2>/dev/null || true)

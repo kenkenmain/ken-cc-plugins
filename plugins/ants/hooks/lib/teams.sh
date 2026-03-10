@@ -63,7 +63,10 @@ teams_send_message() {
   local content="${3:?teams_send_message requires content}"
 
   # Persist the message in state.json for cross-phase retrieval
-  add_message "$from" "$to" "$content"
+  if ! add_message "$from" "$to" "$content"; then
+    echo "ERROR: Failed to persist message" >&2
+    return 1
+  fi
 
   # Emit structured JSON for hook consumers
   jq -n \
@@ -158,10 +161,11 @@ teams_add_a3_subtasks() {
   fi
 
   # Read architect's tasks and build sub-task descriptors
-  jq '
+  local subtasks_output
+  subtasks_output=$(jq '
     # Collect all worker task IDs
     [.[].id] as $worker_ids |
-    ["sentinel-correctness", "sentinel-security", "sentinel-perf"] as $sentinel_names |
+    ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style"] as $sentinel_names |
 
     # Worker tasks — each depends on its declared dependencies (prefixed with A3-)
     [.[] | {
@@ -179,7 +183,8 @@ teams_add_a3_subtasks() {
       subject: ("A3 Sentinel: " + $name),
       description: ("Review implementation for " + (if $name == "sentinel-correctness" then "bugs, logic errors, and error handling"
         elif $name == "sentinel-security" then "OWASP top 10, injection, secrets, access control"
-        else "N+1 queries, blocking I/O, complexity" end)),
+        elif $name == "sentinel-perf" then "N+1 queries, blocking I/O, complexity"
+        else "code style, readability, maintainability" end)),
       activeForm: ("Reviewing " + $name),
       agentType: ("ants:" + $name),
       blockedBy: [$worker_ids[] | "A3-worker-" + .]
@@ -195,16 +200,39 @@ teams_add_a3_subtasks() {
       blockedBy: [$worker_ids[] | "A3-worker-" + .]
     }] +
 
-    # Arbiter task — depends on ALL sentinel tasks
+    # Simplifier task — depends on ALL worker tasks (parallel with sentinels)
+    [{
+      phaseId: "A3-simplifier",
+      subject: "A3 Simplifier: Code cleanup",
+      description: "Apply targeted code cleanup to worker outputs — dead code removal, complexity reduction, over-engineering cleanup without behavioral changes.",
+      activeForm: "Simplifying code",
+      agentType: "ants:simplifier",
+      blockedBy: [$worker_ids[] | "A3-worker-" + .]
+    }] +
+
+    # Arbiter task — depends on ALL sentinel tasks, guardian, and simplifier
     [{
       phaseId: "A3-arbiter",
       subject: "A3 Arbiter: Consolidate reviews",
       description: "Cross-reference and deduplicate sentinel findings into unified A3-quality.json",
       activeForm: "Consolidating reviews",
       agentType: "ants:review-arbiter",
-      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf"]
+      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-guardian", "A3-simplifier"]
     }]
-  ' "$tasks_file"
+  ' "$tasks_file" 2>/dev/null)
+
+  if [[ -z "$subtasks_output" ]]; then
+    teams_log "ERROR: jq failed to produce subtask descriptors from $tasks_file"
+    return 1
+  fi
+
+  # Validate output is a non-empty JSON array
+  if ! printf '%s' "$subtasks_output" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+    teams_log "ERROR: subtask output is not a non-empty JSON array"
+    return 1
+  fi
+
+  printf '%s\n' "$subtasks_output"
 }
 
 # ---------------------------------------------------------------------------
@@ -325,7 +353,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
       local known_agents='["queen","forager","cartographer","architect","blueprint-reviewer","worker","sentinel-correctness","sentinel-security","sentinel-perf","review-arbiter","review-fixer","guardian","nurse","drone"]'
-      formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo ""; })"
+      formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed — check .agents/tmp/state.json .messages array directly)"; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases
 ${formatted_messages}"

@@ -10,8 +10,10 @@ Execute the architect's plan using dual-track dispatch: **build track** (task po
   - `ants:sentinel-correctness` -- bugs, logic errors, error handling
   - `ants:sentinel-security` -- OWASP, injection, secrets, access control
   - `ants:sentinel-perf` -- N+1 queries, blocking I/O, complexity
-  - `ants:review-arbiter` -- consolidates all sentinel findings
-  - `ants:guardian` -- writes tests for completed work
+  - `ants:sentinel-style` -- code style, readability, maintainability
+  - `ants:review-arbiter` -- consolidates all sentinel findings (waits for all sentinels + guardian + simplifier)
+  - `ants:guardian` -- writes and runs tests for completed work
+  - `ants:simplifier` -- code cleanup (dead code, complexity reduction, without behavioral changes)
 
 ## Task Pool Architecture
 
@@ -31,10 +33,13 @@ Task Pool:
        |             |
   pool drained ---------> Adversarial Review Team
                             sentinel-correctness  \
-                            sentinel-security      } parallel
-                            sentinel-perf         /
+                            sentinel-security      \
+                            sentinel-perf           } parallel
+                            sentinel-style         /
+                            guardian              /
+                            simplifier           /
                                   |
-                            review-arbiter (consolidate)
+                            review-arbiter (consolidate — waits for all 6)
                                   |
                              A3-quality.json
 ```
@@ -105,7 +110,7 @@ As workers complete:
 
 ### 3. Adversarial Review (after pool drains)
 
-After all workers complete, dispatch the adversarial review team. Three specialist sentinels run **in parallel**:
+After all workers complete, dispatch the adversarial review team. Four specialist sentinels run **in parallel**:
 
 **Sentinel-correctness prompt:**
 ```
@@ -149,19 +154,48 @@ Worker outputs (for context):
 Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-perf.json
 ```
 
-Wait for all three sentinels to complete.
+**Sentinel-style prompt:**
+```
+Review all changes for style and maintainability issues: excessive nesting, magic numbers,
+overly long functions, dead code, poor naming conventions, unnecessary complexity.
+
+Changed files:
+{{ALL_FILES_CHANGED}}
+
+Worker outputs (for context):
+{{WORKER_OUTPUTS_SUMMARY}}
+
+Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-style.json
+```
+
+Wait for all four sentinels to complete.
+
+### 3b. Simplifier (Code Cleanup — parallel with sentinels)
+
+Dispatch the **simplifier** in parallel with the sentinels (after pool drains):
+
+```
+Apply targeted code cleanup to the worker outputs.
+
+Read worker results from: .agents/tmp/phases/loop-{{LOOP}}/A3-build.json
+Apply cleanup to files_changed: dead code removal, complexity reduction, naming improvements.
+Do NOT change behavior — only structural cleanup.
+
+Report to queen: {status, filesSimplified, changesApplied, summary}
+```
 
 ### 4. Arbiter Consolidation
 
-After all sentinels complete, dispatch the **review-arbiter**:
+After all four sentinels, the guardian, and the simplifier complete, dispatch the **review-arbiter**:
 
 ```
-Consolidate findings from all three specialist sentinels.
+Consolidate findings from all four specialist sentinels.
 
 Read:
 - .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-correctness.json
 - .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-security.json
 - .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-perf.json
+- .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-style.json
 
 Cross-reference findings. Deduplicate overlapping issues. Resolve conflicts.
 Produce unified verdict.
@@ -169,9 +203,10 @@ Produce unified verdict.
 Write to: .agents/tmp/phases/loop-{{LOOP}}/A3-quality.json
 ```
 
-### 5. Guardian (Test Writing)
+### 5. Guardian (Test Writing — parallel with sentinels and simplifier)
 
-Guardian agents write tests alongside the review. Dispatch after workers complete:
+Guardian writes and runs tests alongside the review. Dispatch after workers complete.
+**The arbiter waits for guardian to complete before consolidating** (guardian test results are included in the quality verdict).
 
 ```
 Write tests for the implementation.
@@ -249,7 +284,7 @@ If a worker reports `blocked` or fails:
 If a sentinel fails to complete:
 - Log the failure
 - Arbiter consolidates from available sentinel outputs (partial review)
-- If all three sentinels fail, treat as blocked
+- If all four sentinels fail, treat as blocked
 
 ### Pool Stall
 
