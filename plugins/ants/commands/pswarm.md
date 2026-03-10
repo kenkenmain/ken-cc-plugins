@@ -278,6 +278,25 @@ Then dispatch **1 drone agent** (`subagent_type: "ants:drone"`):
 
 Update state: `phases.A5.status: "complete"`.
 
+### After A5: Per-Run Summary Display
+
+After the drone completes and before the Completion Gate, display a per-run summary:
+
+Read from `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` and `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`:
+
+```
+Ants pswarm — Run <pswarmRun> Complete
+========================================
+Commit: <.commit_sha from A5-ship.json>  PR: <.pr_url>
+Files changed: <count of .files_committed[] from A5-ship.json>
+Quality: <.summary.critical from A3-quality.json> critical  <.summary.warning> warning  <.summary.info> info
+```
+
+Also append this run's data to your `RUN_SUMMARIES` tracking variable (maintained in your working context across runs):
+```
+RUN_SUMMARIES += { run: <pswarmRun>, commit_sha: <.commit_sha>, pr_url: <.pr_url>, files_changed: <count> }
+```
+
 ### After A5: Persistent Run Loop
 
 <COMPLETION-GATE>
@@ -298,14 +317,30 @@ If this command fails (file missing, corrupt JSON, jq error), set `status: "bloc
 
 - If `pswarmRun >= maxRuns` OR `shutdown == true`:
   - Update state: `currentPhase: "DONE"`, `status: "complete"`
-  - Display final result to the user: commit SHA, PR URL, and summary of what was built across all runs
+  - Determine stop reason: `pswarmRun >= maxRuns` → "max runs reached"; `shutdown == true` → "shutdown requested"
+  - Display the final summary using the RUN_SUMMARIES list accumulated across all runs:
+
+  ```
+  Ants pswarm — All Runs Complete
+  =================================
+  Task: <.task from state.json>
+  Total runs completed: <pswarmRun> / <maxRuns>
+  Stop reason: <max runs reached | shutdown requested>
+
+  Run | Commit       | PR            | Files Changed
+  ----|-------------|---------------|---------------
+  1   | <sha[0:7]>  | <pr_url>      | <files_changed>
+  2   | <sha[0:7]>  | <pr_url>      | <files_changed>
+  ... (one row per entry in RUN_SUMMARIES)
+      | Total        |               | <sum of files_changed>
+  ```
   - ONLY NOW may you stop
 
 - If `pswarmRun < maxRuns` AND `shutdown == false`:
   - You MUST continue. Stopping here is a bug. Execute Gate Step 3.
 
 **Gate Step 3 (REQUIRED when continuing): Reset for next run.**
-  - Read and store the commit SHA and PR URL from `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` BEFORE cleanup
+  - Read and store from `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` BEFORE cleanup: `.commit_sha`, `.pr_url`, and count of `.files_committed[]` for this run's summary entry (run data is lost after cleanup)
   - Increment `pswarmRun` by 1
   - Reset `loop` to 1
   - Reset all phases (A0-A5) to `{"status": "pending"}`

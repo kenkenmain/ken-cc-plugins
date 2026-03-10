@@ -142,13 +142,28 @@ Dispatch **nurse and drone in parallel** via the Agent tool:
 
 ## Step 8: Display Results
 
-Read `.agents/tmp/debug/D5-ship.json` and display to the user:
+Read the following output files and display a structured summary to the user:
+- `.agents/tmp/debug/D5-ship.json` — `.commit_sha`, `.pr_url`
+- `.agents/tmp/debug/D4-quality.json` — `.summary.critical`, `.summary.warning`, `.summary.info`
+- `.agents/tmp/debug/D3-implementation.json` — `.filesModified[]`, `.filesCreated[]`, `.bugDescription`, `.selfVerification`
 
+Display:
 ```
 Ants Debug — Complete
 =======================
-Bug: <bug description>
-Fix: <summary of the selected solution>
-Commit: <commit SHA>
-PR: <PR URL>
+Bug: <bug description from $ARGUMENTS>
+Fix: <summary of the selected solution from D2-solutions.md>
+
+Quality Review (D4):
+  Critical: <.summary.critical>  Warning: <.summary.warning>  Info: <.summary.info>
+
+Files changed:
+  - <each file from .filesModified and .filesCreated, up to 10 total>
+  (show "(and N more)" if total exceeds 10)
+
+Commit: <.commit_sha from D5-ship.json>
+PR: <.pr_url>
 ```
+
+If D4-quality.json is missing or unreadable, omit the Quality Review section and add "(quality review data unavailable)".
+If D3-implementation.json is missing or its fields are empty, omit the Files changed section and add "(see PR for files changed)".

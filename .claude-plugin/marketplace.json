@@ -46,7 +46,7 @@
       "name": "minions",
       "source": "./plugins/minions",
       "description": "Deploy personality-driven agent teams across four distinct pipelines — fast 4-phase launch, thorough 15-phase superlaunch, Cursor-inspired flow, and review-fix iteration — each with loop-back and judge-based quality control.",
-      "version": "0.15.2",
+      "version": "0.15.3",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -77,8 +77,8 @@
     {
       "name": "ants",
       "source": "./plugins/ants",
-      "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams delegate mode, dual-track build, adversarial review, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, teammate messaging, lint-on-save, HTTP webhooks, and opt-in WebSearch support",
-      "version": "0.5.1",
+      "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams SendMessage-based communication, dual-track build, adversarial review, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, teammate messaging, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all four pipelines",
+      "version": "0.5.3",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
