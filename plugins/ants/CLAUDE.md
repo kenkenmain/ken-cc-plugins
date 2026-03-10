@@ -98,7 +98,7 @@ plugins/ants/
 | 22 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes |
 | 23 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
 
-All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The queen coordinates all phase transitions via SendMessage. The orchestrator (hooks) manages task assignment and quality gates via TeammateIdle/TaskCompleted hooks.
+All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The orchestrator (command executor) dispatches agents directly via the Agent tool for each phase and drives all phase transitions. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots, compaction) and lifecycle support.
 
 **Sentinel tool design:** Specialist sentinels (rows 15-18) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
 
@@ -133,7 +133,7 @@ EXPLORE ──> PLAN ──> BUILD ──────────────> S
                ship       loop ──> back to A1
 ```
 
-Queen drives all phase transitions via SendMessage. A4 (sync/verdict) is not a separate agent dispatch -- it is evaluated internally by the queen after receiving all A3 results.
+The orchestrator dispatches agents directly via the Agent tool for each phase. A4 (sync/verdict) is not a separate agent dispatch -- it is evaluated directly by the orchestrator after receiving all A3 results.
 
 Two pipeline variants are supported, selected by the `pipeline` field in state.json:
 
@@ -146,7 +146,7 @@ Two pipeline variants are supported, selected by the `pipeline` field in state.j
 | A1 | PLAN | architect x1 | Structured plan with task assignments |
 | A2 | PLAN | blueprint-reviewer x1 | Plan validation |
 | A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style (adversarial review), simplifier x1, review-arbiter x1, guardian x1 | Self-organizing task pool with adversarial review and cleanup tracks |
-| A4 | SYNC | queen (internal) | Queen evaluates all A3 evidence internally, renders ship/loop verdict (circuit breaker aware) |
+| A4 | SYNC | orchestrator (internal) | Orchestrator evaluates all A3 evidence, renders ship/loop verdict (circuit breaker aware) |
 | A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
 
 ## Debug Pipeline (D0-D5)
@@ -250,7 +250,7 @@ The swarm command uses ToolSearch to load Agent Teams tools (TaskCreate, TaskGet
 
 ## Hook Architecture
 
-Eight hooks support the workflow alongside the queen's SendMessage-based coordination. The queen drives all phase transitions by dispatching agents via SendMessage and receiving their results back. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots, compaction) and lifecycle support:
+Eight hooks support the workflow. The orchestrator drives all phase transitions by dispatching agents via the Agent tool. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots, compaction) and lifecycle support:
 
 ### on-teammate-idle.sh (TeammateIdle event)
 
@@ -437,7 +437,7 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
     {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "teams"},
     {"phase": "A2", "stage": "PLAN", "label": "Blueprint Review", "type": "teams"},
     {"phase": "A3", "stage": "BUILD", "label": "Dual-Track Execution", "type": "teams"},
-    {"phase": "A4", "stage": "SYNC", "label": "Queen Synchronization", "type": "teams"},
+    {"phase": "A4", "stage": "SYNC", "label": "Verdict", "type": "teams"},
     {"phase": "A5", "stage": "SHIP", "label": "Documentation + Ship", "type": "teams"}
   ],
   "phases": {
@@ -514,28 +514,15 @@ Cross-phase communication via the `messages` array in state.json. Agents can sen
 
 ## Communication
 
-The queen orchestrates all phase transitions via SendMessage. The naming contract for recipient strings is:
+The orchestrator dispatches agents directly via the Agent tool for each phase. Agents communicate results via their output files (written to `.agents/tmp/phases/`). The naming contract for output files is documented in the Phase Output Files section of the swarm SKILL.md.
 
-### Recipient Naming Contract
+### SendMessage (pswarm only)
 
-| Sender | Recipient | Purpose |
-|--------|-----------|---------|
-| All agents (except sentinels) | `"queen"` | Report results, completion status, findings |
-| sentinel-correctness | `"review-arbiter"` | Send correctness findings for consolidation |
-| sentinel-security | `"review-arbiter"` | Send security findings for consolidation |
-| sentinel-perf | `"review-arbiter"` | Send performance findings for consolidation |
-| review-arbiter | `"queen"` | Send consolidated quality verdict |
-| Queen | Any agent by name | Dispatch phase work (e.g., `"forager"`, `"architect"`, `"worker"`) |
-
-**Key rules:**
-- All agents send results back to `"queen"` -- the queen is the central hub
-- Exception: specialist sentinels send findings to `"review-arbiter"` for consolidation before the arbiter reports to queen
-- Queen dispatches to agents by their exact agent name (e.g., `"forager"`, `"cartographer"`, `"architect"`, `"worker"`, `"nurse"`, `"drone"`)
-- A4 (sync/verdict) is internal to queen -- no separate agent is dispatched for this phase
+The `queen` agent is used in pswarm mode as the persistent pipeline driver. In swarm mode, the orchestrator (command executor) drives all phases directly. SendMessage-based communication is available for agents that support it (forager, cartographer, architect, etc.) but is not required for the swarm pipeline.
 
 ### queenDispatched State Field
 
-The `queenDispatched` field in state.json tracks whether the queen has been spawned for the current workflow run. This prevents duplicate queen dispatches and ensures the queen is the single coordinator for the pipeline. The field is set to `true` when the queen is first dispatched and checked before any subsequent dispatch attempt.
+The `queenDispatched` field in state.json tracks whether the pipeline has started execution. It is set to `true` when the first phase begins and prevents duplicate pipeline starts.
 
 ## Worktree Isolation (v0.4)
 
