@@ -427,7 +427,7 @@ Routing is determined by state fields (`exploreAggregator`, `planAggregator`), s
 
 Per-agent `.tmp` files in `.agents/tmp/phases/` persist through the workflow run for debugging and reference. Cleanup occurs when `init-claude` starts a new workflow (creates fresh `.agents/tmp/phases/` directory) or when the user runs `/subagents:teardown`.
 
-**External dependency:** Only `superpowers` plugin remains external (required for `brainstorming` skill used by the brainstormer agent in Phase 1.1).
+**External dependencies:** None. The plugin is fully self-contained. The brainstormer agent (Phase 1.1) previously required the `superpowers` plugin for its `brainstorming` skill, but that dependency was removed in v0.16.6 — brainstormer now implements strategy analysis directly.
 
 ## Commands
 

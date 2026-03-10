@@ -47,12 +47,12 @@ ken-cc-plugins/
 ├── plugins/
 │   ├── ants/
 │   │   ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-│   │   ├── agents/                        # Agent definitions (22 agents)
-│   │   ├── commands/                      # Slash commands (swarm.md, pswarm.md, debug.md, improve.md)
+│   │   ├── agents/                        # Agent definitions (24 agents)
+│   │   ├── commands/                      # Slash commands (swarm.md, sswarm.md, pswarm.md, debug.md, improve.md)
 │   │   ├── hooks/                         # Shell hooks (9 hooks)
 │   │   │   └── lib/                       # Shared bash libs (state.sh, swarm.sh, dag.sh, circuit-breaker.sh, task-pool.sh, teams.sh, webhook.sh, lint.sh)
 │   │   ├── prompts/                       # Phase prompt templates (A0-A5)
-│   │   ├── skills/                        # swarm, workflow, debug, improve
+│   │   ├── skills/                        # swarm, sswarm, workflow, debug, improve
 │   │   ├── README.md                      # User-facing documentation
 │   │   └── CLAUDE.md                      # Ants-specific architecture docs
 │   ├── minions/
@@ -87,7 +87,7 @@ ken-cc-plugins/
 │   │   ├── skills/                        # iterate, iterate-status, iterate-resume, iterate-configure, gh-repo-setup
 │   │   └── README.md
 ├── lib/
-│   └── common-state.sh                    # Shared bootstrap (flock/mkdir lock probe, macOS/Linux compat)
+│   └── common-state.sh                    # DEPRECATED since v0.5.3/v0.15.3 — bootstrap logic inlined into each plugin's state.sh
 ├── docs/
 │   └── cookbook.md                        # Plugin developer cookbook
 ├── .agents/                               # Runtime state (gitignored)
@@ -423,7 +423,7 @@ Event-specific fields go in `hookSpecificOutput`:
 - `set -euo pipefail` at top of every script
 - `local var; var="$(cmd)"` not `local var="$(cmd)"` (avoids masking exit codes)
 - Always run `bash -n <script>` after modifying shell scripts
-- Source plugin-local libs from `$SCRIPT_DIR/lib/`; source cross-plugin bootstrap from `lib/common-state.sh` (provides flock/mkdir lock probe, macOS/Linux `stat` compatibility)
+- Source plugin-local libs from `$SCRIPT_DIR/lib/`; do NOT source `lib/common-state.sh` (deprecated since v0.5.3 — bootstrap logic is now inlined into each plugin's own `state.sh`)
 
 ## Workflow Learnings
 

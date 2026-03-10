@@ -14,7 +14,7 @@
       "name": "superpowers-iterate",
       "source": "./plugins/superpowers-iterate",
       "description": "Orchestrate a 9-phase iterative development cycle with brainstorming, planning, implementation, testing, and adversarial review — configurable models and full/lite modes let you balance speed and thoroughness.",
-      "version": "1.9.1",
+      "version": "1.9.2",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -30,7 +30,7 @@
       "name": "kenken",
       "source": "./plugins/kenken",
       "description": "Drive a streamlined 4-stage development loop — plan, implement, test, and finalize — with automatic iteration until quality gates pass.",
-      "version": "2.6.1",
+      "version": "2.6.2",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -46,7 +46,7 @@
       "name": "minions",
       "source": "./plugins/minions",
       "description": "Deploy personality-driven agent teams across four distinct pipelines — fast 4-phase launch, thorough 15-phase superlaunch, Cursor-inspired flow, and review-fix iteration — each with loop-back and judge-based quality control.",
-      "version": "0.15.3",
+      "version": "0.15.4",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -62,7 +62,7 @@
       "name": "subagents",
       "source": "./plugins/subagents",
       "description": "Run multi-phase development workflows through hook-driven subagent orchestration with automatic phase chaining, permission gates, and full context isolation between stages.",
-      "version": "0.16.5",
+      "version": "0.16.6",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -78,7 +78,7 @@
       "name": "ants",
       "source": "./plugins/ants",
       "description": "Ant-colony themed swarm workflow with persistent pswarm mode, direct orchestrator-driven dispatch, dual-track build, adversarial review (4 sentinels + arbiter), debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all four pipelines",
-      "version": "0.5.5",
+      "version": "0.5.6",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

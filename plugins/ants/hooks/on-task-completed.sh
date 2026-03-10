@@ -88,9 +88,9 @@ handle_a2() {
 
   # Validate that the review has a status field
   local review_status
-  review_status=$(jq -r '.status // .verdict // empty' "${phases_dir}/A2-review.json" 2>/dev/null || echo "")
+  review_status=$(jq -r '.status // empty' "${phases_dir}/A2-review.json" 2>/dev/null || echo "")
   if [[ -z "$review_status" ]]; then
-    teams_reject_completion "A2-review.json has neither .status nor .verdict field. Review must produce a verdict."
+    teams_reject_completion "A2-review.json missing .status field. Review must produce a verdict."
     exit 2
   fi
 
@@ -108,12 +108,15 @@ handle_a3_worker() {
 
   if [[ "$has_pool" == "yes" ]]; then
     source "$SCRIPT_DIR/lib/task-pool.sh"
-    # Extract task_id from completion input
+    # Extract task_id from completion input (primary path)
     local task_id
     task_id=$(printf '%s' "$input" | jq -r '.output.taskId // .output.task_id // empty' || echo "")
-    # Fallback: try extracting task ID from subject (format: "A3 Worker: T1 - description")
+    # Fallback: extract task ID from subject line
+    # Expected subject formats: "A3 Worker: T1 - description" or "A3 Worker: my-task-id ..."
     if [[ -z "$task_id" ]]; then
-      task_id=$(printf '%s' "$task_subject" | grep -oE '[Tt]ask[_ ][A-Za-z0-9_-]+|Worker:? [A-Za-z0-9_-]+' | head -1 | sed 's/.*[: ] *//' || echo "")
+      if [[ "$task_subject" =~ ^A3[[:space:]][Ww]orker:[[:space:]]*([A-Za-z0-9_-]+) ]]; then
+        task_id="${BASH_REMATCH[1]}"
+      fi
     fi
 
     if [[ -n "$task_id" ]]; then
@@ -227,6 +230,14 @@ handle_a3_arbiter() {
   teams_log "A3 arbiter checkpoint valid"
 }
 
+# ─────────────────────────────────────────────────────────────
+# LEGACY: Agent Teams mode only (not called in swarm/pswarm path)
+# This function handles A3 result aggregation in the Agent Teams delegate
+# pipeline where TaskCompleted hooks validate worker output. In the current
+# orchestrator-driven swarm/pswarm path, A3 aggregation is performed by
+# the review-arbiter agent dispatched directly by the orchestrator command.
+# Kept for potential Agent Teams reactivation.
+# ─────────────────────────────────────────────────────────────
 handle_a3_aggregate() {
   local phases_dir="$1"
 

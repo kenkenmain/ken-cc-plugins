@@ -1,6 +1,6 @@
 # ants
 
-Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and a queen decides to ship or loop. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
+Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the orchestrator decides to ship or loop. Features a social swarm mode with competing architects and reviewers. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
 
 ## Installation
 
@@ -18,6 +18,11 @@ claude plugin install ./plugins/ants --scope project
 /ants:swarm Add a caching layer to the API endpoints
 /ants:swarm --worktree Add a caching layer to the API endpoints
 /ants:swarm --web Integrate a third-party payment SDK
+
+# Social swarm: 3 competing architects + 3 competing reviewers
+/ants:sswarm Add a comprehensive validation layer
+/ants:sswarm --web Design and implement a plugin marketplace
+/ants:sswarm --worktree Refactor the authentication system
 
 /ants:pswarm Continuously improve test coverage --max-loops 10
 /ants:pswarm Fix all lint warnings --worktree
@@ -64,6 +69,35 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
    |
   A5 Ship             update docs, commit, open PR
 ```
+
+## Social Swarm Pipeline
+
+`/ants:sswarm` extends swarm with **competing parallel agents**. Instead of one architect and one reviewer, sswarm dispatches three of each — and dedicated lead agents consolidate their outputs:
+
+```
+  A0 Explore         same as swarm
+       |
+  A1 Competing       plan-arbiter (lead, background)
+     Architects      architect ×3 (parallel) ──SendMessage──→ plan-arbiter
+       |             plan-arbiter selects/merges best plan
+  A2 Competing       review-lead (lead, background)
+     Reviews         blueprint-reviewer ×3 ──SendMessage──→ review-lead
+       |             review-lead consolidates verdicts
+  A3-A5              same as swarm
+```
+
+| Phase | Agent(s) | Lead? |
+|-------|----------|-------|
+| A0 | foragers + cartographer + explore-aggregator | explore-aggregator |
+| A1 | architect ×3 | plan-arbiter |
+| A2 | blueprint-reviewer ×3 | review-lead |
+| A3 | workers + sentinels + guardian + simplifier | review-arbiter |
+| A4 | orchestrator (internal) | — |
+| A5 | nurse + drone | drone |
+
+**Choose sswarm when:** Your task benefits from diverse planning perspectives — multiple architects explore different approaches, and the plan-arbiter selects the strongest design. Good for complex features where the "right approach" isn't obvious.
+
+**Choose swarm when:** You want a faster, leaner pipeline with a single architect and reviewer. Better for well-understood tasks.
 
 ## Debug Pipeline
 
@@ -124,6 +158,21 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 **Choose improve when:** You have existing code that works but want to systematically clean up all issues across correctness, security, and performance. Unlike swarm (which builds new features) or debug (which investigates specific bugs), improve focuses purely on iterating review-fix cycles until the code is clean.
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
+
+### What's New in v0.5.6
+
+- **Social swarm (`/ants:sswarm`)** — New pipeline variant with competing parallel agents and per-phase lead consolidators. A1 dispatches 3 competing architects whose plans are evaluated and selected/merged by a plan-arbiter lead agent. A2 dispatches 3 competing blueprint-reviewers whose findings are deduplicated and consolidated by a review-lead. A0, A3-A5 are identical to swarm. All 8 hooks are compatible unchanged.
+- **`plan-arbiter`** — New A1 lead agent for sswarm. Receives competing plans via SendMessage, evaluates on 5 criteria (completeness, feasibility, task count, risk, dependencies), and selects the best plan or synthesizes a merged plan.
+- **`review-lead`** — New A2 lead agent for sswarm. Receives competing reviews via SendMessage, deduplicates issues (highest severity wins), applies cross-reference elevation, and produces a consolidated A2-review.json verdict.
+- **24 agents** (up from 22) — 2 new lead agents for the sswarm pipeline.
+
+### What's New in v0.5.5
+
+- **`task_id` regex fix** — `on-task-completed.sh` now anchors the `task_id` fallback regex with `BASH_REMATCH`, preventing false positive matches on agent names that are substrings of other names (e.g., `worker` matching `review-fixer` worker tasks).
+- **`known_agents` allowlist expanded** — `teams.sh` now explicitly allows all current agents: `sentinel-style`, `explore-aggregator`, `simplifier`, `bug-scout`, `fix-worker`, `solution-aggregator`, `solution-proposer`. Previously these agents could be rejected by the allowlist guard despite being valid ants agents.
+- **A2 verdict field standardized** — `on-task-completed.sh` A2 gate reads `.status` only (the canonical field). The stale `.verdict` fallback that referenced the old field name has been removed.
+- **LEGACY comments** — `handle_a4_verdict()` in `swarm.sh`, `handle_a3_aggregate()` in `on-task-completed.sh`, and `teams_create_phase_tasks()` in `teams.sh` are marked as LEGACY stubs retained for backward compatibility with pre-v0.5.1 state files.
+- **`lib/common-state.sh` marked DEPRECATED** — The shared bootstrap file is no longer sourced by any plugin. Bootstrap logic has been inlined into each plugin's own `state.sh` to fix path resolution failures when plugins run from the Claude plugin cache.
 
 ### What's New in v0.5.4
 
@@ -226,7 +275,9 @@ This catches issues from multiple perspectives rather than relying on a single r
 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality, I0 |
 | review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
 | guardian | Test writer and runner for quality track | sonnet | A3 quality |
+| plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | A1 |
 | queen | Persistent central dispatcher — drives A0→A5 via SendMessage, evaluates A4 verdict internally | sonnet | A0-A5 |
+| review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | A2 |
 | nurse | Updates documentation | sonnet | A5 |
 | drone | Commits and opens PR | inherit | A5 |
 | bug-scout | Parallel bug investigator (×3) | haiku | D0 |
@@ -235,7 +286,7 @@ This catches issues from multiple perspectives rather than relying on a single r
 | fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 22 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
+All 24 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
 
 ## How It Works
 
@@ -301,7 +352,7 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 | Build model | Task pool + adversarial review teams | Sequential with review-fix cycles |
 | Review style | 4 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
 | Loop type | Queen verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
-| Agents | 22 colony-themed | 26+ generic |
+| Agents | 24 colony-themed | 26+ generic |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Best for | Medium complexity tasks | Complex tasks needing thorough coverage |
 | Theme | Ant colony | Minions |

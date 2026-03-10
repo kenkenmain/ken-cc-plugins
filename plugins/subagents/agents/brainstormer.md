@@ -4,7 +4,6 @@ description: "Analyzes explore findings and determines implementation approach w
 model: opus
 color: magenta
 tools: [Read, Write]
-skills: [workflow, superpowers:brainstorming]
 ---
 
 # Brainstormer Agent

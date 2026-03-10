@@ -137,6 +137,14 @@ parse_queen_verdict() {
 # Verdict Handling (shared by on-task-completed.sh)
 # ===========================================================================
 
+# ─────────────────────────────────────────────────────────────
+# LEGACY: Agent Teams mode only (not called in swarm/pswarm path)
+# This function handles A4 verdict loop-back in the Agent Teams delegate
+# pipeline where the queen agent drives phase transitions. In the current
+# orchestrator-driven swarm/pswarm path, A4 verdict evaluation is done
+# inline by the orchestrator command. Kept for potential Agent Teams reactivation.
+# ─────────────────────────────────────────────────────────────
+
 # Handle A4 verdict result: advance to A5 (clean) or loop back to A1 (issues_found).
 #
 # Arguments:

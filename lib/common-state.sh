@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
+###############################################################################
+# DEPRECATED since v0.5.3 / v0.15.3
+#
+# This file is no longer sourced by any plugin. The bootstrap logic has been
+# inlined directly into each plugin's own state.sh to avoid breakage when
+# plugins run from the Claude plugin cache (~/.claude/plugins/cache/).
+#
+# Inlined versions live at:
+#   - plugins/ants/hooks/lib/state.sh
+#   - plugins/minions/hooks/lib/state.sh
+#   - plugins/subagents/hooks/lib/state.sh
+#
+# Do NOT delete this file — it is kept for reference.
+###############################################################################
+#
 # common-state.sh — Shared bootstrap for plugin state helpers
-# Source this from plugin-specific state.sh files.
+# HISTORICAL: Was sourced from plugin-specific state.sh files (see deprecation notice above).
 # Provides: STATE_FILE, jq dependency check, ERR trap.
 
 set -Eeuo pipefail
