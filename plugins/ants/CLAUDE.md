@@ -79,25 +79,30 @@ plugins/ants/
 | 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | Yes |
 | 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
 | 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 6 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
-| 7 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch, SendMessage | Yes |
-| 8 | guardian | Test writer for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch, SendMessage | Yes |
-| 9 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep, SendMessage | Yes |
-| 10 | queen | Persistent central dispatcher, phase driver, A0→A5 orchestrator | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
-| 11 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
-| 12 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep, SendMessage | Yes |
-| 13 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
-| 14 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 15 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 16 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 17 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | Yes |
-| 18 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | Yes |
-| 19 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes |
-| 20 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
+| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write, SendMessage | Yes |
+| 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
+| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch, SendMessage | Yes |
+| 9 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch, SendMessage | Yes |
+| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep, SendMessage | Yes |
+| 11 | queen | Persistent central dispatcher, phase driver, A0→A5 orchestrator | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
+| 12 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
+| 13 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep, SendMessage | Yes |
+| 14 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
+| 15 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 16 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 17 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 18 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
+| 19 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash, SendMessage | Yes |
+| 20 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | Yes |
+| 21 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | Yes |
+| 22 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes |
+| 23 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
 
 All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The queen coordinates all phase transitions via SendMessage. The orchestrator (hooks) manages task assignment and quality gates via TeammateIdle/TaskCompleted hooks.
 
-**Sentinel tool design:** Specialist sentinels (rows 14-16) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
+**Sentinel tool design:** Specialist sentinels (rows 15-18) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
+
+**Simplifier tool design:** The simplifier (row 19) has `Edit` to apply code cleanup but excludes `Write` via `disallowedTools` — it makes surgical edits to existing files, never full rewrites.
 
 ### Deprecated Agents
 
@@ -137,10 +142,10 @@ Two pipeline variants are supported, selected by the `pipeline` field in state.j
 
 | Phase | Stage | Agent(s) | Description |
 |-------|-------|----------|-------------|
-| A0 | EXPLORE | forager x2-4, cartographer x1 | Parallel codebase exploration (queen aggregates results) |
+| A0 | EXPLORE | forager x2-4, cartographer x1, explore-aggregator x1 | Parallel codebase exploration (explore-aggregator synthesizes results) |
 | A1 | PLAN | architect x1 | Structured plan with task assignments |
 | A2 | PLAN | blueprint-reviewer x1 | Plan validation |
-| A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf (adversarial review), review-arbiter x1, guardian xN | Self-organizing task pool with adversarial review teams |
+| A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style (adversarial review), simplifier x1, review-arbiter x1, guardian x1 | Self-organizing task pool with adversarial review and cleanup tracks |
 | A4 | SYNC | queen (internal) | Queen evaluates all A3 evidence internally, renders ship/loop verdict (circuit breaker aware) |
 | A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
 
@@ -204,12 +209,15 @@ Phase A3 is the core innovation. Two tracks run in coordinated execution:
 
 **Build Track:** Workers claim tasks from a self-organizing task pool. Tasks with no dependencies start as "ready"; as tasks complete, dependent tasks become ready automatically. This replaces the rigid wave-based dispatch from v0.1.
 
-**Quality Track (Adversarial Review):** After each batch of workers completes, three specialist sentinels run in parallel:
+**Quality Track (Adversarial Review + Cleanup):** After all workers complete (pool drained), six agents run in parallel:
 - **sentinel-correctness** -- bugs, logic errors, missing error handling, race conditions
 - **sentinel-security** -- OWASP top 10, injection, authentication, secrets exposure
 - **sentinel-perf** -- N+1 queries, blocking I/O, unnecessary allocations, algorithmic complexity
+- **sentinel-style** -- code style, readability, maintainability (excessive nesting, magic numbers, dead code)
+- **guardian** -- writes and runs tests for the implemented code
+- **simplifier** -- applies targeted code cleanup without behavioral changes (dead code removal, complexity reduction)
 
-After all three sentinels complete, the **review-arbiter** cross-references findings, deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json). If the review-arbiter identifies critical issues, a **review-fixer** is dispatched to apply targeted repairs before the quality verdict is finalized.
+After all six complete, the **review-arbiter** cross-references sentinel findings, deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json). If the review-arbiter identifies critical issues, a **review-fixer** is dispatched to apply targeted repairs before the quality verdict is finalized.
 
 **Task Pool Synchronization:** Workers in the pool run in parallel when their dependencies are satisfied. After all workers complete (pool drained), the adversarial review team runs. This replaces the wave barrier model with dependency-driven dispatch.
 
@@ -232,7 +240,7 @@ Library: `hooks/lib/circuit-breaker.sh`
 Ants v0.3 uses Agent Teams delegate mode exclusively. The `hooks/lib/teams.sh` library provides:
 
 - `teams_create_phase_tasks()` -- Creates TaskCreate entries for A0→A5 with dependency chains
-- `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/arbiter tasks after A1
+- `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes sentinel-style; arbiter blockedBy includes all 4 sentinels + guardian + simplifier)
 - `teams_get_next_ready_task()` -- Reads state.json, returns next dispatchable phase
 - `teams_build_teammate_prompt()` -- Generates direct execution prompts for teammates
 - `teams_assign_idle_teammate()` -- Builds exit-2 output for TeammateIdle hook

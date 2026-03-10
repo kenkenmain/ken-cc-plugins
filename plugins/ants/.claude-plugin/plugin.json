@@ -1,7 +1,7 @@
 {
   "name": "ants",
-  "version": "0.5.3",
-  "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams SendMessage-based communication, dual-track build, adversarial review, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, teammate messaging, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all four pipelines",
+  "version": "0.5.4",
+  "description": "Ant-colony themed swarm workflow with persistent pswarm mode, Agent Teams SendMessage-based communication, dual-track build, adversarial review (4 specialist sentinels: correctness, security, perf, style), post-build simplifier, A0 explore-aggregator, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, teammate messaging, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all four pipelines",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"

@@ -1,6 +1,6 @@
 # ants
 
-Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while specialist sentinels review from three angles, an arbiter consolidates findings, and a queen decides to ship or loop. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
+Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and a queen decides to ship or loop. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
 
 ## Installation
 
@@ -49,10 +49,13 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
   A2 Blueprint Review validates the plan before building
        |
   A3 Dual-Track       workers build from task pool,
-       |               adversarial sentinels review:
+       |               adversarial sentinels review in parallel:
        |                 sentinel-correctness (bugs, logic)
        |                 sentinel-security (OWASP, injection)
        |                 sentinel-perf (N+1, blocking I/O)
+       |                 sentinel-style (readability, dead code)
+       |               simplifier applies code cleanup
+       |               guardian writes + runs tests
        |               review-arbiter consolidates findings
        |
   A4 Queen Sync       reads arbiter verdict, decides: ship or loop
@@ -122,6 +125,14 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
 
+### What's New in v0.5.4
+
+- **`sentinel-style`** — Fourth specialist sentinel in the A3 quality track. Reviews code for style and maintainability issues: excessive nesting (arrow code), magic numbers, overly long functions, dead code, poor naming conventions. Runs in parallel with correctness/security/perf sentinels. Sends findings to review-arbiter.
+- **`simplifier`** — Post-build code cleanup agent in the A3 quality track. Runs after workers complete (parallel with sentinels). Applies targeted structural cleanup — dead code removal, complexity reduction, extracting helpers — WITHOUT changing behavior. Reports simplifications to queen.
+- **`explore-aggregator`** — A0 exploration synthesizer. Receives forager and cartographer results via SendMessage and synthesizes them into the canonical `A0-explore.md` report. Offloads queen context overhead during colony exploration.
+- **`teams.sh` dependency fix** — Guardian now blocks arbiter (arbiter waits for guardian, simplifier, and all 4 sentinels before consolidating). Previously guardian ran in parallel with sentinels but the arbiter did not wait for it.
+- **22 agents** (up from 19) — 3 new swarm pipeline agents added.
+
 ### What's New in v0.5.2
 
 - **Pipeline completion summaries** — All four pipelines now print a human-readable summary after execution completes:
@@ -133,7 +144,7 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 ### What's New in v0.5.1
 
 - **Queen as persistent central dispatcher** -- The queen agent is now the sole orchestrator of the A0→A5 pipeline. It dispatches each phase via SendMessage, receives results from agents, and evaluates the A4 verdict internally. This replaces the previous model where TeammateIdle/TaskCompleted hooks drove phase transitions.
-- **explore-aggregator removed** -- The queen aggregates A0 exploration results directly, eliminating the explore-aggregator agent. All phase outputs are routed through the queen.
+- **Queen inline aggregation** -- The queen aggregates A0 exploration results directly in v0.5.1. (Note: v0.5.4 re-introduces a dedicated explore-aggregator agent to offload queen context overhead.)
 - **teams.sh SendMessage helpers** -- New helper functions for constructing and routing SendMessage payloads. Single-task model replaces multi-task dispatch. Control character stripping and `.from` allowlist validation added for message security.
 - **Hook simplification** -- on-teammate-idle.sh, on-task-completed.sh, and on-stop.sh simplified. Hooks now handle supplementary gates only; all phase coordination is queen-driven.
 - **Security and performance fixes** -- Unsanitized task_id input validated via `^[A-Za-z0-9_-]+$` regex gate; hot-path sequential `state_get` calls consolidated to single batched `jq` calls in on-teammate-idle.sh, circuit-breaker.sh, and teams.sh.
@@ -203,15 +214,18 @@ This catches issues from multiple perspectives rather than relying on a single r
 |-------|------|-------|-------|
 | forager | Breadth-first codebase scout (x2-4) | haiku | A0 |
 | cartographer | Deep architecture tracer | sonnet | A0 |
+| explore-aggregator | Synthesizes forager+cartographer results into A0-explore.md | sonnet | A0 |
 | architect | Plans implementation with task assignments | sonnet | A1 |
 | blueprint-reviewer | Validates plan completeness and task logic | sonnet | A2 |
 | worker | Implements a single task (x1 per task) | inherit | A3 build |
 | sentinel-correctness | Bugs, logic errors, error handling | sonnet | A3 quality, I0 |
 | sentinel-security | OWASP, injection, secrets, access control | sonnet | A3 quality, I0 |
 | sentinel-perf | N+1 queries, blocking I/O, complexity | sonnet | A3 quality, I0 |
+| sentinel-style | Code style, readability, maintainability | sonnet | A3 quality |
+| simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | A3 quality |
 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality, I0 |
 | review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
-| guardian | Test writer for quality track | sonnet | A3 quality |
+| guardian | Test writer and runner for quality track | sonnet | A3 quality |
 | queen | Persistent central dispatcher — drives A0→A5 via SendMessage, evaluates A4 verdict internally | sonnet | A0-A5 |
 | nurse | Updates documentation | sonnet | A5 |
 | drone | Commits and opens PR | inherit | A5 |
@@ -221,7 +235,7 @@ This catches issues from multiple perspectives rather than relying on a single r
 | fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 19 agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
+All 22 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
 
 ## How It Works
 
@@ -239,15 +253,18 @@ The workflow is driven by the **queen agent** via SendMessage — not by Teammat
 ### Dual-Track Phase A3
 
 ```
-Build Track                    Quality Track (Adversarial)
------------                    ---------------------------
+Build Track                    Quality Track (Adversarial + Cleanup)
+-----------                    ------------------------------------
 Task pool workers (parallel)
     |
     pool drained ----------->  sentinel-correctness  \
-                                sentinel-security     } parallel
-                                sentinel-perf        /
+                                sentinel-security      \
+                                sentinel-perf           } parallel
+                                sentinel-style         /
+                                guardian              /
+                                simplifier           /
                                     |
-                                review-arbiter (consolidate)
+                                review-arbiter (consolidate all 6)
                                     |
                                A3-quality.json
     |                               |
@@ -258,7 +275,7 @@ Task pool workers (parallel)
 
 Workers claim tasks from the pool as dependencies are satisfied. Each worker implements exactly one task, self-verifies (tests, lint, typecheck), and reports results. Workers cannot use git (blocked by hook).
 
-After all workers complete, three specialist sentinels review the output in parallel, each focusing on a different dimension. The review-arbiter then consolidates their findings into a single A3-quality.json.
+After all workers complete, six agents run in parallel: four specialist sentinels review from different angles (correctness, security, performance, style), the guardian writes and runs tests, and the simplifier applies structural code cleanup without behavioral changes. The review-arbiter then consolidates all sentinel findings into a single A3-quality.json.
 
 ### Circuit Breaker
 
@@ -282,9 +299,9 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 |---|-----------|---------------------|
 | Phases | 6 (A0-A5) | 15 (S0-S14) |
 | Build model | Task pool + adversarial review teams | Sequential with review-fix cycles |
-| Review style | 3 specialist sentinels + arbiter | Single reviewer per phase |
+| Review style | 4 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
 | Loop type | Queen verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
-| Agents | 20 colony-themed | 26+ generic |
+| Agents | 22 colony-themed | 26+ generic |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Best for | Medium complexity tasks | Complex tasks needing thorough coverage |
 | Theme | Ant colony | Minions |
