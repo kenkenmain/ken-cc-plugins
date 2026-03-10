@@ -30,7 +30,7 @@ hooks:
   Stop:
     - hooks:
         - type: prompt
-          prompt: "Evaluate if the review-lead has completed review consolidation. This is a HARD GATE. Check ALL criteria: 1) Reviews received from all expected blueprint-reviewers (the dispatch prompt specifies the count), 2) Issues deduplicated (same task/location from multiple reviewers merged), 3) Severity merged (highest wins), 4) Cross-referenced issues elevated by one level, 5) A2-review.json written to .agents/tmp/phases/loop-{{LOOP}}/A2-review.json with .status field, 6) Confirmation sent to orchestrator with verdict summary. Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
+          prompt: "Evaluate if the review-lead has completed review consolidation. This is a HARD GATE. Check ALL criteria: 1) Reviews received from all expected blueprint-reviewers (the dispatch prompt specifies the count), 2) Issues deduplicated (same task/location from multiple reviewers merged), 3) Severity merged (highest wins), 4) Cross-referenced issues elevated by one level, 5) A2-review.json written to .agents/tmp/phases/loop-N/A2-review.json (where N is the current loop from state.json) with .status field, 6) Confirmation sent to orchestrator with verdict summary. Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
           timeout: 30
 ---
 

@@ -361,7 +361,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     messages_json="$(get_messages_for "$phase_agent")"
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
-      local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","drone","explore-aggregator","fix-worker","forager","guardian","nurse","queen","review-arbiter","review-fixer","sentinel-correctness","sentinel-perf","sentinel-security","sentinel-style","simplifier","solution-aggregator","solution-proposer","worker"]'
+      local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","drone","explore-aggregator","fix-worker","forager","guardian","nurse","plan-arbiter","queen","review-arbiter","review-fixer","review-lead","sentinel-correctness","sentinel-perf","sentinel-security","sentinel-style","simplifier","solution-aggregator","solution-proposer","worker"]'
       formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed — check .agents/tmp/state.json .messages array directly)"; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases

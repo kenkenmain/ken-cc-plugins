@@ -30,7 +30,7 @@ hooks:
   Stop:
     - hooks:
         - type: prompt
-          prompt: "Evaluate if the plan-arbiter has completed plan consolidation. This is a HARD GATE. Check ALL criteria: 1) Plans received from all expected architects (the dispatch prompt specifies the count), 2) Each plan evaluated on completeness, feasibility, task count, risk, dependency correctness, 3) Best plan selected or merged plan synthesized, 4) A1-plan.md written to .agents/tmp/phases/loop-{{LOOP}}/A1-plan.md, 5) A1-tasks.json written to .agents/tmp/phases/loop-{{LOOP}}/A1-tasks.json, 6) Confirmation sent to orchestrator with selected plan summary. Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
+          prompt: "Evaluate if the plan-arbiter has completed plan consolidation. This is a HARD GATE. Check ALL criteria: 1) Plans received from all expected architects (the dispatch prompt specifies the count), 2) Each plan evaluated on completeness, feasibility, task count, risk, dependency correctness, 3) Best plan selected or merged plan synthesized, 4) A1-plan.md written to .agents/tmp/phases/loop-N/A1-plan.md (where N is the current loop from state.json), 5) A1-tasks.json written to .agents/tmp/phases/loop-N/A1-tasks.json, 6) Confirmation sent to orchestrator with selected plan summary. Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
           timeout: 30
 ---
 
