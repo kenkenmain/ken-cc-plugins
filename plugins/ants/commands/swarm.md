@@ -26,10 +26,10 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 ## Pipeline
 
 ```
-Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer (queen aggregates)
+Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md + A1-tasks.json
 Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + sentinels + guardians
+Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + 4 sentinels + guardian + simplifier
 Phase A4  │ SYNC        │ Queen          │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
 
@@ -160,10 +160,10 @@ Print this to the user:
 ```
 Ants Swarm — 6-Phase Pipeline (Queen-Driven)
 ==========================================
-Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer
+Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + explore-aggregator
 Phase A1  │ PLAN    │ Architect Plan        │ architect
 Phase A2  │ PLAN    │ Blueprint Review      │ blueprint-reviewer
-Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + sentinels + guardians
+Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
 Phase A4  │ SYNC    │ Queen Synchronization │ queen (ship/loop verdict)
 Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
 
@@ -192,9 +192,12 @@ Create a team with ALL the following teammates. The team name should be the `tea
 | sentinel-correctness | `ants:sentinel-correctness` | Bugs, logic errors, error handling (A3) |
 | sentinel-security | `ants:sentinel-security` | OWASP, injection, secrets (A3) |
 | sentinel-perf | `ants:sentinel-perf` | N+1 queries, blocking I/O, complexity (A3) |
+| sentinel-style | `ants:sentinel-style` | Code style, readability, maintainability (A3) |
 | review-arbiter | `ants:review-arbiter` | Consolidates sentinel findings (A3) |
 | review-fixer | `ants:review-fixer` | Targeted repair agent (A3) |
 | guardian | `ants:guardian` | Test writer for quality track (A3) |
+| simplifier | `ants:simplifier` | Post-build code cleanup (A3) |
+| explore-aggregator | `ants:explore-aggregator` | Synthesizes exploration results (A0) |
 | nurse | `ants:nurse` | Documentation updater (A5) |
 | drone | `ants:drone` | Commit + PR shipper (A5) |
 
@@ -276,14 +279,14 @@ The queen orchestrates all phases internally via SendMessage. The flow is:
 
 ### A0: Colony Exploration
 
-Queen sends exploration queries in parallel to foragers and cartographer via SendMessage. All agents send results back to the queen. Queen aggregates findings into `.agents/tmp/phases/A0-explore.md` directly (no separate aggregator agent).
+Queen sends exploration queries in parallel to foragers and cartographer via SendMessage. All agents send results back to the queen. Queen dispatches explore-aggregator to synthesize findings into `.agents/tmp/phases/A0-explore.md`.
 
 ### A1-A5: Remaining Phases
 
 Queen drives A1 through A5 following the same protocol documented in the queen agent definition:
 - A1: Sends to architect, receives plan
 - A2: Sends to blueprint-reviewer, receives verdict
-- A3: Sends to workers (dependency order), then sentinels → review-arbiter → review-fixer if needed, plus guardian
+- A3: Sends to workers (dependency order), then 4 sentinels + guardian + simplifier → review-arbiter → review-fixer if needed
 - A4: Queen evaluates internally (ship/loop verdict)
 - A5: Sends to nurse then drone, receives ship confirmation
 
@@ -296,12 +299,15 @@ Loop-back from A4 to A1 is handled by the queen internally when verdict is `issu
 | -- | queen | `ants:queen` | **Persistent** (drives entire pipeline) |
 | A0 | forager (batch) | `ants:forager` | Phase-scoped |
 | A0 | cartographer | `ants:cartographer` | Phase-scoped |
+| A0 | explore-aggregator | `ants:explore-aggregator` | Phase-scoped |
 | A1 | architect | `ants:architect` | Phase-scoped |
 | A2 | blueprint-reviewer | `ants:blueprint-reviewer` | Phase-scoped |
 | A3 | worker (task pool) | `ants:worker` | Phase-scoped |
 | A3 | sentinel-correctness | `ants:sentinel-correctness` | Phase-scoped |
 | A3 | sentinel-security | `ants:sentinel-security` | Phase-scoped |
 | A3 | sentinel-perf | `ants:sentinel-perf` | Phase-scoped |
+| A3 | sentinel-style | `ants:sentinel-style` | Phase-scoped |
+| A3 | simplifier | `ants:simplifier` | Phase-scoped |
 | A3 | review-arbiter | `ants:review-arbiter` | Phase-scoped |
 | A3 | review-fixer | `ants:review-fixer` | Phase-scoped |
 | A3 | guardian | `ants:guardian` | Phase-scoped |
