@@ -31,7 +31,7 @@ hooks:
   Stop:
     - hooks:
         - type: prompt
-          prompt: "Evaluate if the drone has completed all shipping tasks. This is a HARD GATE. Check ALL criteria: 1) Git commit created with conventional commit message, 2) Branch pushed to remote, 3) PR opened (or reason documented why not), 4) Output JSON is valid with required fields (commit_sha, branch, pr_url). Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
+          prompt: "Evaluate if the drone has completed all shipping tasks. This is a HARD GATE. Check ALL criteria: 1) Git commit created with conventional commit message, 2) Branch pushed to remote, 3) PR opened (or reason documented why not), 4) Output JSON is valid with required fields (commit_sha, branch, pr_url), 5) Marketplace.json versions synced with plugin.json versions (if any plugin version was bumped). Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
           timeout: 30
 ---
 
@@ -72,7 +72,23 @@ Before committing, verify:
 - [ ] Queen verdict is "clean"
 - [ ] If `worktreePath` is set in state.json, all git operations use that directory
 
-### Step 3: Create Git Commit
+### Step 3: Sync Marketplace Version
+
+If a plugin's `.claude-plugin/plugin.json` version was bumped, update the matching entry in `.claude-plugin/marketplace.json` at the repo root to keep versions in sync. CI enforces this check.
+
+```bash
+# For each plugin with a version change, update marketplace.json
+# Example: if plugins/ants/.claude-plugin/plugin.json version is 0.5.7,
+# update the "ants" entry in .claude-plugin/marketplace.json to match
+jq --arg name "ants" --arg ver "0.5.7" \
+  '(.plugins[] | select(.name == $name)).version = $ver' \
+  .claude-plugin/marketplace.json > .claude-plugin/marketplace.json.tmp \
+  && mv .claude-plugin/marketplace.json.tmp .claude-plugin/marketplace.json
+```
+
+Read all changed `plugin.json` files from the build output. For each one, extract the plugin name and version, then update the corresponding entry in `marketplace.json`. Also update the `description` field if the plugin description changed.
+
+### Step 4: Create Git Commit
 
 ```bash
 # Stage implementation and doc changes — use specific files only
@@ -97,7 +113,7 @@ Commit message guidelines:
 - Body explains the "why", not the "what"
 - Include co-author line
 
-### Step 4: Push and Create PR
+### Step 5: Push and Create PR
 
 ```bash
 # Check for worktree
@@ -139,13 +155,13 @@ EOF
 )"
 ```
 
-### Step 5: Write Output
+### Step 6: Write Output
 
 Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-ship.json`
 
 **Important:** Write the A5-ship.json file FIRST, then send the commit SHA and PR URL to the queen via SendMessage (recipient: "queen") so the queen can confirm shipment.
 
-### Step 6: Worktree Cleanup (if applicable)
+### Step 7: Worktree Cleanup (if applicable)
 
 If `worktreePath` is set, remove the worktree after shipping:
 
