@@ -174,7 +174,7 @@ teams_add_a3_subtasks() {
   subtasks_output=$(jq '
     # Collect all worker task IDs
     [.[].id] as $worker_ids |
-    ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style"] as $sentinel_names |
+    ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style", "sentinel-accessibility", "sentinel-observability", "sentinel-api-contracts", "sentinel-data-integrity"] as $sentinel_names |
 
     # Worker tasks — each depends on its declared dependencies (prefixed with A3-)
     [.[] | {
@@ -193,7 +193,11 @@ teams_add_a3_subtasks() {
       description: ("Review implementation for " + (if $name == "sentinel-correctness" then "bugs, logic errors, and error handling"
         elif $name == "sentinel-security" then "OWASP top 10, injection, secrets, access control"
         elif $name == "sentinel-perf" then "N+1 queries, blocking I/O, complexity"
-        else "code style, readability, maintainability" end)),
+        elif $name == "sentinel-style" then "code style, readability, maintainability"
+        elif $name == "sentinel-accessibility" then "accessibility compliance, WCAG, ARIA, keyboard navigation"
+        elif $name == "sentinel-observability" then "logging, monitoring, tracing, error reporting coverage"
+        elif $name == "sentinel-api-contracts" then "API contract consistency, schema validation, versioning"
+        else "data integrity, validation, consistency, referential safety" end)),
       activeForm: ("Reviewing " + $name),
       agentType: ("ants:" + $name),
       blockedBy: [$worker_ids[] | "A3-worker-" + .]
@@ -226,7 +230,7 @@ teams_add_a3_subtasks() {
       description: "Cross-reference and deduplicate sentinel findings into unified A3-quality.json",
       activeForm: "Consolidating reviews",
       agentType: "ants:review-arbiter",
-      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-guardian", "A3-simplifier"]
+      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-sentinel-accessibility", "A3-sentinel-observability", "A3-sentinel-api-contracts", "A3-sentinel-data-integrity", "A3-guardian", "A3-simplifier"]
     }]
   ' "$tasks_file" 2>/dev/null)
 

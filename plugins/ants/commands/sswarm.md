@@ -31,7 +31,7 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 Phase A0  │ EXPLORE     │ Forage              │ foragers + cartographer + explore-aggregator (lead)
 Phase A1  │ PLAN        │ Competing Architects│ 3 architects + plan-arbiter (lead)
 Phase A2  │ PLAN        │ Competing Reviews   │ 3 blueprint-reviewers + review-lead (lead)
-Phase A3  │ BUILD+QUAL  │ Dual-Track          │ workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A3  │ BUILD+QUAL  │ Dual-Track          │ workers (task pool) + 8 sentinels + guardian + simplifier
 Phase A4  │ SYNC        │ Verdict             │ merge build+quality → ship/loop verdict
 Phase A5  │ SHIP        │ Ship                │ nurse (docs) → drone (commit + PR)
 
@@ -173,7 +173,7 @@ Ants Social Swarm — 6-Phase Pipeline
 Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + explore-aggregator (lead)
 Phase A1  │ PLAN    │ Competing Architects  │ 3 architects ──→ plan-arbiter (lead)
 Phase A2  │ PLAN    │ Competing Reviews     │ 3 blueprint-reviewers ──→ review-lead (lead)
-Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
+Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 8 sentinels + guardian + simplifier
 Phase A4  │ SYNC    │ Verdict               │ orchestrator (ship/loop verdict)
 Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
 
@@ -214,10 +214,10 @@ Update state: `currentPhase: "A1"`, `phases.A1.status: "in_progress"`.
 **Step 1:** Dispatch **1 plan-arbiter** (`subagent_type: "ants:plan-arbiter"`) with `run_in_background: true`:
 - "You are the A1 lead agent. Wait for plans from 3 architect agents via SendMessage. Evaluate each plan on completeness, feasibility, task count, risk, and dependency correctness. Select the best plan or synthesize a merged plan. Write canonical output to .agents/tmp/phases/loop-<LOOP>/A1-plan.md and .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. This is loop <LOOP> for task: <task>"
 
-**Step 2:** After plan-arbiter is launched, dispatch **3 architect agents** (`subagent_type: "ants:architect"`) in parallel:
-- Architect 1: "Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.architect.1.tmp and tasks to .agents/tmp/phases/loop-<LOOP>/A1-tasks.architect.1.tmp. After writing, send your plan summary to plan-arbiter via SendMessage with payload: {planPath, tasksPath, approach, tradeoffs}. You are architect 1 of 3 — the plan-arbiter will evaluate all plans and select the best."
-- Architect 2: Same prompt but with `.architect.2.tmp` file paths and "You are architect 2 of 3"
-- Architect 3: Same prompt but with `.architect.3.tmp` file paths and "You are architect 3 of 3"
+**Step 2:** After plan-arbiter is launched, dispatch **3 personality architect agents** in parallel:
+- Conservative (`subagent_type: "ants:architect-conservative"`): "You are the conservative architect — prefer minimal change and proven patterns. Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.architect.1.tmp and tasks to .agents/tmp/phases/loop-<LOOP>/A1-tasks.architect.1.tmp. After writing, send your plan summary to plan-arbiter via SendMessage with payload: {planPath, tasksPath, approach, tradeoffs}. You are architect 1 of 3 — the plan-arbiter will evaluate all plans and select the best."
+- Bold (`subagent_type: "ants:architect-bold"`): "You are the bold architect — design for the future with clean architecture. Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.architect.2.tmp and tasks to .agents/tmp/phases/loop-<LOOP>/A1-tasks.architect.2.tmp. After writing, send your plan summary to plan-arbiter via SendMessage with payload: {planPath, tasksPath, approach, tradeoffs}. You are architect 2 of 3 — the plan-arbiter will evaluate all plans and select the best."
+- Security-first (`subagent_type: "ants:architect-security-first"`): "You are the security-first architect — threat model before you plan. Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.architect.3.tmp and tasks to .agents/tmp/phases/loop-<LOOP>/A1-tasks.architect.3.tmp. After writing, send your plan summary to plan-arbiter via SendMessage with payload: {planPath, tasksPath, approach, tradeoffs}. You are architect 3 of 3 — the plan-arbiter will evaluate all plans and select the best."
 
 On loop 2+, also include in each architect's prompt: "This is loop <LOOP>. Read the previous loop's quality review at .agents/tmp/phases/loop-<PREV>/A3-quality.json and verdict at .agents/tmp/phases/loop-<PREV>/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan."
 
@@ -234,10 +234,10 @@ Update state: `currentPhase: "A2"`, `phases.A2.status: "in_progress"`.
 **Step 1:** Dispatch **1 review-lead** (`subagent_type: "ants:review-lead"`) with `run_in_background: true`:
 - "You are the A2 lead agent. Wait for reviews from 3 blueprint-reviewer agents via SendMessage. Deduplicate issues, merge severity (highest wins), and produce a consolidated verdict. Write output to .agents/tmp/phases/loop-<LOOP>/A2-review.json with .status field (approved or needs_revision). 3 reviewers were dispatched."
 
-**Step 2:** After review-lead is launched, dispatch **3 blueprint-reviewer agents** (`subagent_type: "ants:blueprint-reviewer"`) in parallel:
-- Reviewer 1: "Review the plan at .agents/tmp/phases/loop-<LOOP>/A1-plan.md and tasks at .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. Check for completeness, feasibility, dependency correctness, and risk. After writing your review, send your verdict to review-lead via SendMessage with payload: {status, issues[], severity, dependencySummary}. You are reviewer 1 of 3."
-- Reviewer 2: Same prompt but "You are reviewer 2 of 3"
-- Reviewer 3: Same prompt but "You are reviewer 3 of 3"
+**Step 2:** After review-lead is launched, dispatch **3 adversarial blueprint-reviewer agents** in parallel:
+- Skeptic (`subagent_type: "ants:blueprint-reviewer-skeptic"`): "Review the plan at .agents/tmp/phases/loop-<LOOP>/A1-plan.md and tasks at .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. Check for completeness, feasibility, dependency correctness, and risk. After writing your review, send your verdict to review-lead via SendMessage with payload: {status, issues[], severity, dependencySummary}. You are reviewer 1 of 3 (skeptic perspective)."
+- Advocate (`subagent_type: "ants:blueprint-reviewer-advocate"`): "Review the plan at .agents/tmp/phases/loop-<LOOP>/A1-plan.md and tasks at .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. Check for completeness, feasibility, dependency correctness, and risk. After writing your review, send your verdict to review-lead via SendMessage with payload: {status, issues[], severity, dependencySummary}. You are reviewer 2 of 3 (advocate perspective)."
+- Pragmatist (`subagent_type: "ants:blueprint-reviewer-pragmatist"`): "Review the plan at .agents/tmp/phases/loop-<LOOP>/A1-plan.md and tasks at .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. Check for completeness, feasibility, dependency correctness, and risk. After writing your review, send your verdict to review-lead via SendMessage with payload: {status, issues[], severity, dependencySummary}. You are reviewer 3 of 3 (pragmatist perspective)."
 
 **Step 3:** Wait for all 3 reviewers to complete (foreground), then wait for the review-lead to complete (background).
 
@@ -261,16 +261,20 @@ For each task, dispatch a **worker agent** (`subagent_type: "ants:worker"`):
 
 After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`. If any worker agent fails or returns no output, set `all_complete: false` in A3-build.json and record the failure. The quality track should still run to review partial implementation.
 
-**Quality Track:** After all workers complete, dispatch **6 agents in parallel**:
+**Quality Track:** After all workers complete, dispatch **10 agents in parallel**:
 1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes for bugs, logic errors, missing error handling. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json"
 2. `subagent_type: "ants:sentinel-security"` — "Review all changes for security vulnerabilities (OWASP top 10, injection, secrets). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-security.json"
 3. `subagent_type: "ants:sentinel-perf"` — "Review all changes for performance issues (N+1 queries, blocking I/O, complexity). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-perf.json"
 4. `subagent_type: "ants:sentinel-style"` — "Review all changes for code style, readability, and maintainability. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-style.json"
-5. `subagent_type: "ants:guardian"` — write tests for implemented code
-6. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
+5. `subagent_type: "ants:sentinel-accessibility"` — "Review all changes for accessibility issues (ARIA, keyboard nav, contrast, semantic HTML). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-accessibility.json"
+6. `subagent_type: "ants:sentinel-observability"` — "Review all changes for observability issues (logging, metrics, traces, health checks). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-observability.json"
+7. `subagent_type: "ants:sentinel-api-contracts"` — "Review all changes for API contract issues (versioning, breaking changes, schema validation). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-api-contracts.json"
+8. `subagent_type: "ants:sentinel-data-integrity"` — "Review all changes for data integrity issues (validation, migration safety, transactions). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-data-integrity.json"
+9. `subagent_type: "ants:guardian"` — write tests for implemented code
+10. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
 
-After all 6 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
-- "Read all sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-*.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
+After all 10 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
+- "Read all 8 sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json, A3-review.sentinel-security.json, A3-review.sentinel-perf.json, A3-review.sentinel-style.json, A3-review.sentinel-accessibility.json, A3-review.sentinel-observability.json, A3-review.sentinel-api-contracts.json, and A3-review.sentinel-data-integrity.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
 
 If the arbiter finds critical issues, dispatch **1 review-fixer** (`subagent_type: "ants:review-fixer"`):
 - "Read issues from .agents/tmp/phases/loop-<LOOP>/A3-quality.json and apply targeted fixes."
@@ -364,15 +368,23 @@ Current phase: <.currentPhase>
 | A0 | forager (batch) | `ants:forager` | No |
 | A0 | cartographer | `ants:cartographer` | No |
 | A0 | explore-aggregator | `ants:explore-aggregator` | Yes |
-| A1 | architect (×3) | `ants:architect` | No |
+| A1 | architect-conservative | `ants:architect-conservative` | No |
+| A1 | architect-bold | `ants:architect-bold` | No |
+| A1 | architect-security-first | `ants:architect-security-first` | No |
 | A1 | plan-arbiter | `ants:plan-arbiter` | Yes |
-| A2 | blueprint-reviewer (×3) | `ants:blueprint-reviewer` | No |
+| A2 | blueprint-reviewer-skeptic | `ants:blueprint-reviewer-skeptic` | No |
+| A2 | blueprint-reviewer-advocate | `ants:blueprint-reviewer-advocate` | No |
+| A2 | blueprint-reviewer-pragmatist | `ants:blueprint-reviewer-pragmatist` | No |
 | A2 | review-lead | `ants:review-lead` | Yes |
 | A3 | worker (task pool) | `ants:worker` | No |
 | A3 | sentinel-correctness | `ants:sentinel-correctness` | No |
 | A3 | sentinel-security | `ants:sentinel-security` | No |
 | A3 | sentinel-perf | `ants:sentinel-perf` | No |
 | A3 | sentinel-style | `ants:sentinel-style` | No |
+| A3 | sentinel-accessibility | `ants:sentinel-accessibility` | No |
+| A3 | sentinel-observability | `ants:sentinel-observability` | No |
+| A3 | sentinel-api-contracts | `ants:sentinel-api-contracts` | No |
+| A3 | sentinel-data-integrity | `ants:sentinel-data-integrity` | No |
 | A3 | simplifier | `ants:simplifier` | No |
 | A3 | review-arbiter | `ants:review-arbiter` | Yes |
 | A3 | review-fixer | `ants:review-fixer` | No |

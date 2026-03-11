@@ -53,7 +53,7 @@ Read the issues from `state.reviewFix` and apply targeted fixes.
 
 ## Communication
 
-You may receive the issue list from the queen via SendMessage in addition to reading from state.json and source files. Use whichever source is available. After completing all fixes and writing the output JSON, report fix completion to the queen via SendMessage (recipient: "queen") with a summary of fixed and skipped issue counts.
+You may receive the issue list from the orchestrator via SendMessage in addition to reading from state.json and source files. Use whichever source is available. After completing all fixes and writing the output JSON, report fix completion to the orchestrator via SendMessage (recipient: "orchestrator") with a summary of fixed and skipped issue counts.
 
 ## Input
 
