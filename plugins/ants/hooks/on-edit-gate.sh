@@ -60,11 +60,6 @@ if [[ "$canonicalized" == "false" && "$file_path" == *".."* ]]; then
   exit 2
 fi
 
-# Allow .agents/ writes in any phase (workflow output files)
-if [[ "$file_path" =~ (^|/)\.agents/ ]]; then
-  exit 0
-fi
-
 # Allow writes to external paths (outside project directory)
 # The gate only protects project source files — temp files, scratchpads, etc. are fine
 project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
@@ -72,6 +67,12 @@ if command -v realpath &>/dev/null; then
   project_dir=$(realpath -m "$project_dir" 2>/dev/null || realpath "$project_dir" 2>/dev/null || echo "$project_dir")
 fi
 if [[ "$file_path" == /* ]] && [[ "$file_path" != "$project_dir"/* ]]; then
+  exit 0
+fi
+
+# Allow .agents/ writes in any phase (workflow output files) -- checked AFTER
+# project directory boundary to ensure only .agents/ within the project is allowed.
+if [[ "$file_path" =~ (^|/)\.agents/ ]]; then
   exit 0
 fi
 

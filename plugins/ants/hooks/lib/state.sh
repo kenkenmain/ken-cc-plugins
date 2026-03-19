@@ -31,11 +31,13 @@ check_ants_workflow() {
     exit 2
   fi
 
-  # Batch-read all guard fields in a single jq call to avoid repeated file reads
+  # Batch-read all guard fields in a single jq call to avoid repeated file reads.
+  # Uses pipe delimiter instead of tab because bash IFS with tab (whitespace)
+  # collapses consecutive empty fields, misassigning values when ownerPpid/sessionId are empty.
   local guard_fields
-  guard_fields=$(jq -r '[.plugin // "", .status // "", .ownerPpid // "", .sessionId // "", (.version // 1 | tostring)] | join("\t")' "$STATE_FILE")
+  guard_fields=$(jq -r '[.plugin // "", .status // "", .ownerPpid // "", .sessionId // "", (.version // 1 | tostring)] | join("|")' "$STATE_FILE")
   local plugin status owner_ppid state_session_id version
-  IFS=$'\t' read -r plugin status owner_ppid state_session_id version <<< "$guard_fields"
+  IFS='|' read -r plugin status owner_ppid state_session_id version <<< "$guard_fields"
 
   # Plugin guard — only handle ants workflows
   if [[ "$plugin" != "ants" ]]; then
@@ -83,6 +85,8 @@ check_ants_workflow() {
 }
 
 # Read a field from state.json. Exits 2 if the field is missing/empty and required.
+# IMPORTANT: The filter parameter must be a trusted hardcoded string, never user input.
+# Unsanitized user input would allow jq filter injection.
 # Usage: state_get '.currentPhase' [--required]
 state_get() {
   local filter="$1"

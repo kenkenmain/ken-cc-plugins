@@ -36,6 +36,7 @@ plugins/ants/
 │   ├── swarm.md                   # /ants:swarm <task>
 │   └── pswarm.md                  # /ants:pswarm <task> [--max-loops N] [--worktree]
 ├── docs/                          # Architecture documentation
+│   ├── shared-teams-init.md       # Shared naming contract for Agent Teams subjects, task IDs, routing
 │   └── teams-migration.md         # Agent Teams API migration guide
 ├── hooks/                         # Shell hooks (Agent Teams delegate mode)
 │   ├── hooks.json                 # Hook event configuration (8 hooks)

@@ -18,6 +18,7 @@
 # task dependencies (blockedBy chains) and file-based output.
 #
 # Key functions:
+#   teams_log()                      — Log with [TEAMS] prefix to stderr
 #   teams_create_phase_tasks()       — Creates full A0-A5 dependency chain
 #   teams_add_a3_subtasks()          — Dynamically adds worker/sentinel/arbiter tasks
 #   teams_create_sswarm_tasks()      — Creates sswarm task graph (competing agents)
@@ -223,12 +224,16 @@ teams_add_a3_subtasks() {
       agentType: "ants:review-fixer",
       blockedBy: ["A3-arbiter"]
     }]
-  ' "$tasks_file" 2>/dev/null)
+  ' "$tasks_file" 2>"${STATE_FILE}.a3sub-err")
 
   if [[ -z "$subtasks_output" ]]; then
-    teams_log "ERROR: jq failed to produce subtask descriptors from $tasks_file"
+    local a3sub_err
+    a3sub_err=$(cat "${STATE_FILE}.a3sub-err" 2>/dev/null || echo "unknown jq error")
+    rm -f "${STATE_FILE}.a3sub-err"
+    teams_log "ERROR: jq failed to produce subtask descriptors from $tasks_file: $a3sub_err"
     return 1
   fi
+  rm -f "${STATE_FILE}.a3sub-err" 2>/dev/null
 
   # Validate output is a non-empty JSON array
   if ! printf '%s' "$subtasks_output" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
@@ -403,7 +408,10 @@ teams_create_verdict_tasks() {
   loop=$(require_int "$loop" "loop")
 
   local worktree_path
-  worktree_path="$(state_get '.worktreePath' || echo "")"
+  worktree_path="$(state_get '.worktreePath' || {
+    echo "WARNING: Failed to read worktreePath from state.json, treating as empty" >&2
+    echo ""
+  })"
 
   local phases_dir=".agents/tmp/phases/loop-${loop}"
 
@@ -509,7 +517,10 @@ teams_get_a3_task_prompt() {
   local task_json
   task_json=$(jq -r --arg tid "$task_id" '
     .taskPool[] | select(.id == $tid)
-  ' "$STATE_FILE" 2>/dev/null)
+  ' "$STATE_FILE" 2>/dev/null) || {
+    teams_log "WARNING: jq failed reading taskPool for task $task_id from state.json"
+    task_json=""
+  }
 
   if [[ -z "$task_json" ]]; then
     teams_log "ERROR: Task $task_id not found in task pool"
@@ -677,7 +688,7 @@ teams_get_next_ready_task() {
     return 0
   fi
 
-  # Sequential phases (A0, A1, A2, A4)
+  # Sequential phases (A0, A1, A2) -- A4 exits early in route_idle_teammate
   local phase_status
   phase_status=$(jq -r --arg p "$current_phase" '.phases[$p].status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
 
@@ -806,7 +817,10 @@ All git operations must be performed within the worktree directory."
       (.files_owned // ""),
       (.acceptance_criteria // ""),
       (.extended_description // "")
-    ] | join("\t")' 2>/dev/null || echo "")
+    ] | join("\t")' 2>/dev/null || {
+      echo "WARNING: Failed to parse worker task context JSON" >&2
+      echo ""
+    })
     local tc_id tc_desc tc_files tc_criteria tc_extended
     IFS=$'\t' read -r tc_id tc_desc tc_files tc_criteria tc_extended <<< "$tc_fields"
 
@@ -834,9 +848,12 @@ Include your taskId in all output JSON."
       (.competitorIndex // ""),
       (.outputFile // ""),
       (.inputFiles // "")
-    ] | join("\t")' 2>/dev/null || echo "")
-    local comp_index comp_output input_files_list
-    IFS=$'\t' read -r comp_index comp_output input_files_list <<< "$comp_fields"
+    ] | join("\t")' 2>/dev/null || {
+      echo "WARNING: Failed to parse competitor/consolidator task context JSON" >&2
+      echo ""
+    })
+    local comp_index comp_output comp_input_files
+    IFS=$'\t' read -r comp_index comp_output comp_input_files <<< "$comp_fields"
 
     if [[ -n "$comp_index" ]]; then
       competitor_context="## Competing Agent Context
@@ -846,18 +863,20 @@ Your work will be evaluated alongside other competitors by a consolidator."
     fi
 
     # Consolidator context (overrides competitor context if present)
-    if [[ -n "$input_files_list" ]]; then
+    if [[ -n "$comp_input_files" ]]; then
       competitor_context="## Consolidator Context
 
 Read all competitor outputs and produce a unified result.
-Input files: ${input_files_list}"
+Input files: ${comp_input_files}"
     fi
   fi
 
   cat <<PROMPT
 ## Ants Colony -- Phase ${phase} -- Loop ${loop}
 
+# BEGIN USER TASK
 Task: ${task}
+# END USER TASK
 ${prev_context:+
 ${prev_context}
 }${messages_context:+

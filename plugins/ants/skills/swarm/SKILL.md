@@ -278,7 +278,7 @@ On loop 2+:
   "startedAt": "ISO timestamp",
   "teamCreated": false,
   "teammateCount": 0,
-  "taskGraphVersion": 0,
+  "taskGraphVersion": 1,
   "needsA3Tasks": false,
   "needsA5Tasks": false,
   "needsLoopReset": false,
@@ -356,11 +356,11 @@ Different phases use different JSON field names for their decision outputs. The 
 
 | Phase | File | Decision Field | Values |
 |-------|------|---------------|--------|
-| A2 | A2-review.json | `.status` or `.verdict` | `approved`, `needs_revision` |
+| A2 | A2-review.json | `.status` | `approved`, `needs_revision` |
 | A3 | A3-quality.json | `.verdict` | `clean`, `issues_found` |
 | A4 | A4-queen-verdict.json | `.verdict` | `clean`, `issues_found` |
 
-The A2 hook accepts either `.status` or `.verdict` (`jq '.status // .verdict'`). A3 and A4 use `.verdict` consistently.
+The A2 hook reads `.status` only (the `.verdict` fallback was removed in v0.5.5). A3 and A4 use `.verdict` consistently.
 
 ## Difference from Minions
 
@@ -371,7 +371,7 @@ The A2 hook accepts either `.status` or `.verdict` (`jq '.status // .verdict'`).
 | Coordination | Agent Teams delegate mode with Command-as-Active-Lead monitoring loop | Sequential phases with hook-driven transitions |
 | Key innovation | Task pool + adversarial review teams (4 sentinels + arbiter) | Sequential phases with review-fix cycles |
 | Loop mechanism | Orchestrator verdict (A4) -> A1 re-plan (max 5, circuit breaker) | Review phases with fix attempts + stage restarts |
-| Agents | 22 specialized colony roles | 38 agents |
+| Agents | 24 specialized colony roles | 38 agents |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Complexity | Streamlined for medium tasks | Thorough for complex tasks |
 

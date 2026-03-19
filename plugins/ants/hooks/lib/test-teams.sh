@@ -36,6 +36,9 @@ JSON
 
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/swarm.sh"
+source "$SCRIPT_DIR/lib/dag.sh"
+source "$SCRIPT_DIR/lib/circuit-breaker.sh"
+source "$SCRIPT_DIR/lib/task-pool.sh"
 source "$SCRIPT_DIR/lib/teams.sh"
 set +u
 
@@ -261,12 +264,138 @@ else
 fi
 
 # =========================================================================
+echo "=== teams_create_sswarm_tasks ==="
+
+setup
+tasks=$(teams_create_sswarm_tasks)
+count=$(echo "$tasks" | jq 'length')
+assert_eq "sswarm creates 12 tasks" "12" "$count"
+
+# Verify A1 competing architects
+arch_count=$(echo "$tasks" | jq '[.[] | select(.phaseId | startswith("A1-architect"))] | length')
+assert_eq "sswarm has 3 competing architects" "3" "$arch_count"
+
+# Verify plan-arbiter blockedBy all 3 architects
+arbiter_blocked=$(echo "$tasks" | jq -r '.[] | select(.phaseId == "A1-plan-arbiter") | .blockedBy | length')
+assert_eq "plan-arbiter blockedBy 3 architects" "3" "$arbiter_blocked"
+
+# Verify A2 competing reviewers
+rev_count=$(echo "$tasks" | jq '[.[] | select(.phaseId | startswith("A2-reviewer"))] | length')
+assert_eq "sswarm has 3 competing reviewers" "3" "$rev_count"
+
+# Verify review-lead blockedBy all 3 reviewers
+lead_blocked=$(echo "$tasks" | jq -r '.[] | select(.phaseId == "A2-review-lead") | .blockedBy | length')
+assert_eq "review-lead blockedBy 3 reviewers" "3" "$lead_blocked"
+
+# =========================================================================
+echo "=== teams_create_verdict_tasks ==="
+
+setup
+verdict_tasks=$(teams_create_verdict_tasks)
+vt_count=$(echo "$verdict_tasks" | jq 'length')
+assert_eq "verdict creates 2 tasks (nurse + drone)" "2" "$vt_count"
+
+# Verify A5-nurse blockedBy A3-arbiter
+nurse_blocked=$(echo "$verdict_tasks" | jq -r '.[] | select(.phaseId == "A5-nurse") | .blockedBy[0]')
+assert_eq "A5-nurse blockedBy A3-arbiter" "A3-arbiter" "$nurse_blocked"
+
+# Verify A5-drone blockedBy A5-nurse
+drone_blocked=$(echo "$verdict_tasks" | jq -r '.[] | select(.phaseId == "A5-drone") | .blockedBy[0]')
+assert_eq "A5-drone blockedBy A5-nurse" "A5-nurse" "$drone_blocked"
+
+# =========================================================================
+echo "=== teams_create_pswarm_run_tasks ==="
+
+setup
+jq '.pipeline = "swarm" | .pswarmRun = 3 | .maxRuns = 10' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+pswarm_tasks=$(teams_create_pswarm_run_tasks 2>/dev/null)
+pswarm_count=$(echo "$pswarm_tasks" | jq 'length')
+assert_eq "pswarm creates 6 tasks (swarm pipeline)" "6" "$pswarm_count"
+
+# Verify pswarm run metadata appended to descriptions
+pswarm_desc=$(echo "$pswarm_tasks" | jq -r '.[0].description')
+if echo "$pswarm_desc" | grep -q "pswarm run 3/10"; then
+  PASS=$((PASS + 1)); echo "  PASS: pswarm run metadata in description"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: pswarm run metadata missing (got: $pswarm_desc)"
+fi
+
+# =========================================================================
+echo "=== teams_get_a3_task_prompt ==="
+
+setup
+# Initialize a task pool in state
+jq '.currentPhase = "A3" | .taskPool = [
+  {"id": "T1", "description": "Create auth", "files_owned": ["src/auth.ts"], "dependencies": [], "acceptance_criteria": "auth works", "status": "claimed", "claimed_by": "me"}
+]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+mkdir -p .agents/tmp/phases/loop-1
+cat > .agents/tmp/phases/loop-1/A1-tasks.json <<'TASKS'
+[{"id": "T1", "description": "Create auth module", "files_owned": ["src/auth.ts"], "dependencies": [], "acceptance_criteria": "auth works"}]
+TASKS
+
+prompt=$(teams_get_a3_task_prompt "T1")
+if echo "$prompt" | grep -q "Task ID: T1"; then
+  PASS=$((PASS + 1)); echo "  PASS: task prompt contains task ID"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: task prompt missing task ID"
+fi
+if echo "$prompt" | grep -q "Create auth"; then
+  PASS=$((PASS + 1)); echo "  PASS: task prompt contains description"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: task prompt missing description"
+fi
+
+# =========================================================================
+echo "=== teams_get_next_ready_task A3 routing ==="
+
+# A3 with uncompleted pool tasks -> worker
+setup
+jq '.currentPhase = "A3" | .phases.A3 = {"status": "in_progress"} | .taskPool = [
+  {"id": "T1", "status": "ready", "claimed_by": null}
+]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+result_type=$(printf '%s' "$result" | cut -f2)
+assert_eq "A3 with ready pool tasks returns worker" "worker" "$result_type"
+
+# A3 with buildTrackComplete=true, sentinelsDone=false -> sentinel
+setup
+jq '.currentPhase = "A3" | .phases.A3 = {"status": "in_progress", "buildTrackComplete": true} | .taskPool = []' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+result_type=$(printf '%s' "$result" | cut -f2)
+assert_eq "A3 build complete, sentinels not done returns sentinel" "sentinel" "$result_type"
+
+# A3 with all quality done but arbiterDone=false -> arbiter
+setup
+jq '.currentPhase = "A3" | .phases.A3 = {"status": "in_progress", "buildTrackComplete": true, "sentinelsDone": true, "guardianDone": true, "simplifierDone": true} | .taskPool = []' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+result_type=$(printf '%s' "$result" | cut -f2)
+assert_eq "A3 all quality done except arbiter returns arbiter" "arbiter" "$result_type"
+
+# =========================================================================
+echo "=== teams_get_next_ready_task A5 routing ==="
+
+# A5 with nurseDone=false -> nurse
+setup
+jq '.currentPhase = "A5" | .phases.A5 = {"status": "in_progress"}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+result_type=$(printf '%s' "$result" | cut -f2)
+assert_eq "A5 with nurseDone=false returns nurse" "nurse" "$result_type"
+
+# A5 with nurseDone=true -> drone
+setup
+jq '.currentPhase = "A5" | .phases.A5 = {"status": "in_progress", "nurseDone": true}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+result=$(teams_get_next_ready_task)
+result_type=$(printf '%s' "$result" | cut -f2)
+assert_eq "A5 with nurseDone=true returns drone" "drone" "$result_type"
+
+# =========================================================================
 echo "=== bash -n syntax check on modified scripts ==="
 
 # HOOKS_DIR is captured at the top of the file (before any setup() cd calls)
 for script in \
     "$HOOKS_DIR/lib/teams.sh" \
-    "$HOOKS_DIR/on-task-completed.sh"; do
+    "$HOOKS_DIR/on-task-completed.sh" \
+    "$HOOKS_DIR/on-teammate-idle.sh"; do
   if bash -n "$script" 2>/dev/null; then
     PASS=$((PASS + 1)); echo "  PASS: bash -n $(basename "$script")"
   else

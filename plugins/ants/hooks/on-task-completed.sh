@@ -70,15 +70,18 @@ handle_a1() {
     exit 2
   fi
 
-  # planApproved gate — reject if plan has not been approved
+  # planApproved gate — reject if plan has not been approved.
+  # A1 status is kept as "complete" (plan file exists), but the workflow does not
+  # advance to A2 until planApproved=true. Setting A1 back to "pending" would
+  # cause TeammateIdle to re-dispatch the architect unnecessarily.
   local plan_approved
   plan_approved=$(state_get '.planApproved // false')
   if [[ "$plan_approved" != "true" ]]; then
-    if ! update_state '.updatedAt = $ts | .phases.A1.status = "pending"'; then
-      echo "ERROR: Failed to mark plan as awaiting approval." >&2
+    if ! update_state '.updatedAt = $ts | .phases.A1.status = "complete" | .phases.A1.completedAt = $ts'; then
+      echo "ERROR: Failed to mark A1 as complete while awaiting approval." >&2
       exit 2
     fi
-    webhook_phase_event "A1" "completed" || true
+    webhook_phase_event "A1" "awaiting_approval" || true
     teams_log "A1 plan written, awaiting approval before proceeding"
     teams_reject_completion "Plan written but planApproved is false. Set planApproved=true in state.json to proceed."
     exit 2
@@ -242,6 +245,9 @@ handle_a3_worker() {
   local input="$1"
   local task_subject="$2"
 
+  # Note: pool existence check is not atomic with the subsequent pool_complete_task call.
+  # This is safe because pool existence is stable after pool_init (the pool is never
+  # removed, only tasks within it change status). pool_complete_task uses its own lock.
   local has_pool
   has_pool=$(state_get '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end')
 
@@ -459,30 +465,24 @@ handle_a3_arbiter() {
   webhook_phase_event "A3" "completed" || true
 
   if [[ "$verdict" == "clean" ]]; then
-    # Clean verdict — mark A3/A4 complete, advance to A5, set signal flag
+    # Clean verdict — mark A3/A4 complete, advance to A5, set signal flag.
+    # Single atomic update prevents partial state where A3/A4 are complete
+    # but currentPhase has not advanced to A5 and needsA5Tasks is unset.
     if ! update_state '
       .updatedAt = $ts |
       .phases.A3.status = "complete" |
       .phases.A3.completedAt = $ts |
       .phases.A4.status = "complete" |
-      .phases.A4.completedAt = $ts
-    '; then
-      teams_reject_completion "Failed to mark A3/A4 as complete in state."
-      exit 2
-    fi
-
-    webhook_phase_event "A4" "completed" || true
-    cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
-
-    if ! update_state '
+      .phases.A4.completedAt = $ts |
       .currentPhase = "A5" |
-      .updatedAt = $ts |
       .needsA5Tasks = true
     '; then
       teams_reject_completion "Clean verdict but failed to advance state to A5. Retry."
       exit 2
     fi
 
+    webhook_phase_event "A4" "completed" || true
+    cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
     webhook_phase_event "A5" "started" || true
     teams_log "A4 verdict clean, advanced to A5 (needsA5Tasks signal set)"
   else
@@ -549,7 +549,7 @@ handle_a3_arbiter() {
 # simplifier, arbiter, fixer) handle all A3 tasks. This catch-all should
 # not fire for properly-formed task subjects. Kept as safety fallback.
 # ─────────────────────────────────────────────────────────────
-handle_a3_aggregate() {
+handle_a3_legacy_aggregate() {
   local phases_dir="$1"
 
   # Validate A3-build.json: existence + valid JSON + required fields in a single jq call
@@ -583,7 +583,7 @@ handle_a3_aggregate() {
 # an A4 subject fires, it validates the verdict file if present but
 # does not perform any state transitions.
 # ─────────────────────────────────────────────────────────────
-handle_a4() {
+handle_a4_legacy() {
   local phases_dir="$1"
 
   if [[ -f "${phases_dir}/A4-queen-verdict.json" ]]; then
@@ -601,14 +601,11 @@ handle_a4() {
 handle_a5_nurse() {
   local phases_dir="$1"
 
-  # Nurse writes A5-docs.json — validate it exists
-  if [[ -f "${phases_dir}/A5-docs.json" ]]; then
-    teams_log "A5 nurse completed (A5-docs.json found)"
-  else
-    teams_log "A5 nurse completed (no A5-docs.json, optional)"
-  fi
+  # Nurse writes A5-docs.json (optional output)
+  teams_log "A5 nurse completed (A5-docs.json: $(test -f "${phases_dir}/A5-docs.json" && echo found || echo absent))"
 
-  # Mark nurse as done so teams_get_next_ready_task() can route to drone
+  # Mark nurse as done in state (used by teams_get_next_ready_task as backup;
+  # primary sequencing is via A5-drone blockedBy A5-nurse dependency)
   if ! update_state '.phases.A5.nurseDone = true | .updatedAt = $ts'; then
     teams_reject_completion "Failed to set nurseDone in state. Drone dispatch depends on this flag. Retry."
     exit 2
@@ -784,8 +781,8 @@ main() {
     A3-simplifier) handle_a3_simplifier "$phases_dir" ;;
     A3-arbiter)    handle_a3_arbiter "$phases_dir" ;;
     A3-fixer)      handle_a3_fixer "$phases_dir" ;;
-    A3)            handle_a3_aggregate "$phases_dir" ;;
-    A4)            handle_a4 "$phases_dir" ;;
+    A3)            handle_a3_legacy_aggregate "$phases_dir" ;;
+    A4)            handle_a4_legacy "$phases_dir" ;;
     A5-nurse)      handle_a5_nurse "$phases_dir" ;;
     A5-drone)      handle_a5 "$phases_dir" ;;
     A5)            handle_a5 "$phases_dir" ;;

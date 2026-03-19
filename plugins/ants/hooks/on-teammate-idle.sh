@@ -32,13 +32,16 @@ source "$SCRIPT_DIR/lib/task-pool.sh"
 
 check_ants_workflow
 
-# Read stdin (Agent Teams passes hook input JSON) -- cap at 1MB
-INPUT=$(head -c 1048576)
+# Consume stdin (Agent Teams passes hook input JSON) -- cap at 1MB.
+# The input is not used; all routing data comes from state.json.
+# Stdin must be consumed to prevent pipe buffer issues.
+cat > /dev/null
 
 # ---------------------------------------------------------------------------
 # Batch-read all needed state fields in a single jq call
 # v5/v6 compat: teamCreated falls back to queenDispatched for v5 state files
 # ---------------------------------------------------------------------------
+local jq_err_output
 if ! local_fields=$(jq -r '[
   (.shutdown // false | tostring),
   (.status // "unknown"),
@@ -48,10 +51,13 @@ if ! local_fields=$(jq -r '[
   (.pipeline // "swarm"),
   ((.teamCreated // .queenDispatched // false) | tostring),
   ((.maxLoops // 5) | tostring)
-] | join("\t")' "$STATE_FILE" 2>/dev/null); then
-  echo "[TEAMS] ERROR: Failed to read state.json, allowing idle" >&2
+] | join("\t")' "$STATE_FILE" 2>"${STATE_FILE}.idle-err"); then
+  jq_err_output=$(cat "${STATE_FILE}.idle-err" 2>/dev/null || echo "unknown error")
+  rm -f "${STATE_FILE}.idle-err"
+  echo "[TEAMS] ERROR: Failed to read state.json (${jq_err_output}), allowing idle" >&2
   exit 0
 fi
+rm -f "${STATE_FILE}.idle-err" 2>/dev/null
 IFS=$'\t' read -r shutdown_flag status current_phase task loop pipeline team_created max_loops <<< "$local_fields"
 
 # ===========================================================================
@@ -249,12 +255,35 @@ dispatch_a3_quality() {
     # Atomic dispatch claim via mkdir (prevents double-dispatch)
     local lock_marker="${marker_dir}/.${agent}.dispatch-lock"
     if ! mkdir "$lock_marker" 2>/dev/null; then
-      # Another teammate is dispatching this agent right now
-      continue
+      # Check for stale lock (>120s old) -- if the script crashed between mkdir and rm,
+      # the lock persists and the agent can never be dispatched.
+      if [[ -d "$lock_marker" ]]; then
+        local lock_mtime
+        if lock_mtime=$(lock_dir_mtime_epoch "$lock_marker"); then
+          local lock_age
+          lock_age=$(( $(date +%s) - lock_mtime ))
+          if [[ "$lock_age" -gt 120 ]]; then
+            teams_log "WARNING: Removing stale dispatch-lock for ${agent} (age: ${lock_age}s)"
+            rm -rf "$lock_marker"
+            if ! mkdir "$lock_marker" 2>/dev/null; then
+              continue
+            fi
+          else
+            continue
+          fi
+        else
+          continue
+        fi
+      else
+        continue
+      fi
     fi
 
-    # Create dispatched marker
-    touch "$dispatched_marker"
+    # Create dispatched marker atomically: write a file inside the lock dir,
+    # then mv it to the marker path. This eliminates the TOCTOU window between
+    # touch and rm where neither lock nor marker would be visible.
+    touch "${lock_marker}/marker"
+    mv "${lock_marker}/marker" "$dispatched_marker"
     rm -rf "$lock_marker" 2>/dev/null || true
 
     # Build quality agent prompt
@@ -335,7 +364,9 @@ build_a3_quality_prompt() {
   cat <<__ANTS_PROMPT_EOF__
 ## Ants Colony -- Phase A3 Quality Track -- Loop ${loop}
 
+# BEGIN USER TASK
 Task: ${task}
+# END USER TASK
 Subject: ${subject}
 Agent: ${agent}
 
@@ -363,7 +394,9 @@ build_a3_arbiter_prompt() {
   cat <<__ANTS_PROMPT_EOF__
 ## Ants Colony -- Phase A3 Review Arbiter -- Loop ${loop}
 
+# BEGIN USER TASK
 Task: ${task}
+# END USER TASK
 
 Cross-reference and deduplicate sentinel findings into a unified quality verdict.
 
@@ -395,7 +428,10 @@ __ANTS_PROMPT_EOF__
 # ===========================================================================
 dispatch_sswarm_a1() {
   local phase_status
-  phase_status=$(jq -r '.phases.A1.status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+  phase_status=$(jq -r '.phases.A1.status // "pending"' "$STATE_FILE" 2>/dev/null || {
+    teams_log "WARNING: Failed to read A1 status from state.json, allowing idle"
+    exit 0
+  })
 
   if [[ "$phase_status" == "complete" ]]; then
     teams_log "sswarm A1 already complete, allowing idle"
@@ -496,7 +532,10 @@ dispatch_sswarm_a1() {
 # ===========================================================================
 dispatch_sswarm_a2() {
   local phase_status
-  phase_status=$(jq -r '.phases.A2.status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+  phase_status=$(jq -r '.phases.A2.status // "pending"' "$STATE_FILE" 2>/dev/null || {
+    teams_log "WARNING: Failed to read A2 status from state.json, allowing idle"
+    exit 0
+  })
 
   if [[ "$phase_status" == "complete" ]]; then
     teams_log "sswarm A2 already complete, allowing idle"
@@ -617,7 +656,10 @@ route_idle_teammate() {
     A3)
       # Mark A3 in_progress if pending
       local a3_status
-      a3_status=$(jq -r '.phases.A3.status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+      a3_status=$(jq -r '.phases.A3.status // "pending"' "$STATE_FILE" 2>/dev/null || {
+        teams_log "WARNING: Failed to read A3 status from state.json, allowing idle"
+        exit 0
+      })
       if [[ "$a3_status" == "pending" ]]; then
         if ! update_state '.phases.A3.status = "in_progress" | .phases.A3.startedAt = $ts | .updatedAt = $ts'; then
           teams_log "Failed to claim A3 in_progress (state update failed), allowing idle"

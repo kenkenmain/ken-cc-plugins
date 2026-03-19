@@ -196,13 +196,20 @@ case "$TASK_SUBJECT" in
     phase="A3-simplifier" ;;
   "A3 Review Arbiter"*|"A3 Arbiter"*|"A3 arbiter"*|"A3-arbiter"*)
     phase="A3-arbiter" ;;
-  "A3 Review Fixer"*|"A3 review fixer"*|"A3-review-fixer"*)
+  "A3 Review Fixer"*|"A3 review fixer"*|"A3-review-fixer"*|"A3 Review-Fixer"*)
     phase="A3-fixer" ;;
   "A3"*) phase="A3" ;;
-  "A0"*) phase="A0" ;;
+  "A0 Forager"*|"A0 Cartographer"*) phase="A0-sub" ;;
+  "A0 Explore Aggregator"*|"A0: Colony Exploration"*|"A0"*) phase="A0" ;;
+  "A1 Architect"[[:space:]][0-9]*) phase="A1-sub" ;;
+  "A1 Plan Arbiter"*) phase="A1" ;;
   "A1"*) phase="A1" ;;
+  "A2 Blueprint Reviewer"[[:space:]][0-9]*) phase="A2-sub" ;;
+  "A2 Review Lead"*) phase="A2" ;;
   "A2"*) phase="A2" ;;
   "A4"*) phase="A4" ;;
+  "A5 Nurse"*|"A5 nurse"*|"A5-nurse"*) phase="A5-nurse" ;;
+  "A5 Drone"*|"A5 drone"*|"A5-drone"*) phase="A5-drone" ;;
   "A5"*) phase="A5" ;;
   *)
     # Not an ants phase task, allow completion

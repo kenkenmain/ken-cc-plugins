@@ -242,6 +242,21 @@ result=$(jq -r '.teammateCount' "$STATE_FILE")
 assert_eq "teammateCount still 0 after double pswarm reset" "0" "$result"
 
 # =========================================================================
+echo "=== reset_phases_for_loop error path ==="
+
+setup
+# Make the directory containing STATE_FILE read-only to prevent jq temp file
+# creation and mv operations, simulating a persistent write failure.
+chmod 555 "$(dirname "$STATE_FILE")"
+if reset_phases_for_loop 2>/dev/null; then
+  FAIL=$((FAIL + 1)); echo "  FAIL: should fail on read-only directory"
+else
+  PASS=$((PASS + 1)); echo "  PASS: returns error on read-only directory"
+fi
+# Restore permissions for cleanup
+chmod 755 "$(dirname "$STATE_FILE")"
+
+# =========================================================================
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 if [[ "$FAIL" -gt 0 ]]; then
