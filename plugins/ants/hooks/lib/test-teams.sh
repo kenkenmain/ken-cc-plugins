@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-teams.sh -- Unit tests for teams.sh (v0.3 Agent Teams)
+# test-teams.sh -- Unit tests for teams.sh (v0.6 Agent Teams delegate mode)
 # Usage: bash plugins/ants/hooks/lib/test-teams.sh
 set -eo pipefail
 
@@ -62,7 +62,11 @@ echo "=== teams_get_next_ready_task ==="
 
 setup
 result=$(teams_get_next_ready_task)
-assert_eq "returns current phase when in_progress" "A0" "$result"
+# v0.6: returns phaseId\ttaskType (tab-separated)
+result_phase=$(printf '%s' "$result" | cut -f1)
+result_type=$(printf '%s' "$result" | cut -f2)
+assert_eq "returns current phase when pending" "A0" "$result_phase"
+assert_eq "returns task type 'phase' for sequential phases" "phase" "$result_type"
 
 setup
 jq '.status = "complete" | .currentPhase = "DONE"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
@@ -85,19 +89,34 @@ echo "=== teams_create_phase_tasks ==="
 setup
 tasks=$(teams_create_phase_tasks)
 count=$(echo "$tasks" | jq 'length')
-assert_eq "creates 1 queen pipeline task" "1" "$count"
+assert_eq "creates 6 phase tasks (A0-A5)" "6" "$count"
 
-pipeline_phase=$(echo "$tasks" | jq -r '.[0].phaseId')
-assert_eq "single task is queen-pipeline" "queen-pipeline" "$pipeline_phase"
+# Verify phaseId values A0-A5
+a0_phase=$(echo "$tasks" | jq -r '.[0].phaseId')
+assert_eq "first task is A0" "A0" "$a0_phase"
 
-pipeline_blocked=$(echo "$tasks" | jq -r '.[0].blockedBy | length')
-assert_eq "queen-pipeline has no blockedBy" "0" "$pipeline_blocked"
+a1_phase=$(echo "$tasks" | jq -r '.[1].phaseId')
+assert_eq "second task is A1" "A1" "$a1_phase"
 
-pipeline_desc=$(echo "$tasks" | jq -r '.[0].description')
-if echo "$pipeline_desc" | grep -q "SendMessage"; then
-  PASS=$((PASS + 1)); echo "  PASS: description mentions SendMessage"
+a5_phase=$(echo "$tasks" | jq -r '.[5].phaseId')
+assert_eq "sixth task is A5" "A5" "$a5_phase"
+
+# Verify blockedBy chains
+a0_blocked=$(echo "$tasks" | jq -r '.[0].blockedBy | length')
+assert_eq "A0 has no blockedBy" "0" "$a0_blocked"
+
+a1_blocked=$(echo "$tasks" | jq -r '.[1].blockedBy[0]')
+assert_eq "A1 blockedBy A0" "A0" "$a1_blocked"
+
+a5_blocked=$(echo "$tasks" | jq -r '.[5].blockedBy[0]')
+assert_eq "A5 blockedBy A4" "A4" "$a5_blocked"
+
+# Verify subjects contain phase context
+a3_subject=$(echo "$tasks" | jq -r '.[3].subject')
+if echo "$a3_subject" | grep -q "A3"; then
+  PASS=$((PASS + 1)); echo "  PASS: A3 subject contains phase prefix"
 else
-  FAIL=$((FAIL + 1)); echo "  FAIL: description should mention SendMessage"
+  FAIL=$((FAIL + 1)); echo "  FAIL: A3 subject missing phase prefix"
 fi
 
 # =========================================================================
@@ -142,8 +161,8 @@ TASKS
 
 subtasks=$(teams_add_a3_subtasks ".agents/tmp/phases/loop-1/A1-tasks.json")
 subtask_count=$(echo "$subtasks" | jq 'length')
-# 2 workers + 4 sentinels (correctness, security, perf, style) + 1 guardian + 1 simplifier + 1 arbiter = 9
-assert_eq "creates 9 subtasks: 2 workers + 4 sentinels + guardian + simplifier + arbiter" "9" "$subtask_count"
+# 2 workers + 4 sentinels (correctness, security, perf, style) + 1 guardian + 1 simplifier + 1 arbiter + 1 review-fixer = 10
+assert_eq "creates 10 subtasks: 2 workers + 4 sentinels + guardian + simplifier + arbiter + review-fixer" "10" "$subtask_count"
 
 # Check worker tasks
 worker_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId | startswith("A3-worker"))] | length')

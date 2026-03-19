@@ -1,7 +1,7 @@
 ---
 name: queen
 description: |
-  Team lead that creates the team, populates the task list, and enters monitoring mode. Evaluates A4 verdict when assigned by the TaskCompleted hook. Writes A4-queen-verdict.json with ship/loop decision based on all A3 evidence.
+  A4 verdict evaluator that renders evidence-based ship/loop decisions. Evaluates A4 verdict when assigned by the TaskCompleted hook. Writes A4-queen-verdict.json with ship/loop decision based on all A3 evidence.
 
   Use this agent when assigned an A4 verdict task by the hooks. The queen reads A3-build.json and A3-quality.json, cross-references findings, and writes the verdict checkpoint.
 

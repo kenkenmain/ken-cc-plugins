@@ -39,7 +39,7 @@ INPUT=$(head -c 1048576)
 # Batch-read all needed state fields in a single jq call
 # v5/v6 compat: teamCreated falls back to queenDispatched for v5 state files
 # ---------------------------------------------------------------------------
-local_fields=$(jq -r '[
+if ! local_fields=$(jq -r '[
   (.shutdown // false | tostring),
   (.status // "unknown"),
   (.currentPhase // "DONE"),
@@ -48,11 +48,14 @@ local_fields=$(jq -r '[
   (.pipeline // "swarm"),
   ((.teamCreated // .queenDispatched // false) | tostring),
   ((.maxLoops // 5) | tostring)
-] | join("\t")' "$STATE_FILE")
+] | join("\t")' "$STATE_FILE" 2>/dev/null); then
+  echo "[TEAMS] ERROR: Failed to read state.json, allowing idle" >&2
+  exit 0
+fi
 IFS=$'\t' read -r shutdown_flag status current_phase task loop pipeline team_created max_loops <<< "$local_fields"
 
 # ===========================================================================
-# Precondition checks (Task 16)
+# Precondition checks
 # ===========================================================================
 
 # Shutdown check
@@ -87,9 +90,9 @@ case "$current_phase" in
     ;;
 esac
 
-# pswarm run-boundary safety net (Task 21)
+# pswarm run-boundary safety net
 if [[ "$pipeline" == "pswarm" ]]; then
-  local_pswarm=$(jq -r '[((.pswarmRun // 1) | tostring), ((.maxRuns // 50) | tostring)] | join("\t")' "$STATE_FILE" 2>/dev/null || echo "1	50")
+  local_pswarm=$(jq -r '[((.pswarmRun // 1) | tostring), ((.maxRuns // 50) | tostring)] | join("\t")' "$STATE_FILE" 2>/dev/null || { echo "WARNING: Failed to read pswarm fields from state.json, using defaults" >&2; echo "1	50"; })
   IFS=$'\t' read -r pswarm_run max_runs <<< "$local_pswarm"
   pswarm_run=$(require_int "$pswarm_run" "pswarmRun")
   max_runs=$(require_int "$max_runs" "maxRuns")
@@ -133,7 +136,10 @@ dispatch_phase() {
   local task_ctx="${2:-}"
 
   local phase_status
-  phase_status=$(jq -r --arg p "$phase" '.phases[$p].status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+  phase_status=$(jq -r --arg p "$phase" '.phases[$p].status // "pending"' "$STATE_FILE" 2>/dev/null || {
+    teams_log "WARNING: Failed to read phase $phase status from state.json, allowing idle"
+    exit 0
+  })
 
   case "$phase_status" in
     complete)
@@ -173,7 +179,7 @@ dispatch_phase() {
 }
 
 # ===========================================================================
-# Helper: dispatch_a3_task -- dual-track A3 routing (Task 18)
+# Helper: dispatch_a3_task -- dual-track A3 routing
 # ===========================================================================
 # Routes idle teammates to A3 sub-tasks:
 #   Sub-phase 1 (build track): claim worker tasks from the pool
@@ -181,7 +187,10 @@ dispatch_phase() {
 #   Sub-phase 3 (consolidation): dispatch review-arbiter after all quality done
 dispatch_a3_task() {
   local build_complete
-  build_complete=$(jq -r '.phases.A3.buildTrackComplete // false' "$STATE_FILE" 2>/dev/null || echo "false")
+  build_complete=$(jq -r '.phases.A3.buildTrackComplete // false' "$STATE_FILE" 2>/dev/null || {
+    teams_log "WARNING: Failed to read A3 buildTrackComplete from state.json, allowing idle"
+    exit 0
+  })
 
   # --- Sub-phase 1: Worker tasks (build track) ---
   if [[ "$build_complete" != "true" ]]; then
@@ -201,12 +210,12 @@ dispatch_a3_task() {
     exit 0
   fi
 
-  # --- Sub-phase 2: Quality track agents (Task 19) ---
+  # --- Sub-phase 2: Quality track agents ---
   dispatch_a3_quality
 }
 
 # ===========================================================================
-# Helper: dispatch_a3_quality -- quality track dispatch (Task 19)
+# Helper: dispatch_a3_quality -- quality track dispatch
 # ===========================================================================
 # Dispatches sentinels, guardian, simplifier in parallel using marker files
 # to prevent double-dispatch. After all quality agents complete, dispatches
@@ -323,7 +332,7 @@ build_a3_quality_prompt() {
       agent_desc="Apply targeted code cleanup to worker outputs -- dead code removal, complexity reduction, over-engineering cleanup without behavioral changes." ;;
   esac
 
-  cat <<PROMPT
+  cat <<__ANTS_PROMPT_EOF__
 ## Ants Colony -- Phase A3 Quality Track -- Loop ${loop}
 
 Task: ${task}
@@ -344,14 +353,14 @@ Create the directory first: mkdir -p ${phases_dir}
 Write your results to the output file path. Other agents read your
 output files directly via task dependency chains (blockedBy). No
 SendMessage coordination is needed.
-PROMPT
+__ANTS_PROMPT_EOF__
 }
 
 # ===========================================================================
 # Helper: build_a3_arbiter_prompt -- prompt for review-arbiter
 # ===========================================================================
 build_a3_arbiter_prompt() {
-  cat <<PROMPT
+  cat <<__ANTS_PROMPT_EOF__
 ## Ants Colony -- Phase A3 Review Arbiter -- Loop ${loop}
 
 Task: ${task}
@@ -378,11 +387,11 @@ Produce a JSON verdict with:
 
 Write your consolidated verdict to A3-quality.json. The TaskCompleted hook
 reads this file to evaluate the A4 verdict inline.
-PROMPT
+__ANTS_PROMPT_EOF__
 }
 
 # ===========================================================================
-# Helper: dispatch_sswarm_a1 -- competing architect dispatch (Task 20)
+# Helper: dispatch_sswarm_a1 -- competing architect dispatch
 # ===========================================================================
 dispatch_sswarm_a1() {
   local phase_status
@@ -483,7 +492,7 @@ dispatch_sswarm_a1() {
 }
 
 # ===========================================================================
-# Helper: dispatch_sswarm_a2 -- competing reviewer dispatch (Task 20)
+# Helper: dispatch_sswarm_a2 -- competing reviewer dispatch
 # ===========================================================================
 dispatch_sswarm_a2() {
   local phase_status
@@ -584,7 +593,7 @@ dispatch_sswarm_a2() {
 }
 
 # ===========================================================================
-# Main routing function: route_idle_teammate (Task 17)
+# Main routing function: route_idle_teammate
 # ===========================================================================
 route_idle_teammate() {
   case "$current_phase" in
@@ -610,7 +619,10 @@ route_idle_teammate() {
       local a3_status
       a3_status=$(jq -r '.phases.A3.status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
       if [[ "$a3_status" == "pending" ]]; then
-        update_state '.phases.A3.status = "in_progress" | .phases.A3.startedAt = $ts | .updatedAt = $ts' || true
+        if ! update_state '.phases.A3.status = "in_progress" | .phases.A3.startedAt = $ts | .updatedAt = $ts'; then
+          teams_log "Failed to claim A3 in_progress (state update failed), allowing idle"
+          exit 0
+        fi
       fi
       dispatch_a3_task
       ;;
@@ -625,7 +637,7 @@ route_idle_teammate() {
       ;;
     # DONE|STOPPED|BLOCKED already handled by precondition check above
     *)
-      teams_log "Unknown phase '${current_phase}', allowing idle"
+      teams_log "WARNING: Unknown phase '${current_phase}', allowing idle (possible state corruption or migration issue)"
       exit 0
       ;;
   esac

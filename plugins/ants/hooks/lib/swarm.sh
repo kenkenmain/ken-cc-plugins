@@ -138,11 +138,10 @@ parse_queen_verdict() {
 # ===========================================================================
 
 # ─────────────────────────────────────────────────────────────
-# LEGACY: Agent Teams mode only (not called in swarm/pswarm path)
-# This function handles A4 verdict loop-back in the Agent Teams delegate
-# pipeline where the queen agent drives phase transitions. In the current
-# orchestrator-driven swarm/pswarm path, A4 verdict evaluation is done
-# inline by the orchestrator command. Kept for potential Agent Teams reactivation.
+# Shared verdict handler called by on-task-completed.sh (handle_a3_arbiter)
+# for issues_found loop-back logic. When the A3 arbiter completes with
+# issues, handle_a3_arbiter() evaluates the inline A4 verdict and delegates
+# loop-back/stop/block transitions to this function.
 # ─────────────────────────────────────────────────────────────
 
 # Handle A4 verdict result: advance to A5 (clean) or loop back to A1 (issues_found).
@@ -206,13 +205,15 @@ handle_a4_verdict() {
   fi
 
   # Loop back to A1
+  # IMPORTANT: reset_phases_for_loop clears A1-A4 to pending, so call it BEFORE
+  # setting A4 completion state (matches the A2 loop-back pattern in on-task-completed.sh).
+  if ! reset_phases_for_loop; then
+    echo "ERROR: Failed to reset phases for loop-back from A4" >&2
+    exit 2
+  fi
   if ! update_state --arg verdict "$verdict" --argjson nextLoop "$next_loop" \
     '.currentPhase = "A1" | .loop = $nextLoop | .updatedAt = $ts | .phases.A4.status = "complete" | .phases.A4.verdict = $verdict | .loops += [{"loop": $nextLoop, "startedAt": $ts}]'; then
     echo "ERROR: Failed to loop back to A1." >&2
-    exit 2
-  fi
-  if ! reset_phases_for_loop; then
-    echo "ERROR: Failed to reset phases for loop-back from A4" >&2
     exit 2
   fi
   if ! cb_reset_for_loop; then

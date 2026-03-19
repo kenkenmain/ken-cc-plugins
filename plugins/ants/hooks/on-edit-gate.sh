@@ -22,8 +22,8 @@ source "$SCRIPT_DIR/lib/state.sh"
 check_ants_workflow
 shutdown_check
 
-# Read input
-input=$(cat)
+# Read input (cap at 1MB to prevent memory exhaustion, matching other hooks)
+input=$(head -c 1048576)
 if [[ -z "$input" ]] || ! printf '%s' "$input" | jq empty 2>/dev/null; then
   echo "ERROR: No valid JSON received on stdin for PreToolUse hook." >&2
   exit 2

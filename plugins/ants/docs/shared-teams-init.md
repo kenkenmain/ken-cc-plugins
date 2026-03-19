@@ -25,7 +25,7 @@ The v6 schema replaces `queenDispatched` with `teamCreated` and adds fields for 
 
   "teamCreated": false,
   "teammateCount": 0,
-  "taskGraphVersion": 0,
+  "taskGraphVersion": 1,
 
   "needsA3Tasks": false,
   "needsA5Tasks": false,
@@ -76,7 +76,7 @@ The v6 schema replaces `queenDispatched` with `teamCreated` and adds fields for 
 |-------|------|---------|-------------|
 | `teamCreated` | boolean | false | Replaces `queenDispatched`. Set true after team creation + teammate spawn. |
 | `teammateCount` | number | 0 | Number of teammates spawned (3 for swarm/pswarm, 5 for sswarm). |
-| `taskGraphVersion` | number | 0 | Incremented on loop-back (`reset_phases_for_loop`) and pswarm run boundary (`reset_phases_for_pswarm`). Commands use this to detect when fresh TaskCreate calls are needed. |
+| `taskGraphVersion` | number | 1 | Incremented on loop-back (`reset_phases_for_loop`) and pswarm run boundary (`reset_phases_for_pswarm`). Commands use this to detect when fresh TaskCreate calls are needed. |
 | `needsA3Tasks` | boolean | false | Signal flag: set by `on-task-completed.sh` when A1 completes. Command creates A3 worker/sentinel/arbiter tasks. |
 | `needsA5Tasks` | boolean | false | Signal flag: set by `on-task-completed.sh` when A4 verdict is clean. Command creates A5 nurse/drone tasks. |
 | `needsLoopReset` | boolean | false | Signal flag: set by `on-task-completed.sh` when A4 verdict is `issues_found`. Command creates fresh A1-A4 tasks. |
@@ -105,7 +105,7 @@ Migration jq expression:
 .teamCreated = (.queenDispatched // false) |
 del(.queenDispatched) |
 .teammateCount //= 0 |
-.taskGraphVersion //= 0
+.taskGraphVersion //= 1
 ```
 
 ---
@@ -159,8 +159,8 @@ Subjects are the primary routing key in `on-task-completed.sh`. Every subject MU
 
 | Subject | Agent | Pipeline |
 |---------|-------|----------|
-| `"A3 Review Arbiter: Consolidate"` | `ants:review-arbiter` | all |
-| `"A3 Review Fixer: Apply fixes"` | `ants:review-fixer` | all (optional) |
+| `"A3 Arbiter: Consolidate reviews"` | `ants:review-arbiter` | all |
+| `"A3 Review-Fixer: Apply targeted repairs"` | `ants:review-fixer` | all (optional) |
 
 ### A5 -- SHIP
 

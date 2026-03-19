@@ -95,22 +95,20 @@ handle_a1() {
       else
         teams_log "WARNING: pool_init failed — A3 task pool will not be available"
       fi
-      # Set signal flag: command's monitoring loop will call TaskCreate for A3 tasks
-      if ! update_state '.needsA3Tasks = true'; then
-        teams_log "WARNING: Failed to set needsA3Tasks signal flag"
-      fi
     else
       teams_log "WARNING: A1-tasks.json exists but is invalid JSON — A3 task pool will not be available"
     fi
   fi
 
-  # Advance state: A1 complete -> A2 pending
+  # Advance state: A1 complete -> A2 pending (merging needsA3Tasks into the same
+  # atomic update to prevent premature signal flag visibility before state is ready)
   if ! update_state '
     .currentPhase = "A2" |
     .updatedAt = $ts |
     .phases.A1.status = "complete" |
     .phases.A1.completedAt = $ts |
-    .phases.A2.status = "pending"
+    .phases.A2.status = "pending" |
+    .needsA3Tasks = true
   '; then
     teams_reject_completion "A1 valid but failed to advance state to A2. Retry."
     exit 2
@@ -197,9 +195,11 @@ handle_a2() {
       fi
 
       # Loop back to A1
-      # IMPORTANT: reset_phases_for_loop clears signal flags, so call it BEFORE setting needsLoopReset
+      # IMPORTANT: reset_phases_for_loop clears signal flags, so call it BEFORE setting needsLoopReset.
+      # Failure is fatal -- stale phase statuses from previous loop would cause incorrect dispatch.
       if ! reset_phases_for_loop; then
-        teams_log "WARNING: reset_phases_for_loop failed during A2 loop-back"
+        teams_reject_completion "reset_phases_for_loop failed during A2 loop-back. State may be stale. Retry."
+        exit 2
       fi
       if ! update_state --argjson nextLoop "$next_loop" '
         .currentPhase = "A1" |
@@ -285,15 +285,21 @@ handle_a3_worker() {
     fi
   fi
 
+  cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+
+  if [[ "$has_pool" != "yes" ]]; then
+    teams_log "WARNING: A3 worker completed but no valid task pool found (backward compat fallback)"
+  fi
   teams_log "A3 worker completed"
 }
 
 handle_a3_guardian() {
   local phases_dir="$1"
 
-  # Mark guardian complete in state
+  # Mark guardian complete in state -- reject if update fails to keep state/markers in sync
   if ! update_state '.updatedAt = $ts | .phases.A3.guardianDone = true'; then
-    teams_log "WARNING: Failed to mark guardian as done in state"
+    teams_reject_completion "Failed to mark guardian as done in state. Retry."
+    exit 2
   fi
 
   local marker_file
@@ -326,7 +332,8 @@ handle_a3_sentinel() {
      && [[ -f "${phases_dir}/.sentinel-perf.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-style.done" ]]; then
     if ! update_state '.updatedAt = $ts | .phases.A3.sentinelsDone = true'; then
-      teams_log "WARNING: Failed to mark sentinels as done in state"
+      teams_reject_completion "All sentinels done but failed to update state. Retry."
+      exit 2
     fi
     teams_log "All sentinels complete, arbiter can proceed"
   fi
@@ -335,9 +342,10 @@ handle_a3_sentinel() {
 handle_a3_simplifier() {
   local phases_dir="$1"
 
-  # Mark simplifier complete in state
+  # Mark simplifier complete in state -- reject if update fails to keep state/markers in sync
   if ! update_state '.updatedAt = $ts | .phases.A3.simplifierDone = true'; then
-    teams_log "WARNING: Failed to mark simplifier as done in state"
+    teams_reject_completion "Failed to mark simplifier as done in state. Retry."
+    exit 2
   fi
 
   local marker_file
@@ -380,9 +388,10 @@ handle_a3_arbiter() {
     exit 2
   fi
 
-  # Mark arbiter done in state
+  # Mark arbiter done in state -- reject if update fails (keystone event for A4 verdict)
   if ! update_state '.updatedAt = $ts | .phases.A3.arbiterDone = true'; then
-    teams_log "WARNING: Failed to mark arbiter as done in state"
+    teams_reject_completion "Failed to mark arbiter as done in state. Retry."
+    exit 2
   fi
 
   # ─────────────────────────────────────────────────────────────
@@ -447,23 +456,22 @@ handle_a3_arbiter() {
     exit 2
   fi
 
-  # Mark A3 and A4 complete in state
-  if ! update_state '
-    .updatedAt = $ts |
-    .phases.A3.status = "complete" |
-    .phases.A3.completedAt = $ts |
-    .phases.A4.status = "complete" |
-    .phases.A4.completedAt = $ts
-  '; then
-    teams_reject_completion "Failed to mark A3/A4 as complete in state."
-    exit 2
-  fi
-
   webhook_phase_event "A3" "completed" || true
-  webhook_phase_event "A4" "completed" || true
 
   if [[ "$verdict" == "clean" ]]; then
-    # Clean verdict — advance to A5 and set signal flag
+    # Clean verdict — mark A3/A4 complete, advance to A5, set signal flag
+    if ! update_state '
+      .updatedAt = $ts |
+      .phases.A3.status = "complete" |
+      .phases.A3.completedAt = $ts |
+      .phases.A4.status = "complete" |
+      .phases.A4.completedAt = $ts
+    '; then
+      teams_reject_completion "Failed to mark A3/A4 as complete in state."
+      exit 2
+    fi
+
+    webhook_phase_event "A4" "completed" || true
     cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
 
     if ! update_state '
@@ -478,7 +486,11 @@ handle_a3_arbiter() {
     webhook_phase_event "A5" "started" || true
     teams_log "A4 verdict clean, advanced to A5 (needsA5Tasks signal set)"
   else
-    # Issues found — use handle_a4_verdict() from swarm.sh for battle-tested loop-back logic
+    # Issues found — use handle_a4_verdict() from swarm.sh for battle-tested loop-back logic.
+    # NOTE: Do NOT mark A3/A4 complete here. handle_a4_verdict() calls
+    # reset_phases_for_loop() first (which clears A1-A4 to pending), then sets
+    # A4 status to complete with the verdict. Marking A3/A4 complete before
+    # handle_a4_verdict would be overwritten by reset_phases_for_loop anyway.
     local loop
     loop=$(state_get '.loop // 1')
     loop=$(require_int "$loop" "loop")
@@ -486,8 +498,17 @@ handle_a3_arbiter() {
     max_loops=$(state_get '.maxLoops // 5')
     max_loops=$(require_int "$max_loops" "maxLoops")
 
-    # Set currentPhase to A4 so handle_a4_verdict() idempotency guard passes
-    update_state '.currentPhase = "A4" | .updatedAt = $ts' || true
+    # Mark A3 complete and set currentPhase to A4 so handle_a4_verdict() idempotency guard passes.
+    # A4 completion is handled inside handle_a4_verdict after reset_phases_for_loop.
+    if ! update_state '
+      .currentPhase = "A4" |
+      .updatedAt = $ts |
+      .phases.A3.status = "complete" |
+      .phases.A3.completedAt = $ts
+    '; then
+      teams_reject_completion "Failed to set currentPhase to A4 for verdict evaluation. Retry."
+      exit 2
+    fi
 
     # handle_a4_verdict sets RESULT_PHASE in caller scope
     local RESULT_PHASE=""
@@ -551,6 +572,7 @@ handle_a3_aggregate() {
   fi
 
   webhook_phase_event "A3" "completed" || true
+  teams_log "WARNING: A3 legacy catch-all handler fired -- task subject did not match any v0.6 sub-type pattern (subject may be malformed or from stale state)"
   teams_log "A3 checkpoint valid (build + quality) [legacy catch-all]"
 }
 
@@ -584,6 +606,12 @@ handle_a5_nurse() {
   else
     teams_log "A5 nurse completed (no A5-docs.json, optional)"
   fi
+
+  # Mark nurse as done so teams_get_next_ready_task() can route to drone
+  if ! update_state '.phases.A5.nurseDone = true | .updatedAt = $ts'; then
+    teams_log "WARNING: Failed to set nurseDone in state"
+  fi
+
   # Nurse completion accepted — drone task is blockedBy nurse and will start next
   return 0
 }
