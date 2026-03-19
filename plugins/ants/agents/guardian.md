@@ -25,7 +25,6 @@ tools:
   - Glob
   - Grep
   - WebSearch
-  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -139,28 +138,9 @@ npm test
 
 All tests must pass before reporting completion.
 
-### Step 5: Report Completion to Queen
+### Step 5: Report Completion
 
-After finishing test writing, send a completion message to the queen via SendMessage so she can incorporate your results into the A4 sync verdict.
-
-**SendMessage call:**
-- **recipient:** `queen`
-- **message payload (JSON):**
-```json
-{
-  "status": "complete|partial|blocked",
-  "testsWritten": 5,
-  "summary": "Brief description of what was tested and coverage achieved"
-}
-```
-
-| status | When to use |
-|--------|-------------|
-| `complete` | All target files tested, all tests passing |
-| `partial` | Some files tested, others skipped with reason |
-| `blocked` | Cannot write tests — framework missing, build broken |
-
-Then output structured JSON.
+After finishing test writing, output structured JSON. The TaskCompleted hook validates your output to advance the workflow.
 
 ## Output Format
 

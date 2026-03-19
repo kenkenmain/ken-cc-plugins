@@ -77,8 +77,8 @@
     {
       "name": "ants",
       "source": "./plugins/ants",
-      "description": "Ant-colony themed swarm workflow with persistent pswarm mode, direct orchestrator-driven dispatch, dual-track build, adversarial review (4 sentinels + arbiter), debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all four pipelines",
-      "version": "0.5.6",
+      "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Active-Lead), dual-track build, adversarial review (4 sentinels + arbiter), debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all four pipelines",
+      "version": "0.6.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

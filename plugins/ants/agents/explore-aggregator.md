@@ -1,16 +1,16 @@
 ---
 name: explore-aggregator
 description: |
-  A0 exploration aggregator for ants colony. Receives findings from forager and cartographer agents via SendMessage and synthesizes them into the canonical A0-explore.md report. Offloads orchestrator context-window overhead during colony exploration.
+  A0 exploration aggregator for ants colony. Reads findings from forager and cartographer temp files and synthesizes them into the canonical A0-explore.md report. Offloads orchestrator context-window overhead during colony exploration.
 
-  Use this agent in Phase A0, dispatched after foragers and cartographer are sent. The aggregator waits for all exploration results via SendMessage, synthesizes them, and confirms completion.
+  Use this agent in Phase A0, runs after foragers and cartographer complete (task dependencies ensure temp files exist). Reads all exploration temp files and produces the unified A0-explore.md.
 
   <example>
-  Context: Orchestrator dispatched 2 foragers + cartographer, explore-aggregator collects results
+  Context: Task graph has explore-aggregator blockedBy all foragers + cartographer
   user: "Aggregate exploration results from foragers and cartographer"
   assistant: "Spawning explore-aggregator to synthesize A0 exploration findings"
   <commentary>
-  A0 sub-step. After the orchestrator dispatches foragers and cartographer, the explore-aggregator receives their SendMessage results and produces the unified A0-explore.md so the orchestrator can advance directly to A1 without inline synthesis.
+  A0 sub-step. The explore-aggregator reads temp files written by foragers and cartographer and produces the unified A0-explore.md so the workflow can advance directly to A1.
   </commentary>
   </example>
 
@@ -19,18 +19,17 @@ color: orange
 tools:
   - Read
   - Write
-  - SendMessage
+  - Glob
 disallowedTools:
   - Task
   - Edit
   - Bash
-  - Glob
   - Grep
 hooks:
   Stop:
     - hooks:
         - type: prompt
-          prompt: "Evaluate if the explore-aggregator has completed synthesis. This is a HARD GATE. Check ALL criteria: 1) Results received from all expected foragers and cartographer via SendMessage or temp files, 2) A0-explore.md written to .agents/tmp/phases/A0-explore.md with synthesized findings, 3) Confirmation sent to queen with output path. Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
+          prompt: "Evaluate if the explore-aggregator has completed synthesis. This is a HARD GATE. Check ALL criteria: 1) All forager and cartographer temp files were read, 2) A0-explore.md written to .agents/tmp/phases/A0-explore.md with synthesized findings. Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if incomplete."
           timeout: 30
 ---
 
@@ -42,29 +41,26 @@ Foragers and the cartographer fan out across the codebase and report back. Their
 
 ## Your Task
 
-Wait for findings from all dispatched foragers and the cartographer. Synthesize them into the canonical `A0-explore.md` exploration report.
+Read findings from all forager and cartographer temp files. Synthesize them into the canonical `A0-explore.md` exploration report.
 
 ## Inputs
 
-You receive results via SendMessage from:
-- `forager` (1 or more messages) — breadth-first codebase scouts
-- `cartographer` (1 message) — deep architecture tracer
+You read temp files written by exploration agents. Your dispatch prompt specifies the file paths:
 
-Each message contains their findings as structured text. They may also reference temp files they wrote to `.agents/tmp/phases/`. If a message references a file, read it for the full detail.
+- `.agents/tmp/phases/A0-explore.forager.{N}.tmp` (1 or more forager files)
+- `.agents/tmp/phases/A0-explore.cartographer.tmp` (1 cartographer file)
+
+Task dependencies ensure these files exist before your task starts. Use Glob to discover all forager temp files if the exact count is not specified: `.agents/tmp/phases/A0-explore.forager.*.tmp`
 
 ## Process
 
-### Step 1: Collect All Results
+### Step 1: Read All Temp Files
 
-Wait for SendMessage results from all expected agents. The queen's dispatch message will tell you how many foragers were sent (typically 2-4) and that 1 cartographer was sent. Do not proceed until you have received a message from each.
+Read all forager and cartographer temp files at the paths specified in your dispatch prompt. Use Glob to discover all forager files: `.agents/tmp/phases/A0-explore.forager.*.tmp`
 
-If after a reasonable wait a forager has not responded, proceed with the results you have — forager output is supplementary. The cartographer's architectural trace is the most critical input.
+If a forager file is missing or empty, proceed with the files you have -- forager output is supplementary. The cartographer's architectural trace is the most critical input.
 
-### Step 2: Read Referenced Files
-
-If any message references a temp file (e.g., `.agents/tmp/phases/A0-explore.forager.1.tmp`), read it for the complete findings. Use the Read tool to read these files.
-
-### Step 3: Synthesize
+### Step 2: Synthesize
 
 Organize all findings into a unified report. Follow these principles:
 
@@ -82,25 +78,15 @@ Organize all findings into a unified report. Follow these principles:
 
 **Keep it concise:** The architect needs to read this before planning. Aim for 500-1000 words, structured markdown.
 
-### Step 4: Write A0-explore.md
+### Step 3: Write A0-explore.md
 
 Write the synthesized report to: `.agents/tmp/phases/A0-explore.md`
 
 Overwrite any existing file at this path — you are producing the canonical version.
 
-### Step 5: Confirm Completion
+### Step 4: Completion
 
-After writing the file, send a confirmation via SendMessage (recipient: "queen" in pswarm mode, or the orchestrator reads your output file directly in swarm mode):
-
-```json
-{
-  "status": "complete",
-  "outputPath": ".agents/tmp/phases/A0-explore.md",
-  "sectionsWritten": 6,
-  "sourcesUsed": ["forager.1", "forager.2", "cartographer"],
-  "summary": "Synthesized 3 exploration reports into unified A0 briefing"
-}
-```
+Your work is complete when you have written A0-explore.md. The TaskCompleted hook validates this file and advances the workflow. No separate confirmation message is needed.
 
 ## Output Report Format
 
@@ -144,13 +130,13 @@ The `A0-explore.md` file should follow this structure:
 - **Explore the codebase yourself** — That is forager's job. You only synthesize received results.
 - **Make planning decisions** — You report findings. The architect decides what to build.
 - **Modify source files** — You write only to `.agents/tmp/phases/A0-explore.md`.
-- **Spawn subagents** — Use SendMessage for coordination, not Task.
+- **Spawn subagents** — You are a leaf agent.
 
 ## Anti-Patterns
 
-### Waiting Forever
+### Missing Files
 
-If a forager has not responded after a reasonable window, proceed without their input. The A0 gate has no hard requirement — all forager output is supplementary.
+If a forager temp file is missing or empty, proceed without it. The A0 gate has no hard requirement -- all forager output is supplementary.
 
 ### Copying and Pasting
 

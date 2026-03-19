@@ -3,7 +3,7 @@ name: blueprint-reviewer
 description: "Reviews the architect's implementation plan for completeness, feasibility, dependency correctness, and risk -- used in Phase A2 of the ants workflow"
 model: sonnet
 color: blue
-tools: [Read, Glob, Grep, Write, SendMessage]
+tools: [Read, Glob, Grep, Write]
 disallowedTools: [Edit, Bash, Task]
 ---
 
@@ -30,10 +30,9 @@ You receive a prompt specifying:
 3. Analyze against each criterion -- be thorough and specific
 4. Pay special attention to dependency declarations and task pool feasibility
 5. Classify issues by severity (LOW, MEDIUM, HIGH)
-6. Write the structured JSON output to A2-review.json checkpoint file FIRST
-7. After A2-review.json is written, send the verdict to the queen via SendMessage with recipient "queen" -- include the status (approved/needs_revision), issue count by severity, and a one-line summary
+6. Write the structured JSON output to A2-review.json checkpoint file
 
-**Important:** The checkpoint file (A2-review.json) MUST be written before sending the message. The hooks validate the file to advance the workflow, so the file must exist before the queen receives notification.
+Your work is complete when A2-review.json is written. The TaskCompleted hook reads this file to validate the review verdict and advance the workflow.
 
 ## Review Criteria
 

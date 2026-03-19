@@ -1,6 +1,6 @@
 ---
 name: ants:sswarm
-description: Launch a 6-phase social swarm with competing agents and per-phase lead consolidators
+description: Launch a 6-phase social swarm with competing agents and per-phase lead consolidators via Agent Teams delegate mode
 argument-hint: <task description> [--web]
 ---
 
@@ -10,9 +10,11 @@ You are executing a workflow pipeline. This overrides ALL skill-checking rules i
 
 # Ants Social Swarm
 
-You are launching a 6-phase social swarm workflow. You are the orchestrator — you dispatch `ants:*` agents via the Agent tool for each phase, update state, and drive phase progression.
+You are launching a 6-phase social swarm workflow using Agent Teams delegate mode. You create the team, populate the task list with dependency chains, spawn teammates, then enter a monitoring loop that reads signal flags from state.json and creates dynamic tasks when hooks request them.
 
-The key difference from `/ants:swarm`: phases A1 and A2 dispatch **multiple competing agents** with a **lead agent** that consolidates their outputs via SendMessage.
+The key difference from `/ants:swarm`: phases A1 and A2 dispatch **multiple competing agents** with a **consolidator agent** that reads their output files (via task dependency chains -- NOT SendMessage).
+
+**CRITICAL:** You do NOT dispatch agents directly via the Agent tool. You create tasks via TaskCreate with blockedBy dependency chains. TeammateIdle hooks route ready tasks to idle teammates. TaskCompleted hooks validate output and advance state. You only create tasks and monitor signal flags.
 
 ## Arguments
 
@@ -28,29 +30,41 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 ## Pipeline
 
 ```
-Phase A0  │ EXPLORE     │ Forage              │ foragers + cartographer + explore-aggregator (lead)
-Phase A1  │ PLAN        │ Competing Architects│ 3 architects + plan-arbiter (lead)
-Phase A2  │ PLAN        │ Competing Reviews   │ 3 blueprint-reviewers + review-lead (lead)
-Phase A3  │ BUILD+QUAL  │ Dual-Track          │ workers (task pool) + 4 sentinels + guardian + simplifier
-Phase A4  │ SYNC        │ Verdict             │ merge build+quality → ship/loop verdict
-Phase A5  │ SHIP        │ Ship                │ nurse (docs) → drone (commit + PR)
+Phase A0  | EXPLORE     | Forage              | foragers + cartographer + explore-aggregator
+Phase A1  | PLAN        | Competing Architects| 3 architects ---> plan-arbiter (consolidator)
+Phase A2  | PLAN        | Competing Reviews   | 3 blueprint-reviewers ---> review-lead (consolidator)
+Phase A3  | BUILD+QUAL  | Dual-Track          | workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A4  | SYNC        | Verdict             | TaskCompleted hook evaluates inline (not a separate agent)
+Phase A5  | SHIP        | Ship                | nurse (docs) ---> drone (commit + PR)
 
-Loop: If A4 verdict is "loop" → back to A1 (max 5 loops)
-All clean → A5 ships the work
+Loop: If A4 verdict is "loop" --> back to A1 (max 5 loops)
+All clean --> A5 ships the work
 
-Dispatch: Direct agent dispatch via Agent tool
-Lead agents: Spawned FIRST (background), then feeders in parallel
+Dispatch: Agent Teams delegate mode (TaskCreate with blockedBy chains)
+Competing agents: 3 architects (A1) and 3 reviewers (A2) run in parallel
+Consolidators: plan-arbiter and review-lead run after all competitors finish
+No SendMessage: task dependencies (blockedBy) replace spawn order constraints
 ```
 
 ## Step 0: Preflight Checks
 
-### 0a. Load deferred tools
+### 0a. Verify Agent Teams environment
+
+```bash
+if [[ "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-}" != "1" ]]; then
+  echo "ERROR: Agent Teams requires CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1"
+  echo "Set this environment variable before running the sswarm command."
+  exit 1
+fi
+```
+
+### 0b. Load deferred tools
 
 ```
 ToolSearch("select:TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop")
 ```
 
-These tools are used to track phase progress.
+These tools are used to create the task graph and monitor progress.
 
 ## Step 1: Initialize State
 
@@ -94,7 +108,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 
 ```json
 {
-  "version": 5,
+  "version": 6,
   "plugin": "ants",
   "pipeline": "sswarm",
   "status": "in_progress",
@@ -110,7 +124,13 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
   "teamName": "ants-sswarm-<BRANCH_SLUG>",
   "maxLoops": 5,
   "loop": 1,
-  "queenDispatched": false,
+  "teamCreated": false,
+  "teammateCount": 0,
+  "taskGraphVersion": 1,
+  "needsA3Tasks": false,
+  "needsA5Tasks": false,
+  "needsLoopReset": false,
+  "needsPswarmReset": false,
   "phaseLeads": {
     "A0": "explore-aggregator",
     "A1": "plan-arbiter",
@@ -168,153 +188,173 @@ jq '.webSearch = true' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv
 Print this to the user:
 
 ```
-Ants Social Swarm — 6-Phase Pipeline
-======================================
-Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + explore-aggregator (lead)
-Phase A1  │ PLAN    │ Competing Architects  │ 3 architects ──→ plan-arbiter (lead)
-Phase A2  │ PLAN    │ Competing Reviews     │ 3 blueprint-reviewers ──→ review-lead (lead)
-Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
-Phase A4  │ SYNC    │ Verdict               │ orchestrator (ship/loop verdict)
-Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
+Ants Social Swarm -- 6-Phase Pipeline (Agent Teams Delegate Mode)
+==================================================================
+Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator
+Phase A1  | PLAN    | Competing Architects  | 3 architects ---> plan-arbiter (consolidator)
+Phase A2  | PLAN    | Competing Reviews     | 3 reviewers ---> review-lead (consolidator)
+Phase A3  | BUILD   | Dual-Track Execution  | workers + 4 sentinels + guardian + simplifier
+Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline, no agent)
+Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
 
-Dispatch: Direct agent dispatch via Agent tool
-Lead agents: plan-arbiter (A1), review-lead (A2)
-Circuit breaker: 5 consecutive failures → halt
+Dispatch: Agent Teams delegate mode (TaskCreate with blockedBy chains)
+Competing agents: 3 architects (A1), 3 reviewers (A2) -- task dependencies replace SendMessage
+Teammates: 5 (higher concurrency for competing agents)
+Circuit breaker: 5 consecutive failures --> halt
 ```
 
-## Step 3: Execute Phases
+## Step 3: Create Team + Task Graph + Monitoring Loop
 
-You are the orchestrator. Execute each phase by dispatching `ants:*` agents via the Agent tool. After each phase completes, update state.json and advance to the next phase.
+You are the command lead. You create the team, populate the initial task graph, spawn 5 teammates, then enter a monitoring loop. You do NOT dispatch agents directly.
 
-### Phase A0: Colony Exploration
+### 3a. Create the sswarm task graph
 
-Update state: `currentPhase: "A0"`, `phases.A0.status: "in_progress"`.
+Create the initial sswarm task graph with competing agents at A1 and A2. The task graph has these tasks with dependency chains:
 
-Dispatch **in parallel** using the Agent tool:
+**A0 tasks** (same as swarm):
+- `A0-forager-1`: subject "A0 Forager: Colony exploration 1", blockedBy []
+- `A0-forager-2`: subject "A0 Forager: Colony exploration 2", blockedBy []
+- `A0-cartographer`: subject "A0 Cartographer: Deep architecture trace", blockedBy []
+- `A0-explore-aggregator`: subject "A0 Explore Aggregator: Synthesize findings", blockedBy [A0-forager-1, A0-forager-2, A0-cartographer]
 
-1. **2-3 forager agents** (`subagent_type: "ants:forager"`) — each with a focused query:
-   - Forager 1: "Explore the file structure, directory layout, and project organization for task: <task>. Write findings to .agents/tmp/phases/A0-explore.forager.1.tmp"
-   - Forager 2: "Find coding patterns, conventions, test frameworks, and related implementations for task: <task>. Write findings to .agents/tmp/phases/A0-explore.forager.2.tmp"
-   - Forager 3: "Search for existing code related to task: <task>. Look for similar implementations, relevant APIs, and integration points. Write findings to .agents/tmp/phases/A0-explore.forager.3.tmp"
+**A1 tasks** (3 competing architects + plan-arbiter consolidator):
+- `A1-architect-1`: subject "A1 Architect 1: Competing plan", blockedBy [A0-explore-aggregator]
+  - Description: "Create a detailed implementation plan for: <task>. Write plan output to: .agents/tmp/phases/loop-1/A1-plan.architect.1.tmp. Write task descriptors to: .agents/tmp/phases/loop-1/A1-tasks.architect.1.tmp"
+- `A1-architect-2`: subject "A1 Architect 2: Competing plan", blockedBy [A0-explore-aggregator]
+  - Description: Same but with `.architect.2.tmp` file paths
+- `A1-architect-3`: subject "A1 Architect 3: Competing plan", blockedBy [A0-explore-aggregator]
+  - Description: Same but with `.architect.3.tmp` file paths
+- `A1-plan-arbiter`: subject "A1 Plan Arbiter: Consolidate plans", blockedBy [A1-architect-1, A1-architect-2, A1-architect-3]
+  - Description: "Read the 3 competing plans and select/merge the best approach. Input files: .agents/tmp/phases/loop-1/A1-plan.architect.{1,2,3}.tmp. Output: .agents/tmp/phases/loop-1/A1-plan.md and .agents/tmp/phases/loop-1/A1-tasks.json"
 
-2. **1 cartographer agent** (`subagent_type: "ants:cartographer"`) — "Trace the architecture, execution paths, and dependency graph relevant to task: <task>. Write findings to .agents/tmp/phases/A0-explore.cartographer.tmp"
+**A2 tasks** (3 competing reviewers + review-lead consolidator):
+- `A2-reviewer-1`: subject "A2 Blueprint Reviewer 1: Competing review", blockedBy [A1-plan-arbiter]
+  - Description: "Review the consolidated plan for completeness and feasibility. Input: .agents/tmp/phases/loop-1/A1-plan.md. Write review to: .agents/tmp/phases/loop-1/A2-review.reviewer.1.tmp"
+- `A2-reviewer-2`: subject "A2 Blueprint Reviewer 2: Competing review", blockedBy [A1-plan-arbiter]
+  - Description: Same but with `.reviewer.2.tmp` file path
+- `A2-reviewer-3`: subject "A2 Blueprint Reviewer 3: Competing review", blockedBy [A1-plan-arbiter]
+  - Description: Same but with `.reviewer.3.tmp` file path
+- `A2-review-lead`: subject "A2 Review Lead: Consolidate reviews", blockedBy [A2-reviewer-1, A2-reviewer-2, A2-reviewer-3]
+  - Description: "Read the 3 competing reviews and produce a unified review verdict. Input files: .agents/tmp/phases/loop-1/A2-review.reviewer.{1,2,3}.tmp. Output: .agents/tmp/phases/loop-1/A2-review.json"
 
-After all return, dispatch **1 explore-aggregator** (`subagent_type: "ants:explore-aggregator"`) to synthesize all forager and cartographer findings into `.agents/tmp/phases/A0-explore.md`.
+**A3-A5 placeholder tasks** (created dynamically later via signal flags):
+- These are NOT created now. A3 worker/sentinel/arbiter tasks are created when `needsA3Tasks` flag is set (after A1 completes). A5 nurse/drone tasks are created when `needsA5Tasks` flag is set (after clean verdict).
 
-Update state: `phases.A0.status: "complete"`.
+### 3b. Call TaskCreate for each task
 
-### Phase A1: Competing Architects
+For each task in the graph above, call **TaskCreate** with:
+- `subject`: The task subject (must start with "A{N} " for routing)
+- `description`: Task-specific instructions including file paths and context
+- `blockedBy`: Array of task IDs that must complete first
 
-Create loop directory: `mkdir -p .agents/tmp/phases/loop-<LOOP>`
+Store the returned task IDs in state.json (update state with task graph metadata).
 
-Update state: `currentPhase: "A1"`, `phases.A1.status: "in_progress"`.
+Create the loop directory first:
 
-**CRITICAL SPAWN ORDER: Lead agent FIRST, then feeders.**
+```bash
+mkdir -p .agents/tmp/phases/loop-1
+```
 
-**Step 1:** Dispatch **1 plan-arbiter** (`subagent_type: "ants:plan-arbiter"`) with `run_in_background: true`:
-- "You are the A1 lead agent. Wait for plans from 3 architect agents via SendMessage. Evaluate each plan on completeness, feasibility, task count, risk, and dependency correctness. Select the best plan or synthesize a merged plan. Write canonical output to .agents/tmp/phases/loop-<LOOP>/A1-plan.md and .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. This is loop <LOOP> for task: <task>"
+### 3c. Spawn 5 teammates
 
-**Step 2:** After plan-arbiter is launched, dispatch **3 architect agents** (`subagent_type: "ants:architect"`) in parallel:
-- Architect 1: "Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.architect.1.tmp and tasks to .agents/tmp/phases/loop-<LOOP>/A1-tasks.architect.1.tmp. After writing, send your plan summary to plan-arbiter via SendMessage with payload: {planPath, tasksPath, approach, tradeoffs}. You are architect 1 of 3 — the plan-arbiter will evaluate all plans and select the best."
-- Architect 2: Same prompt but with `.architect.2.tmp` file paths and "You are architect 2 of 3"
-- Architect 3: Same prompt but with `.architect.3.tmp` file paths and "You are architect 3 of 3"
+Spawn **5 teammates** for higher concurrency (sswarm needs more parallelism than swarm because A1 has 3 competing architects and A2 has 3 competing reviewers running simultaneously).
 
-On loop 2+, also include in each architect's prompt: "This is loop <LOOP>. Read the previous loop's quality review at .agents/tmp/phases/loop-<PREV>/A3-quality.json and verdict at .agents/tmp/phases/loop-<PREV>/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan."
+### 3d. Update state
 
-**Step 3:** Wait for all 3 architects to complete (foreground), then wait for the plan-arbiter to complete (it was running in background).
+```bash
+jq '.teamCreated = true | .teammateCount = 5 | .updatedAt = (now | todate)' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
+```
 
-Update state: `phases.A1.status: "complete"`.
+### 3e. Enter monitoring loop
 
-### Phase A2: Competing Reviews
+Enter a monitoring loop that reads state.json on each cycle and creates dynamic tasks when hooks set signal flags. The loop runs until the workflow reaches a terminal state.
 
-Update state: `currentPhase: "A2"`, `phases.A2.status: "in_progress"`.
+**CRITICAL: You are the only entity that can call TaskCreate.** Hooks are shell scripts and cannot call Claude tools. Hooks set signal flags in state.json; you detect them and perform the TaskCreate calls.
 
-**CRITICAL SPAWN ORDER: Lead agent FIRST, then feeders.**
+**Monitoring loop pseudocode:**
 
-**Step 1:** Dispatch **1 review-lead** (`subagent_type: "ants:review-lead"`) with `run_in_background: true`:
-- "You are the A2 lead agent. Wait for reviews from 3 blueprint-reviewer agents via SendMessage. Deduplicate issues, merge severity (highest wins), and produce a consolidated verdict. Write output to .agents/tmp/phases/loop-<LOOP>/A2-review.json with .status field (approved or needs_revision). 3 reviewers were dispatched."
+```
+while true:
+  Read state.json
 
-**Step 2:** After review-lead is launched, dispatch **3 blueprint-reviewer agents** (`subagent_type: "ants:blueprint-reviewer"`) in parallel:
-- Reviewer 1: "Review the plan at .agents/tmp/phases/loop-<LOOP>/A1-plan.md and tasks at .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. Check for completeness, feasibility, dependency correctness, and risk. After writing your review, send your verdict to review-lead via SendMessage with payload: {status, issues[], severity, dependencySummary}. You are reviewer 1 of 3."
-- Reviewer 2: Same prompt but "You are reviewer 2 of 3"
-- Reviewer 3: Same prompt but "You are reviewer 3 of 3"
+  # Check terminal conditions
+  if status == "complete" or status == "blocked" or status == "stopped":
+    break
+  if currentPhase == "DONE" or currentPhase == "STOPPED" or currentPhase == "BLOCKED":
+    break
+  if shutdown == true:
+    break
 
-**Step 3:** Wait for all 3 reviewers to complete (foreground), then wait for the review-lead to complete (background).
+  # Check signal flags (set by on-task-completed.sh hook)
 
-Read the review output at `.agents/tmp/phases/loop-<LOOP>/A2-review.json`. If `status: "needs_revision"` with any HIGH severity issues:
-- Loop back to A1 (increment loop counter, reset A1-A4 to pending)
-- Check circuit breaker limits first
+  if needsA3Tasks == true:
+    # A1 completed -- create A3 worker/sentinel/guardian/simplifier/arbiter tasks
+    # Read .agents/tmp/phases/loop-<LOOP>/A1-tasks.json for worker task descriptors
+    # Generate A3 subtask graph (workers blockedBy A2, sentinels+guardian+simplifier
+    # blockedBy all workers, arbiter blockedBy all quality agents)
+    # Call TaskCreate for each A3 subtask
+    # Clear flag: update state needsA3Tasks = false
 
-If `status: "approved"` or only LOW/MEDIUM issues: advance to A3.
+  if needsA5Tasks == true:
+    # A4 verdict was "clean" -- create A5 nurse + drone tasks
+    # A5-nurse blockedBy [A3-arbiter], A5-drone blockedBy [A5-nurse]
+    # Call TaskCreate for nurse and drone
+    # Clear flag: update state needsA5Tasks = false
 
-Update state: `phases.A2.status: "complete"`.
+  if needsLoopReset == true:
+    # A4 verdict was "issues_found" -- create fresh A1-A4 tasks for next loop
+    # Re-create sswarm task graph for A1 and A2 (3 architects + arbiter,
+    # 3 reviewers + lead) with updated loop number in file paths
+    # Call TaskCreate for each new task
+    # Clear flag: update state needsLoopReset = false
 
-### Phase A3: Dual-Track Build
+  # Wait before next cycle (avoid busy-spinning)
+  sleep/wait
+```
 
-Update state: `currentPhase: "A3"`, `phases.A3.status: "in_progress"`.
+**Signal flag details:**
 
-**Build Track:** Read `.agents/tmp/phases/loop-<LOOP>/A1-tasks.json` to get the task list. If the file is missing or contains zero tasks, halt with `status: "blocked"` and error: "No implementation tasks found. Do not proceed to quality track with zero workers."
+| Flag | Set By | When | Your Action |
+|------|--------|------|-------------|
+| `needsA3Tasks` | `on-task-completed.sh` handle_a1() | A1 plan + A1-tasks.json validated | Read A1-tasks.json, generate A3 subtasks via `teams_add_a3_subtasks()` pattern, call TaskCreate for each |
+| `needsA5Tasks` | `on-task-completed.sh` handle_a3_arbiter() | A4 verdict is "clean" (evaluated inline) | Create A5-nurse (blockedBy [A3-arbiter]) and A5-drone (blockedBy [A5-nurse]) |
+| `needsLoopReset` | `on-task-completed.sh` handle_a3_arbiter() | A4 verdict is "issues_found", budget not exhausted | Create fresh A1-A2 sswarm tasks (3 architects + arbiter + 3 reviewers + lead) with incremented loop paths |
 
-For each task, dispatch a **worker agent** (`subagent_type: "ants:worker"`):
-- "Implement task <ID>: <description>. Files to modify: <files>. Dependencies: <deps>. Acceptance criteria: <criteria>. Self-verify your work (run tests/lint if applicable)."
-- Dispatch workers in parallel when their dependencies are satisfied. Wait for workers with no deps first, then dispatch dependent workers as their deps complete.
+**When creating A3 tasks (needsA3Tasks handler):**
 
-After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`. If any worker agent fails or returns no output, set `all_complete: false` in A3-build.json and record the failure. The quality track should still run to review partial implementation.
+Read `.agents/tmp/phases/loop-<LOOP>/A1-tasks.json` for worker task descriptors. For each worker task:
+- TaskCreate with subject "A3 Worker: <task_name>", blockedBy depends on task dependencies
+- All workers blockedBy at minimum [A2-review-lead] (sswarm-specific: review-lead is the A2 consolidator)
 
-**Quality Track:** After all workers complete, dispatch **6 agents in parallel**:
-1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes for bugs, logic errors, missing error handling. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json"
-2. `subagent_type: "ants:sentinel-security"` — "Review all changes for security vulnerabilities (OWASP top 10, injection, secrets). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-security.json"
-3. `subagent_type: "ants:sentinel-perf"` — "Review all changes for performance issues (N+1 queries, blocking I/O, complexity). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-perf.json"
-4. `subagent_type: "ants:sentinel-style"` — "Review all changes for code style, readability, and maintainability. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-style.json"
-5. `subagent_type: "ants:guardian"` — write tests for implemented code
-6. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
+After all worker TaskCreates, create quality track tasks:
+- 4 sentinel tasks: blockedBy all worker task IDs
+- 1 guardian task: blockedBy all worker task IDs
+- 1 simplifier task: blockedBy all worker task IDs
+- 1 arbiter task: blockedBy all sentinel + guardian + simplifier task IDs
+- 1 review-fixer task (optional): blockedBy arbiter
 
-After all 6 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
-- "Read all sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-*.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
+**When creating loop-reset tasks (needsLoopReset handler):**
 
-If the arbiter finds critical issues, dispatch **1 review-fixer** (`subagent_type: "ants:review-fixer"`):
-- "Read issues from .agents/tmp/phases/loop-<LOOP>/A3-quality.json and apply targeted fixes."
+The current loop number has already been incremented by the hook. Read the new loop from state.json. Create fresh sswarm tasks with the new loop directory in file paths:
+- 3 architects: blockedBy [A0-explore-aggregator] (A0 results persist across loops)
+- 1 plan-arbiter: blockedBy all 3 architects
+- 3 reviewers: blockedBy [plan-arbiter]
+- 1 review-lead: blockedBy all 3 reviewers
 
-Update state: `phases.A3.status: "complete"`.
-
-### Phase A4: Verdict
-
-Update state: `currentPhase: "A4"`, `phases.A4.status: "in_progress"`.
-
-Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. If A3-quality.json is missing, treat this as `issues_found` with verdict reason: "quality review incomplete". If A3-build.json is missing, halt with `status: "blocked"`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
-
-Note: The orchestrator evaluates the A4 verdict directly rather than dispatching a separate agent.
-
-Read the verdict:
-- **"clean"**: Advance to A5.
-- **"issues_found"**: Check circuit breaker. If within limits, increment loop counter, reset A1-A4 to pending, go back to Phase A1. If circuit breaker tripped, halt workflow with `status: "blocked"`.
-
-Update state: `phases.A4.status: "complete"`.
-
-### Phase A5: Documentation + Ship
-
-Update state: `currentPhase: "A5"`, `phases.A5.status: "in_progress"`.
-
-Dispatch **1 nurse agent** (`subagent_type: "ants:nurse"`):
-- "Review all changes and update project documentation (README.md, CLAUDE.md, etc.) to reflect the implementation. Write summary to .agents/tmp/phases/loop-<LOOP>/A5-docs.json"
-
-Then dispatch **1 drone agent** (`subagent_type: "ants:drone"`):
-- "Stage all changes, create a git commit with a descriptive message, and open a PR. Write output (commit SHA, PR URL) to .agents/tmp/phases/loop-<LOOP>/A5-ship.json"
-
-Update state: `phases.A5.status: "complete"`, `currentPhase: "DONE"`, `status: "complete"`.
+Include loop context in architect descriptions: "This is loop <LOOP>. Read the previous loop's quality review at .agents/tmp/phases/loop-<PREV>/A3-quality.json and verdict at .agents/tmp/phases/loop-<PREV>/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan."
 
 ## Step 4: Completion Summary
 
-After A5 completes, read the final state and display a summary.
+After the monitoring loop exits, read the final state and display a summary.
 
 Read the following files (use the final `.loop` value from state.json for `<LOOP>`):
-- `state.json` — `.task`, `.branch`, `.loop`, `.maxLoops`
-- `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json` — `.buildTrackSummary.filesChanged[]`, `.buildTrackSummary.testsAdded`, `.qualityTrackSummary.critical`, `.qualityTrackSummary.warning`, `.qualityTrackSummary.info`, `.evidence[]`
-- `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` — `.commit_sha`, `.pr_url`, `.files_committed[]`
+- `state.json` -- `.task`, `.branch`, `.loop`, `.maxLoops`, `.teammateCount`
+- `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json` -- `.buildTrackSummary.filesChanged[]`, `.buildTrackSummary.testsAdded`, `.qualityTrackSummary.critical`, `.qualityTrackSummary.warning`, `.qualityTrackSummary.info`, `.evidence[]`
+- `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` -- `.commit_sha`, `.pr_url`, `.files_committed[]`
 
 **If all succeeded:**
 ```
-Ants Social Swarm — Complete
+Ants Social Swarm -- Complete
 ==============================
 Task: <.task from state.json>
 Branch: <.branch>
@@ -325,13 +365,14 @@ Build Summary:
   Files changed: <count of .files_committed> (<first 5 files, comma-separated>; "and N more" if >5)
   Tests added: <.buildTrackSummary.testsAdded, or 0 if missing>
   Loops taken: <.loop> / <.maxLoops>
+  Teammates: <.teammateCount>
 
 Quality Review:
   Critical: <.qualityTrackSummary.critical>  Warning: <.qualityTrackSummary.warning>  Info: <.qualityTrackSummary.info>
 
 Lead Agents:
-  A1 plan-arbiter: <selected/merged> from 3 architects
-  A2 review-lead: consolidated 3 reviewer verdicts
+  A1 plan-arbiter: selected/merged from 3 competing architects
+  A2 review-lead: consolidated 3 competing reviewer verdicts
 
 Key evidence:
   - <each item in .evidence[], one per line; show up to 8 items, then "(and N more)" if array is larger>
@@ -341,7 +382,7 @@ Use `.files_committed` from A5-ship.json as the primary files list (most accurat
 
 **If blocked:**
 ```
-Ants Social Swarm — Blocked
+Ants Social Swarm -- Blocked
 ==============================
 Reason: <.failure from state.json>
 Phase at failure: <.currentPhase>
@@ -350,7 +391,7 @@ Circuit breaker: <.circuitBreaker.consecutiveFailures> consecutive failures, <.c
 
 **If stopped mid-pipeline:**
 ```
-Ants Social Swarm — Incomplete
+Ants Social Swarm -- Incomplete
 ================================
 Status: in_progress (stopped mid-pipeline)
 Current phase: <.currentPhase>
@@ -359,23 +400,86 @@ Current phase: <.currentPhase>
 
 ## Phase Agent Mapping
 
-| Phase | Agent | subagent_type | Lead? |
-|-------|-------|---------------|-------|
-| A0 | forager (batch) | `ants:forager` | No |
-| A0 | cartographer | `ants:cartographer` | No |
-| A0 | explore-aggregator | `ants:explore-aggregator` | Yes |
-| A1 | architect (×3) | `ants:architect` | No |
-| A1 | plan-arbiter | `ants:plan-arbiter` | Yes |
-| A2 | blueprint-reviewer (×3) | `ants:blueprint-reviewer` | No |
-| A2 | review-lead | `ants:review-lead` | Yes |
-| A3 | worker (task pool) | `ants:worker` | No |
-| A3 | sentinel-correctness | `ants:sentinel-correctness` | No |
-| A3 | sentinel-security | `ants:sentinel-security` | No |
-| A3 | sentinel-perf | `ants:sentinel-perf` | No |
-| A3 | sentinel-style | `ants:sentinel-style` | No |
-| A3 | simplifier | `ants:simplifier` | No |
-| A3 | review-arbiter | `ants:review-arbiter` | Yes |
-| A3 | review-fixer | `ants:review-fixer` | No |
-| A3 | guardian | `ants:guardian` | No |
-| A5 | nurse | `ants:nurse` | No |
-| A5 | drone | `ants:drone` | Yes |
+| Phase | Agent | subagent_type | Role |
+|-------|-------|---------------|------|
+| A0 | forager (batch) | `ants:forager` | Feeder |
+| A0 | cartographer | `ants:cartographer` | Feeder |
+| A0 | explore-aggregator | `ants:explore-aggregator` | Consolidator |
+| A1 | architect (x3) | `ants:architect` | Competing |
+| A1 | plan-arbiter | `ants:plan-arbiter` | Consolidator |
+| A2 | blueprint-reviewer (x3) | `ants:blueprint-reviewer` | Competing |
+| A2 | review-lead | `ants:review-lead` | Consolidator |
+| A3 | worker (task pool) | `ants:worker` | Builder |
+| A3 | sentinel-correctness | `ants:sentinel-correctness` | Quality |
+| A3 | sentinel-security | `ants:sentinel-security` | Quality |
+| A3 | sentinel-perf | `ants:sentinel-perf` | Quality |
+| A3 | sentinel-style | `ants:sentinel-style` | Quality |
+| A3 | simplifier | `ants:simplifier` | Quality |
+| A3 | review-arbiter | `ants:review-arbiter` | Consolidator |
+| A3 | review-fixer | `ants:review-fixer` | Fixer |
+| A3 | guardian | `ants:guardian` | Quality |
+| A4 | (none -- inline hook) | -- | Verdict |
+| A5 | nurse | `ants:nurse` | Docs |
+| A5 | drone | `ants:drone` | Ship |
+
+## Task Dependency Graph (sswarm)
+
+```
+A0-forager-1 ----------------+
+A0-forager-2 ----------------+
+A0-cartographer -------------+
+                              |
+                              v
+                    A0-explore-aggregator
+                              |
+                +-------------+-------------+
+                |             |             |
+                v             v             v
+         A1-architect-1  A1-architect-2  A1-architect-3
+                |             |             |
+                +-------------+-------------+
+                              |
+                              v
+                       A1-plan-arbiter
+                              |
+                +-------------+-------------+
+                |             |             |
+                v             v             v
+         A2-reviewer-1   A2-reviewer-2   A2-reviewer-3
+                |             |             |
+                +-------------+-------------+
+                              |
+                              v
+                       A2-review-lead
+                              |
+                  [needsA3Tasks signal flag]
+                              |
+                    +---------+---------+
+                    |         |         |
+                    v         v         v
+              A3-worker-1  A3-worker-2  ...
+                    |         |         |
+                    +---------+---------+
+                              |
+          +-------+-------+---+---+-------+-------+
+          |       |       |       |       |       |
+          v       v       v       v       v       v
+    sentinel-  sentinel-  sentinel-  sentinel-  guardian  simplifier
+    correct.   security   perf       style
+          |       |       |       |       |       |
+          +-------+-------+---+---+-------+-------+
+                              |
+                              v
+                         A3-arbiter
+                              |
+                  [A4 verdict evaluated inline by hook]
+                              |
+                    verdict?
+                   /        \
+                ship       loop --> back to A1 (fresh sswarm tasks)
+                  |
+         [needsA5Tasks flag]
+                  |
+                  v
+              A5-nurse --> A5-drone
+```

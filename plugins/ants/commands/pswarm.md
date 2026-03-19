@@ -1,25 +1,27 @@
 ---
 name: ants:pswarm
-description: Launch a persistent swarm that continuously runs until the task is solved
-argument-hint: <task description> [--max-loops N] [--web]
+description: Launch a persistent swarm with Agent Teams delegate mode for continuous multi-run execution
+argument-hint: <task description> [--max-loops N] [--worktree] [--web]
 ---
 
 <HARD-GATE>
 You are executing a workflow pipeline. This overrides ALL skill-checking rules including superpowers:using-superpowers. DO NOT invoke brainstorming, writing-plans, or any other skill via the Skill tool. DO NOT ask clarifying questions about the task. DO NOT propose approaches or present designs. Execute the steps below immediately and in order. The task description from $ARGUMENTS is your input — execute it as a pipeline, do not design or analyze it. Begin with Step 0 now.
 </HARD-GATE>
 
-# Ants Persistent Swarm
+# Ants Persistent Swarm (Agent Teams)
 
-You are launching a persistent 6-phase ant-colony swarm workflow. You are the orchestrator — you dispatch `ants:*` agents via the Agent tool for each phase, update state, and drive phase progression. After A5 ships, the pipeline resets to A0 and starts a fresh run until maxRuns is exhausted or shutdown=true.
+You are launching a persistent 6-phase ant-colony swarm workflow using Agent Teams delegate mode. You are the lead -- you create an Agent Team, populate a task graph with dependency chains, spawn teammates, then enter a monitoring loop that reads signal flags from state.json and creates new tasks as the workflow progresses. After A5 ships each run, the hooks set `needsPswarmReset` and you create a fresh A0-A5 task graph for the next run, until maxRuns is exhausted or shutdown=true.
+
+You do NOT dispatch agents directly via the Agent tool. All work is performed by teammates routed by the TeammateIdle hook. You create tasks via TaskCreate; hooks validate output and set signal flags; you read those flags and respond with new TaskCreate calls.
 
 ## Arguments
 
 - `<task description>`: Required. The task to execute.
-- `--max-loops N`: Optional. Maximum number of full runs (default: 50). Each run is a complete A0→A5 cycle.
+- `--max-loops N`: Optional. Maximum number of full runs (default: 50). Each run is a complete A0->A5 cycle.
 - `--worktree`: Optional. Create a git worktree for isolated development.
 - `--web`: Optional. Opt-in flag that enables WebSearch for forager agents during the A0 exploration phase.
 
-Parse from $ARGUMENTS to extract the task description and any flags.
+Parse from $ARGUMENTS to extract the task description and any flags:
 - `--max-loops N`: Set maxRuns to N (default: 50)
 - `--worktree`: Create a git worktree for isolated development
 - `--web`: Enable WebSearch tool for forager agents during exploration
@@ -27,19 +29,21 @@ Parse from $ARGUMENTS to extract the task description and any flags.
 ## Pipeline
 
 ```
-Phase A0  │ EXPLORE     │ Forage         │ foragers + cartographer + explore-aggregator
-Phase A1  │ PLAN        │ Architect      │ single planner → A1-plan.md + A1-tasks.json
-Phase A2  │ PLAN-REVIEW │ Blueprint      │ reviewer → A2-review.json
-Phase A3  │ BUILD+QUAL  │ Dual-Track     │ workers (task pool) + 4 sentinels + guardian + simplifier
-Phase A4  │ SYNC        │ Verdict        │ merge build+quality → ship/loop verdict
-Phase A5  │ SHIP        │ Ship           │ nurse (docs) → drone (commit + PR)
+Phase A0  | EXPLORE     | Forage         | foragers + cartographer + explore-aggregator
+Phase A1  | PLAN        | Architect      | single planner -> A1-plan.md + A1-tasks.json
+Phase A2  | PLAN-REVIEW | Blueprint      | reviewer -> A2-review.json
+Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A4  | SYNC        | Verdict        | TaskCompleted hook evaluates inline after A3 arbiter
+Phase A5  | SHIP        | Ship           | nurse (docs) -> drone (commit + PR)
 
-Loop: If A4 verdict is "loop" → back to A1 (max 5 inner loops per run)
-All clean → A5 ships the work
+Loop: If A4 verdict is "loop" -> back to A1 (max 5 inner loops per run)
+All clean -> A5 ships the work
 
-Persistent: After A5 ships, the pipeline resets to A0 and starts a fresh
-run (pswarmRun increments). This continues until maxRuns is exhausted or
-shutdown=true is set in state.json.
+Persistent: After A5 ships, hooks set needsPswarmReset flag. Lead creates
+fresh A0-A5 task graph for next run. Continues until maxRuns exhausted or
+shutdown=true.
+
+Dispatch: Agent Teams delegate mode (TaskCreate + TeammateIdle routing)
 ```
 
 ## Step 0: Preflight Checks
@@ -50,7 +54,21 @@ shutdown=true is set in state.json.
 ToolSearch("select:TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop")
 ```
 
-These tools are used to track phase progress.
+These tools are used to create and manage tasks in the Agent Teams task graph.
+
+### 0b. Verify Agent Teams experimental flag
+
+Check that the Agent Teams experimental flag is enabled:
+
+```bash
+if [[ "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-}" != "1" ]]; then
+  echo "ERROR: Agent Teams requires CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1"
+  echo "Set this environment variable before running the pswarm command."
+  exit 1
+fi
+```
+
+If not set, display the error and stop. Do not proceed with the workflow.
 
 ## Step 1: Initialize State
 
@@ -94,7 +112,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 
 ```json
 {
-  "version": 5,
+  "version": 6,
   "plugin": "ants",
   "pipeline": "pswarm",
   "status": "in_progress",
@@ -111,6 +129,13 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
   "maxRuns": 50,
   "maxLoops": 5,
   "loop": 1,
+  "teamCreated": false,
+  "teammateCount": 0,
+  "taskGraphVersion": 1,
+  "needsA3Tasks": false,
+  "needsA5Tasks": false,
+  "needsLoopReset": false,
+  "needsPswarmReset": false,
   "schedule": [
     {"phase":"A0","stage":"EXPLORE","label":"Colony Exploration","type":"agents"},
     {"phase":"A1","stage":"PLAN","label":"Architect Plan","type":"agents"},
@@ -140,7 +165,6 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
   "messages": [],
   "planApproved": false,
   "webSearch": false,
-  "queenDispatched": false,
   "shutdown": false,
   "webhookUrl": null,
   "lintConfig": null,
@@ -165,212 +189,185 @@ jq '.webSearch = true' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv
 Print this to the user:
 
 ```
-Ants pswarm — Persistent 6-Phase Pipeline
-==========================================
-Phase A0  │ EXPLORE │ Colony Exploration    │ foragers + cartographer + explore-aggregator
-Phase A1  │ PLAN    │ Architect Plan        │ architect
-Phase A2  │ PLAN    │ Blueprint Review      │ blueprint-reviewer
-Phase A3  │ BUILD   │ Dual-Track Execution  │ workers + 4 sentinels + guardian + simplifier
-Phase A4  │ SYNC    │ Verdict               │ orchestrator (ship/loop verdict)
-Phase A5  │ SHIP    │ Documentation + Ship  │ nurse (docs) + drone (commit + PR)
+Ants pswarm -- Persistent 6-Phase Pipeline (Agent Teams)
+=========================================================
+Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator
+Phase A1  | PLAN    | Architect Plan        | architect
+Phase A2  | PLAN    | Blueprint Review      | blueprint-reviewer
+Phase A3  | BUILD   | Dual-Track Execution  | workers + 4 sentinels + guardian + simplifier
+Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline evaluation)
+Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
 
 Max runs: <maxRuns> (--max-loops N to change)
-Dispatch: Direct agent dispatch via Agent tool
-Circuit breaker: 5 consecutive failures → halt
+Current run: 1 / <maxRuns>
+Dispatch: Agent Teams delegate mode (TaskCreate + TeammateIdle routing)
+Teammates: 3
+Circuit breaker: 5 consecutive failures -> halt
 ```
 
-## Step 3: Execute Phases
+## Step 3: Create Team + Task Graph + Monitoring Loop
 
-You are the orchestrator. Execute each phase by dispatching `ants:*` agents via the Agent tool. After each phase completes, update state.json and advance to the next phase.
+### 3a. Create initial task graph
 
-### Phase A0: Colony Exploration
+Generate the initial A0-A5 task graph. Build 6 task entries with dependency chains:
 
-Update state: `currentPhase: "A0"`, `phases.A0.status: "in_progress"`.
+| Task ID | Subject | blockedBy |
+|---------|---------|-----------|
+| A0 | `A0: Colony Exploration` | [] |
+| A1 | `A1: Architect Plan` | [A0] |
+| A2 | `A2: Blueprint Review` | [A1] |
+| A3 | `A3: Dual-Track Build` | [A2] |
+| A4 | `A4: Verdict Sync` | [A3] |
+| A5 | `A5: Documentation + Ship` | [A4] |
 
-Dispatch **in parallel** using the Agent tool:
+For each task entry, call **TaskCreate** with:
+- `subject`: The subject from the table above
+- `description`: Phase-specific description including the task description from $ARGUMENTS
+- `blockedBy`: The dependency array from the table above
 
-1. **2-3 forager agents** (`subagent_type: "ants:forager"`) — each with a focused query:
-   - Forager 1: "Explore the file structure, directory layout, and project organization for task: <task>. Write findings to .agents/tmp/phases/A0-explore.forager.1.tmp"
-   - Forager 2: "Find coding patterns, conventions, test frameworks, and related implementations for task: <task>. Write findings to .agents/tmp/phases/A0-explore.forager.2.tmp"
-   - Forager 3: "Search for existing code related to task: <task>. Look for similar implementations, relevant APIs, and integration points. Write findings to .agents/tmp/phases/A0-explore.forager.3.tmp"
+Store the returned task IDs in your working context for reference.
 
-2. **1 cartographer agent** (`subagent_type: "ants:cartographer"`) — "Trace the architecture, execution paths, and dependency graph relevant to task: <task>. Write findings to .agents/tmp/phases/A0-explore.cartographer.tmp"
+### 3b. Spawn teammates
 
-After all return, dispatch **1 explore-aggregator** (`subagent_type: "ants:explore-aggregator"`) to synthesize all forager and cartographer findings into `.agents/tmp/phases/A0-explore.md`.
+Spawn **3 teammates** for the team. These teammates will be routed work by the TeammateIdle hook as tasks become ready.
 
-Update state: `phases.A0.status: "complete"`.
+### 3c. Update state
 
-### Phase A1: Architect Plan
-
-Create loop directory: `mkdir -p .agents/tmp/phases/loop-<LOOP>`
-
-Update state: `currentPhase: "A1"`, `phases.A1.status: "in_progress"`.
-
-Dispatch **1 architect agent** (`subagent_type: "ants:architect"`):
-- "Read .agents/tmp/phases/A0-explore.md for context. Create an implementation plan for task: <task>. Write plan to .agents/tmp/phases/loop-<LOOP>/A1-plan.md. Write machine-readable task descriptors (with IDs, descriptions, file ownership, dependencies, acceptance criteria) to .agents/tmp/phases/loop-<LOOP>/A1-tasks.json"
-- On loop 2+, also include: "This is loop <LOOP>. Read the previous loop's quality review at .agents/tmp/phases/loop-<PREV>/A3-quality.json and queen verdict at .agents/tmp/phases/loop-<PREV>/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan."
-
-Update state: `phases.A1.status: "complete"`.
-
-### Phase A2: Blueprint Review
-
-Update state: `currentPhase: "A2"`, `phases.A2.status: "in_progress"`.
-
-Dispatch **1 blueprint-reviewer agent** (`subagent_type: "ants:blueprint-reviewer"`):
-- "Review the plan at .agents/tmp/phases/loop-<LOOP>/A1-plan.md and tasks at .agents/tmp/phases/loop-<LOOP>/A1-tasks.json. Check for completeness, feasibility, dependency correctness, and risk. Write review JSON to .agents/tmp/phases/loop-<LOOP>/A2-review.json with format: {status: 'approved'|'needs_revision', issues: [...]}"
-
-Read the review output. If `status: "needs_revision"` with any HIGH severity issues:
-- Loop back to A1 (increment loop counter, reset A1-A4 to pending)
-- Check circuit breaker limits first
-
-If `status: "approved"` or only LOW/MEDIUM issues: advance to A3.
-
-Update state: `phases.A2.status: "complete"`.
-
-### Phase A3: Dual-Track Build
-
-Update state: `currentPhase: "A3"`, `phases.A3.status: "in_progress"`.
-
-**Build Track:** Read `.agents/tmp/phases/loop-<LOOP>/A1-tasks.json` to get the task list. For each task, dispatch a **worker agent** (`subagent_type: "ants:worker"`):
-- "Implement task <ID>: <description>. Files to modify: <files>. Dependencies: <deps>. Acceptance criteria: <criteria>. Self-verify your work (run tests/lint if applicable)."
-- Dispatch workers in parallel when their dependencies are satisfied. Wait for workers with no deps first, then dispatch dependent workers as their deps complete.
-
-After all workers complete, write build results to `.agents/tmp/phases/loop-<LOOP>/A3-build.json`.
-
-**Quality Track:** After all workers complete, dispatch **6 agents in parallel**:
-1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes for bugs, logic errors, missing error handling. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-correctness.json"
-2. `subagent_type: "ants:sentinel-security"` — "Review all changes for security vulnerabilities (OWASP top 10, injection, secrets). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-security.json"
-3. `subagent_type: "ants:sentinel-perf"` — "Review all changes for performance issues (N+1 queries, blocking I/O, complexity). Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-perf.json"
-4. `subagent_type: "ants:sentinel-style"` — "Review all changes for code style, readability, and maintainability. Write findings to .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-style.json"
-5. `subagent_type: "ants:guardian"` — write tests for implemented code
-6. `subagent_type: "ants:simplifier"` — apply targeted code cleanup (dead code, complexity, naming) without behavioral changes
-
-After all 6 complete, dispatch **1 review-arbiter** (`subagent_type: "ants:review-arbiter"`):
-- "Read all sentinel review files at .agents/tmp/phases/loop-<LOOP>/A3-review.sentinel-*.json. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/phases/loop-<LOOP>/A3-quality.json"
-
-If the arbiter finds critical issues, dispatch **1 review-fixer** (`subagent_type: "ants:review-fixer"`):
-- "Read issues from .agents/tmp/phases/loop-<LOOP>/A3-quality.json and apply targeted fixes."
-
-Update state: `phases.A3.status: "complete"`.
-
-### Phase A4: Verdict
-
-Update state: `currentPhase: "A4"`, `phases.A4.status: "in_progress"`.
-
-Read build results at `.agents/tmp/phases/loop-<LOOP>/A3-build.json` and quality review at `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`. If A3-quality.json is missing, treat this as `issues_found` with verdict reason: "quality review incomplete". If A3-build.json is missing, halt with `status: "blocked"`. Render verdict: `clean` (ship) or `issues_found` (loop back). Write the verdict directly to `.agents/tmp/phases/loop-<LOOP>/A4-queen-verdict.json`.
-
-Note: pswarm uses orchestrator-driven dispatch (not queen-driven). The orchestrator evaluates the A4 verdict directly rather than dispatching a queen agent.
-
-Read the verdict:
-- **"clean"**: Advance to A5.
-- **"issues_found"**: Check circuit breaker. If within limits, increment loop counter, reset A1-A4 to pending, go back to Phase A1. If circuit breaker tripped, halt workflow with `status: "blocked"`.
-
-Update state: `phases.A4.status: "complete"`.
-
-### Phase A5: Documentation + Ship
-
-Update state: `currentPhase: "A5"`, `phases.A5.status: "in_progress"`.
-
-Dispatch **1 nurse agent** (`subagent_type: "ants:nurse"`):
-- "Review all changes and update project documentation (README.md, CLAUDE.md, etc.) to reflect the implementation. Write summary to .agents/tmp/phases/loop-<LOOP>/A5-docs.json"
-
-Then dispatch **1 drone agent** (`subagent_type: "ants:drone"`):
-- "Stage all changes, create a git commit with a descriptive message, and open a PR. Write output (commit SHA, PR URL) to .agents/tmp/phases/loop-<LOOP>/A5-ship.json"
-
-Update state: `phases.A5.status: "complete"`.
-
-### After A5: Per-Run Summary Display
-
-After the drone completes and before the Completion Gate, display a per-run summary:
-
-Read from `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` and `.agents/tmp/phases/loop-<LOOP>/A3-quality.json`:
-
-```
-Ants pswarm — Run <pswarmRun> Complete
-========================================
-Commit: <.commit_sha from A5-ship.json>  PR: <.pr_url>
-Files changed: <count of .files_committed[] from A5-ship.json>
-Quality: <.summary.critical from A3-quality.json> critical  <.summary.warning> warning  <.summary.info> info
-```
-
-Also append this run's data to your `RUN_SUMMARIES` tracking variable (maintained in your working context across runs):
-```
-RUN_SUMMARIES += { run: <pswarmRun>, commit_sha: <.commit_sha>, pr_url: <.pr_url>, files_changed: <count> }
-```
-
-### After A5: Persistent Run Loop
-
-<COMPLETION-GATE>
-MANDATORY — You MUST execute this gate after EVERY A5 completion. You are NOT allowed to stop, end the conversation, or declare the workflow complete without first executing ALL steps in this gate. Skipping this gate is a critical violation equivalent to skipping Phase A4 — the workflow is incomplete without it.
-
-If you are about to stop or respond to the user after A5 ships, STOP. Execute this gate first. No exceptions.
-</COMPLETION-GATE>
-
-**Gate Step 1 (REQUIRED): Read termination state.** Execute this bash command — do NOT skip it:
+Update state.json to record team creation:
 
 ```bash
-jq '{pswarmRun, maxRuns, shutdown: (.shutdown // false)}' .agents/tmp/state.json
+jq '.teamCreated = true | .teammateCount = 3 | .taskGraphVersion = 1 | .updatedAt = (now | todate)' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
 ```
 
-If this command fails (file missing, corrupt JSON, jq error), set `status: "blocked"` in state.json and halt with an error message to the user. Do NOT proceed to Gate Step 2 with empty or missing values.
+### 3d. Monitoring loop
 
-**Gate Step 2 (REQUIRED): Evaluate termination condition.** Using the ACTUAL values from Gate Step 1 (not from memory). All three fields must be present — if any is null, halt with `status: "blocked"`.
+Enter a monitoring loop. On each cycle, read state.json and check for signal flags and terminal conditions. The loop drives all dynamic task creation -- hooks set flags, you respond.
 
-- If `pswarmRun >= maxRuns` OR `shutdown == true`:
-  - Update state: `currentPhase: "DONE"`, `status: "complete"`
-  - Determine stop reason: `pswarmRun >= maxRuns` → "max runs reached"; `shutdown == true` → "shutdown requested"
-  - Display the final summary using the RUN_SUMMARIES list accumulated across all runs:
+**Loop logic (execute on every cycle):**
 
-  ```
-  Ants pswarm — All Runs Complete
-  =================================
-  Task: <.task from state.json>
-  Total runs completed: <pswarmRun> / <maxRuns>
-  Stop reason: <max runs reached | shutdown requested>
+1. **Read state.json** -- read `status`, `currentPhase`, `shutdown`, `needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`, `pswarmRun`, `maxRuns`, `loop`.
 
-  Run | Commit       | PR            | Files Changed
-  ----|-------------|---------------|---------------
-  1   | <sha[0:7]>  | <pr_url>      | <files_changed>
-  2   | <sha[0:7]>  | <pr_url>      | <files_changed>
-  ... (one row per entry in RUN_SUMMARIES)
-      | Total        |               | <sum of files_changed>
-  ```
-  - ONLY NOW may you stop
+2. **Check terminal conditions** -- exit the loop if ANY of these are true:
+   - `status == "complete"`
+   - `status == "blocked"`
+   - `status == "stopped"`
+   - `shutdown == true` (update status to complete, currentPhase to DONE first)
 
-- If `pswarmRun < maxRuns` AND `shutdown == false`:
-  - You MUST continue. Stopping here is a bug. Execute Gate Step 3.
+3. **Check needsPswarmReset flag** -- if `true`:
+   - Log: "Starting run {pswarmRun}" (read the NEW pswarmRun value from state, it was already incremented by the hook)
+   - Create fresh A0-A5 task graph: generate 6 new tasks (same structure as Step 3a) and call **TaskCreate** for each
+   - Clear the flag: update state.json to set `needsPswarmReset = false`
+   - Increment `taskGraphVersion` in state.json
+   - Log: "Created fresh task graph for run {pswarmRun} (taskGraphVersion: {version})"
 
-**Gate Step 3 (REQUIRED when continuing): Reset for next run.**
-  - Read and store from `.agents/tmp/phases/loop-<LOOP>/A5-ship.json` BEFORE cleanup: `.commit_sha`, `.pr_url`, and count of `.files_committed[]` for this run's summary entry (run data is lost after cleanup)
-  - Increment `pswarmRun` by 1
-  - Reset `loop` to 1
-  - Reset all phases (A0-A5) to `{"status": "pending"}`
-  - Reset circuit breaker counters (`consecutiveFailures: 0`, `fixAttempts: {}`, `stageRestarts: 0`)
-  - Clean phase output files: `rm -rf .agents/tmp/phases` and `mkdir -p .agents/tmp/phases`
-  - Update `updatedAt` timestamp
-  - Log: "Persistent swarm run <N> complete (commit: <SHA>, PR: <URL>). Starting run <N+1>..."
-  - Go back to **Phase A0** and continue the pipeline
+4. **Check needsA3Tasks flag** -- if `true`:
+   - Read `.agents/tmp/phases/loop-{loop}/A1-tasks.json` to get the task list from the architect
+   - For each worker task: call **TaskCreate** with subject `"A3 Worker: {task_name}"`, description including task details, and `blockedBy: ["A2"]` plus any inter-task dependencies (prefixed with `A3-worker-`)
+   - Create sentinel tasks: call **TaskCreate** for each of `A3 Sentinel Correctness: Review`, `A3 Sentinel Security: Review`, `A3 Sentinel Perf: Review`, `A3 Sentinel Style: Review` -- each `blockedBy` all worker task IDs
+   - Create guardian task: `A3 Guardian: Write tests` -- `blockedBy` all worker task IDs
+   - Create simplifier task: `A3 Simplifier: Code cleanup` -- `blockedBy` all worker task IDs
+   - Create arbiter task: `A3 Arbiter: Consolidate reviews` -- `blockedBy` all sentinel + guardian + simplifier task IDs
+   - Create review-fixer task: `A3 Review Fixer: Apply targeted repairs` -- `blockedBy` [arbiter task ID]
+   - Clear the flag: update state.json to set `needsA3Tasks = false`
+   - Log: "Created {N} A3 subtasks ({worker_count} workers + quality track)"
 
-**Anti-skip rule:** If you find yourself about to say "the workflow is complete" or "all done" after A5 without having run the `jq` command in Gate Step 1 during THIS turn, you are violating the completion gate. Go back and execute Gate Step 1 now. If the `jq` command was attempted but failed or returned null/unexpected output, do NOT proceed with either path — halt with `status: "blocked"` and report the error to the user.
+5. **Check needsA5Tasks flag** -- if `true`:
+   - Call **TaskCreate** for `A5 Nurse: Update documentation` -- `blockedBy: ["A3-arbiter"]`
+   - Call **TaskCreate** for `A5 Drone: Commit and ship` -- `blockedBy: ["A5-nurse"]`
+   - Clear the flag: update state.json to set `needsA5Tasks = false`
+   - Log: "Created A5 tasks (nurse + drone)"
+
+6. **Check needsLoopReset flag** -- if `true`:
+   - Create fresh A1-A4 tasks (loop-back): call **TaskCreate** for A1, A2, A3 (placeholder), A4 (placeholder) with updated dependency chains
+   - Clear the flag: update state.json to set `needsLoopReset = false`
+   - Log: "Created fresh A1-A4 tasks for loop {loop}"
+
+7. **Wait** -- pause briefly before the next cycle to avoid busy-waiting on state.json reads.
+
+**Important constraints:**
+- Do NOT dispatch agents directly via the Agent tool. All agent work is routed by the TeammateIdle hook.
+- Do NOT evaluate A4 verdicts. The TaskCompleted hook evaluates verdicts inline when the A3 arbiter completes.
+- Do NOT manage pswarm run boundaries directly. The TaskCompleted hook's `handle_a5()` increments `pswarmRun`, resets phases, and sets `needsPswarmReset`. You just detect the flag and create new tasks.
+- Do NOT exit the monitoring loop until a terminal condition is met.
+
+## Step 4: Completion Summary
+
+When the monitoring loop exits, read the final state and display a multi-run summary.
+
+Read from state.json: `.task`, `.branch`, `.pswarmRun`, `.maxRuns`, `.shutdown`.
+
+**Determine stop reason:**
+- If `pswarmRun >= maxRuns`: "max runs reached"
+- If `shutdown == true`: "shutdown requested"
+- If `status == "blocked"`: "workflow blocked ({failure})"
+- Otherwise: "completed"
+
+**Display summary:**
+
+```
+Ants pswarm -- All Runs Complete
+=================================
+Task: <.task from state.json>
+Branch: <.branch>
+Total runs completed: <pswarmRun> / <maxRuns>
+Stop reason: <stop reason>
+
+Run | Phase Reached | Status
+----|--------------|--------
+1   | DONE         | complete
+2   | DONE         | complete
+...
+```
+
+If A5-ship.json files are available from completed runs, include commit and PR information where possible.
+
+**If blocked:**
+```
+Ants pswarm -- Blocked
+========================
+Reason: <.failure from state.json>
+Phase at failure: <.currentPhase>
+Run: <.pswarmRun> / <.maxRuns>
+Circuit breaker: <.circuitBreaker.consecutiveFailures> consecutive failures, <.circuitBreaker.stageRestarts> loop-backs used
+```
+
+**If stopped mid-pipeline:**
+```
+Ants pswarm -- Incomplete
+===========================
+Status: in_progress (stopped mid-pipeline)
+Current phase: <.currentPhase>
+Run: <.pswarmRun> / <.maxRuns>
+<.failure if present>
+```
 
 ## Phase Agent Mapping
 
-| Phase | Agent | subagent_type |
-|-------|-------|---------------|
-| A0 | forager (batch) | `ants:forager` |
-| A0 | cartographer | `ants:cartographer` |
-| A0 | explore-aggregator | `ants:explore-aggregator` |
-| A1 | architect | `ants:architect` |
-| A2 | blueprint-reviewer | `ants:blueprint-reviewer` |
-| A3 | worker (task pool) | `ants:worker` |
-| A3 | sentinel-correctness | `ants:sentinel-correctness` |
-| A3 | sentinel-security | `ants:sentinel-security` |
-| A3 | sentinel-perf | `ants:sentinel-perf` |
-| A3 | sentinel-style | `ants:sentinel-style` |
-| A3 | simplifier | `ants:simplifier` |
-| A3 | review-arbiter | `ants:review-arbiter` |
-| A3 | review-fixer | `ants:review-fixer` |
-| A3 | guardian | `ants:guardian` |
-| A4 | orchestrator (internal) | -- |
-| A5 | nurse | `ants:nurse` |
-| A5 | drone | `ants:drone` |
+| Phase | Agent | Role |
+|-------|-------|------|
+| A0 | forager (batch) | Breadth-first codebase scout |
+| A0 | cartographer | Deep architecture tracer |
+| A0 | explore-aggregator | Synthesizes A0 findings |
+| A1 | architect | Plans implementation with task assignments |
+| A2 | blueprint-reviewer | Validates plan completeness |
+| A3 | worker (task pool) | Implements individual tasks |
+| A3 | sentinel-correctness | Reviews for bugs and logic errors |
+| A3 | sentinel-security | Reviews for security vulnerabilities |
+| A3 | sentinel-perf | Reviews for performance issues |
+| A3 | sentinel-style | Reviews for code style |
+| A3 | simplifier | Post-build code cleanup |
+| A3 | review-arbiter | Consolidates adversarial findings |
+| A3 | review-fixer | Targeted repair for critical issues |
+| A3 | guardian | Writes tests for implemented code |
+| A4 | TaskCompleted hook (inline) | Evaluates verdict after A3 arbiter |
+| A5 | nurse | Updates documentation |
+| A5 | drone | Commits and opens PR |
+
+## Signal Flag Reference
+
+| Flag | Set By | When | Your Action |
+|------|--------|------|-------------|
+| `needsA3Tasks` | `handle_a1()` in on-task-completed.sh | A1 plan + A1-tasks.json validated | TaskCreate for A3 worker/sentinel/arbiter tasks |
+| `needsA5Tasks` | `handle_a3_arbiter()` in on-task-completed.sh | A4 verdict is clean (inline) | TaskCreate for A5 nurse + drone |
+| `needsLoopReset` | `handle_a3_arbiter()` in on-task-completed.sh | A4 verdict is issues_found | TaskCreate for fresh A1-A4 tasks |
+| `needsPswarmReset` | `handle_a5()` in on-task-completed.sh | A5 complete + pswarmRun < maxRuns | TaskCreate for fresh A0-A5 task graph |

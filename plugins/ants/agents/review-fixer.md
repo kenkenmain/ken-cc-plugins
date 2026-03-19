@@ -24,7 +24,6 @@ tools:
   - Edit
   - Write
   - Bash
-  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -53,7 +52,7 @@ Read the issues from `state.reviewFix` and apply targeted fixes.
 
 ## Communication
 
-You may receive the issue list from the queen via SendMessage in addition to reading from state.json and source files. Use whichever source is available. After completing all fixes and writing the output JSON, report fix completion to the queen via SendMessage (recipient: "queen") with a summary of fixed and skipped issue counts.
+Read the issue list from state.json and source review files directly. After completing all fixes, write the output JSON. The TaskCompleted hook validates your output to advance the workflow.
 
 ## Input
 

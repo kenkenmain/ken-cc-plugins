@@ -22,7 +22,6 @@ tools:
   - Glob
   - Grep
   - Write
-  - SendMessage
 disallowedTools:
   - Edit
   - Bash
@@ -47,7 +46,7 @@ Read the outputs from all four sentinels for loop {{LOOP}} and produce a consoli
 
 ## Communication
 
-You may receive sentinel findings via SendMessage in addition to reading their output files. Use whichever source is available. After writing the A3-quality.json checkpoint (see Output Format below), send the consolidated verdict to the queen via SendMessage (recipient: "queen") with a summary of the verdict, issue counts, and any conflicts resolved.
+Read sentinel output files directly at their known paths (task dependency chains ensure all sentinel files exist before you run). After writing A3-quality.json, your work is complete. The TaskCompleted hook reads this file to validate the consolidated verdict and advance the workflow.
 
 ## Sentinel Inputs
 

@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# on-task-completed.sh — TaskCompleted checkpoint gate for queen-driven workflow
-# Fires when a teammate marks a task complete. Validates checkpoint files exist
-# and are well-formed. The queen drives phase transitions via SendMessage —
-# this hook only gates on checkpoint validity.
+# on-task-completed.sh — TaskCompleted quality gate and state advancement engine
+# for ants v0.6 Agent Teams delegate mode.
+#
+# Fires when a teammate marks a task complete. Validates checkpoint files,
+# advances state (currentPhase, phase statuses), sets signal flags for the
+# command's monitoring loop (needsA3Tasks, needsA5Tasks, needsLoopReset,
+# needsPswarmReset), and evaluates A4 verdict INLINE after A3 arbiter
+# completes (no separate A4 agent dispatch).
+#
+# Hooks are shell scripts — they CANNOT call TaskCreate, TaskUpdate, or
+# any Claude tools. They can only read/write state.json, read output files,
+# write signal flags, and exit 0 (accept) or exit 2 (reject with feedback).
 #
 # Exit codes:
-#   0 — accept task completion (checkpoint valid)
+#   0 — accept task completion (checkpoint valid, state advanced)
 #   2 with stderr — reject completion (checkpoint missing/invalid, feedback provided)
 
 set -euo pipefail
@@ -16,6 +24,8 @@ source "$SCRIPT_DIR/lib/swarm.sh"
 source "$SCRIPT_DIR/lib/circuit-breaker.sh"
 source "$SCRIPT_DIR/lib/teams.sh"
 source "$SCRIPT_DIR/lib/webhook.sh"
+source "$SCRIPT_DIR/lib/dag.sh"
+source "$SCRIPT_DIR/lib/task-pool.sh"
 
 check_ants_workflow
 
@@ -23,7 +33,7 @@ check_ants_workflow
 shutdown_check
 
 # ---------------------------------------------------------------------------
-# Phase handlers — each validates checkpoint files (no phase transitions)
+# Phase handlers — validate checkpoint files AND advance state
 # ---------------------------------------------------------------------------
 
 handle_a0() {
@@ -35,7 +45,21 @@ handle_a0() {
 
   cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
   webhook_phase_event "A0" "completed" || true
-  teams_log "A0 checkpoint valid"
+
+  # Advance state: A0 complete -> A1 pending
+  if ! update_state '
+    .currentPhase = "A1" |
+    .updatedAt = $ts |
+    .phases.A0.status = "complete" |
+    .phases.A0.completedAt = $ts |
+    .phases.A1.status = "pending"
+  '; then
+    teams_reject_completion "A0 valid but failed to advance state to A1. Retry."
+    exit 2
+  fi
+
+  webhook_phase_event "A1" "started" || true
+  teams_log "A0 complete, advanced to A1"
 }
 
 handle_a1() {
@@ -46,15 +70,18 @@ handle_a1() {
     exit 2
   fi
 
-  # planApproved gate — reject if plan has not been approved
+  # planApproved gate — reject if plan has not been approved.
+  # A1 status is kept as "complete" (plan file exists), but the workflow does not
+  # advance to A2 until planApproved=true. Setting A1 back to "pending" would
+  # cause TeammateIdle to re-dispatch the architect unnecessarily.
   local plan_approved
   plan_approved=$(state_get '.planApproved // false')
   if [[ "$plan_approved" != "true" ]]; then
-    if ! update_state '.updatedAt = $ts | .phases.A1.status = "pending"'; then
-      echo "ERROR: Failed to mark plan as awaiting approval." >&2
+    if ! update_state '.updatedAt = $ts | .phases.A1.status = "complete" | .phases.A1.completedAt = $ts'; then
+      echo "ERROR: Failed to mark A1 as complete while awaiting approval." >&2
       exit 2
     fi
-    webhook_phase_event "A1" "completed" || true
+    webhook_phase_event "A1" "awaiting_approval" || true
     teams_log "A1 plan written, awaiting approval before proceeding"
     teams_reject_completion "Plan written but planApproved is false. Set planApproved=true in state.json to proceed."
     exit 2
@@ -62,16 +89,37 @@ handle_a1() {
 
   cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
 
+  # Initialize task pool and set signal flag if A1-tasks.json exists
   if [[ -f "${phases_dir}/A1-tasks.json" ]]; then
     if validate_json_file "${phases_dir}/A1-tasks.json" "A1-tasks.json"; then
-      teams_log "A1-tasks.json found, A3 sub-tasks available for dynamic dispatch"
+      # Initialize task pool from A1-tasks.json
+      if pool_init; then
+        teams_log "Task pool initialized from A1-tasks.json"
+      else
+        teams_log "WARNING: pool_init failed — A3 task pool will not be available"
+      fi
     else
       teams_log "WARNING: A1-tasks.json exists but is invalid JSON — A3 task pool will not be available"
     fi
   fi
 
+  # Advance state: A1 complete -> A2 pending (merging needsA3Tasks into the same
+  # atomic update to prevent premature signal flag visibility before state is ready)
+  if ! update_state '
+    .currentPhase = "A2" |
+    .updatedAt = $ts |
+    .phases.A1.status = "complete" |
+    .phases.A1.completedAt = $ts |
+    .phases.A2.status = "pending" |
+    .needsA3Tasks = true
+  '; then
+    teams_reject_completion "A1 valid but failed to advance state to A2. Retry."
+    exit 2
+  fi
+
   webhook_phase_event "A1" "completed" || true
-  teams_log "A1 checkpoint valid"
+  webhook_phase_event "A2" "started" || true
+  teams_log "A1 complete, advanced to A2"
 }
 
 handle_a2() {
@@ -95,19 +143,115 @@ handle_a2() {
   fi
 
   cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+
+  # Branch on review verdict
+  if [[ "$review_status" == "needs_revision" ]]; then
+    # Count HIGH severity issues
+    local high_count
+    high_count=$(jq '[.issues[]? | select(.severity == "HIGH" or .severity == "high" or .severity == "critical")] | length' "${phases_dir}/A2-review.json" 2>/dev/null || echo "0")
+    [[ "${high_count:-0}" =~ ^[0-9]+$ ]] || high_count="0"
+
+    if [[ "$high_count" -gt 0 ]]; then
+      teams_log "A2 review: needs_revision with ${high_count} HIGH issues — looping back to A1"
+
+      # Check fix attempt budget for A2
+      if ! cb_increment_fix_attempts "A2"; then
+        teams_log "WARNING: Fix attempt budget exhausted for A2"
+        if ! update_state '
+          .status = "blocked" |
+          .updatedAt = $ts |
+          .phases.A2.status = "complete" |
+          .phases.A2.completedAt = $ts |
+          .failure = "Fix attempt budget exhausted for A2 review"
+        '; then
+          teams_reject_completion "A2 fix budget exhausted but failed to update state."
+          exit 2
+        fi
+        teams_reject_completion "Fix attempt budget exhausted for A2 review. Workflow blocked."
+        exit 2
+      fi
+
+      # Check max loops
+      local loop
+      loop=$(state_get '.loop // 1')
+      loop=$(require_int "$loop" "loop")
+      local max_loops
+      max_loops=$(state_get '.maxLoops // 5')
+      max_loops=$(require_int "$max_loops" "maxLoops")
+      local next_loop=$((loop + 1))
+
+      if [[ "$next_loop" -gt "$max_loops" ]]; then
+        if ! update_state '
+          .status = "stopped" |
+          .currentPhase = "STOPPED" |
+          .updatedAt = $ts |
+          .phases.A2.status = "complete" |
+          .phases.A2.completedAt = $ts |
+          .failure = "Max loops reached during A2 review loop-back"
+        '; then
+          teams_reject_completion "Max loops reached but failed to update state."
+          exit 2
+        fi
+        teams_log "Max loops reached, workflow stopped"
+        webhook_phase_event "A2" "completed" || true
+        return 0
+      fi
+
+      # Loop back to A1
+      # IMPORTANT: reset_phases_for_loop clears signal flags, so call it BEFORE setting needsLoopReset.
+      # Failure is fatal -- stale phase statuses from previous loop would cause incorrect dispatch.
+      if ! reset_phases_for_loop; then
+        teams_reject_completion "reset_phases_for_loop failed during A2 loop-back. State may be stale. Retry."
+        exit 2
+      fi
+      if ! update_state --argjson nextLoop "$next_loop" '
+        .currentPhase = "A1" |
+        .loop = $nextLoop |
+        .updatedAt = $ts |
+        .phases.A2.status = "complete" |
+        .phases.A2.completedAt = $ts |
+        .needsLoopReset = true
+      '; then
+        teams_reject_completion "A2 loop-back failed to update state."
+        exit 2
+      fi
+      webhook_phase_event "A2" "completed" || true
+      teams_log "A2 review needs_revision with HIGH issues, looped back to A1 (loop ${next_loop})"
+      return 0
+    fi
+
+    # needs_revision but no HIGH issues — advance to A3 with advisory
+    teams_log "A2 review: needs_revision but no HIGH issues — advancing to A3 with advisory"
+  fi
+
+  # Advance state: A2 complete -> A3 pending
+  if ! update_state '
+    .currentPhase = "A3" |
+    .updatedAt = $ts |
+    .phases.A2.status = "complete" |
+    .phases.A2.completedAt = $ts |
+    .phases.A3.status = "in_progress"
+  '; then
+    teams_reject_completion "A2 valid but failed to advance state to A3. Retry."
+    exit 2
+  fi
+
   webhook_phase_event "A2" "completed" || true
-  teams_log "A2 checkpoint valid"
+  webhook_phase_event "A3" "started" || true
+  teams_log "A2 complete, advanced to A3"
 }
 
 handle_a3_worker() {
   local input="$1"
   local task_subject="$2"
 
+  # Note: pool existence check is not atomic with the subsequent pool_complete_task call.
+  # This is safe because pool existence is stable after pool_init (the pool is never
+  # removed, only tasks within it change status). pool_complete_task uses its own lock.
   local has_pool
   has_pool=$(state_get '.taskPool // empty | if type == "array" and length > 0 then "yes" else "no" end')
 
   if [[ "$has_pool" == "yes" ]]; then
-    source "$SCRIPT_DIR/lib/task-pool.sh"
     # Extract task_id from completion input (primary path)
     local task_id
     task_id=$(printf '%s' "$input" | jq -r '.output.taskId // .output.task_id // empty' || echo "")
@@ -143,14 +287,31 @@ handle_a3_worker() {
         teams_reject_completion "Build track complete but state update failed. Retry."
         exit 2
       fi
+      webhook_phase_event "A3" "build_track_complete" || true
     fi
   fi
 
+  cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+
+  if [[ "$has_pool" != "yes" ]]; then
+    teams_log "WARNING: A3 worker completed but no valid task pool found (backward compat fallback)"
+  fi
   teams_log "A3 worker completed"
 }
 
 handle_a3_guardian() {
-  # Guardian (test writer) is not a pool task — accept completion without pool logic
+  local phases_dir="$1"
+
+  # Mark guardian complete in state -- reject if update fails to keep state/markers in sync
+  if ! update_state '.updatedAt = $ts | .phases.A3.guardianDone = true'; then
+    teams_reject_completion "Failed to mark guardian as done in state. Retry."
+    exit 2
+  fi
+
+  local marker_file
+  marker_file="${phases_dir}/.guardian.done"
+  touch "$marker_file"
+
   teams_log "A3 guardian completed"
 }
 
@@ -176,8 +337,49 @@ handle_a3_sentinel() {
      && [[ -f "${phases_dir}/.sentinel-security.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-perf.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-style.done" ]]; then
+    if ! update_state '.updatedAt = $ts | .phases.A3.sentinelsDone = true'; then
+      teams_reject_completion "All sentinels done but failed to update state. Retry."
+      exit 2
+    fi
     teams_log "All sentinels complete, arbiter can proceed"
   fi
+}
+
+handle_a3_simplifier() {
+  local phases_dir="$1"
+
+  # Mark simplifier complete in state -- reject if update fails to keep state/markers in sync
+  if ! update_state '.updatedAt = $ts | .phases.A3.simplifierDone = true'; then
+    teams_reject_completion "Failed to mark simplifier as done in state. Retry."
+    exit 2
+  fi
+
+  local marker_file
+  marker_file="${phases_dir}/.simplifier.done"
+  touch "$marker_file"
+
+  teams_log "A3 simplifier completed"
+
+  # Check if all quality agents are done (sentinels + guardian + simplifier)
+  local sentinels_done
+  sentinels_done=$(state_get '.phases.A3.sentinelsDone // false')
+  local guardian_done
+  guardian_done=$(state_get '.phases.A3.guardianDone // false')
+
+  if [[ "$sentinels_done" == "true" && "$guardian_done" == "true" ]]; then
+    teams_log "All quality agents complete (sentinels + guardian + simplifier), arbiter can proceed"
+  fi
+}
+
+handle_a3_fixer() {
+  local phases_dir="$1"
+
+  # Review-fixer applied targeted repairs after arbiter found critical issues
+  local marker_file
+  marker_file="${phases_dir}/.review-fixer.done"
+  touch "$marker_file"
+
+  teams_log "A3 review-fixer completed"
 }
 
 handle_a3_arbiter() {
@@ -192,53 +394,162 @@ handle_a3_arbiter() {
     exit 2
   fi
 
-  # Batch-read arbiter verdict and critical count in a single jq pass
-  local arbiter_meta
-  if ! arbiter_meta=$(jq -r '{verdict: (.summary.verdict // ""), critical_count: ([.issues[]? | select(.severity == "critical")] | length)} | "\(.verdict)\t\(.critical_count)"' "${phases_dir}/A3-quality.json" 2>/dev/null); then
-    teams_reject_completion "Failed to parse A3-quality.json"
+  # Mark arbiter done in state -- reject if update fails (keystone event for A4 verdict)
+  if ! update_state '.updatedAt = $ts | .phases.A3.arbiterDone = true'; then
+    teams_reject_completion "Failed to mark arbiter as done in state. Retry."
     exit 2
   fi
-  local arbiter_verdict
-  arbiter_verdict=$(printf '%s' "$arbiter_meta" | cut -f1)
-  local critical_count
-  critical_count=$(printf '%s' "$arbiter_meta" | cut -f2)
-  critical_count="${critical_count:-0}"
-  critical_count=$(require_int "$critical_count" "critical_count")
 
-  if [[ "$arbiter_verdict" == "issues_found" && "$critical_count" -gt 0 ]]; then
-    teams_log "Arbiter found ${critical_count} critical issues, recording failure"
-    if ! cb_record_failure; then
-      echo "WARNING: cb_record_failure state update failed -- proceeding with rejection" >&2
-    fi
-    if cb_is_tripped; then
-      echo "WARNING: Circuit breaker tripped after arbiter failure" >&2
-      if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Circuit breaker tripped: arbiter found critical issues"'; then
-        echo "ERROR: Failed to update state to blocked after circuit breaker trip" >&2
-        teams_reject_completion "Circuit breaker tripped but failed to update state — rejecting to prevent inconsistent state."
-        exit 2
-      fi
-      teams_reject_completion "Circuit breaker tripped after arbiter found ${critical_count} critical issues. Workflow is blocked."
+  # ─────────────────────────────────────────────────────────────
+  # INLINE A4 VERDICT — evaluate quality verdict and write
+  # A4-queen-verdict.json directly from this hook
+  # ─────────────────────────────────────────────────────────────
+
+  # Batch-read critical and warning counts in a single jq pass
+  local quality_meta
+  if ! quality_meta=$(jq -r '{
+    critical_count: ([.issues[]? | select(.severity == "critical" or .severity == "HIGH" or .severity == "high")] | length),
+    warning_count: ([.issues[]? | select(.severity == "warning" or .severity == "WARNING")] | length),
+    all_issues: ([.issues[]?] | length)
+  } | "\(.critical_count)\t\(.warning_count)\t\(.all_issues)"' "${phases_dir}/A3-quality.json" 2>/dev/null); then
+    teams_reject_completion "Failed to parse issue counts from A3-quality.json"
+    exit 2
+  fi
+
+  local critical_count warning_count all_issues
+  IFS=$'\t' read -r critical_count warning_count all_issues <<< "$quality_meta"
+  critical_count="${critical_count:-0}"
+  warning_count="${warning_count:-0}"
+  all_issues="${all_issues:-0}"
+  critical_count=$(require_int "$critical_count" "critical_count")
+  warning_count=$(require_int "$warning_count" "warning_count")
+  all_issues=$(require_int "$all_issues" "all_issues")
+
+  # Determine verdict: clean if no critical or warning issues
+  local verdict="clean"
+  local actionable_count=$((critical_count + warning_count))
+  if [[ "$actionable_count" -gt 0 ]]; then
+    verdict="issues_found"
+  fi
+
+  teams_log "A4 inline verdict: ${verdict} (critical=${critical_count}, warning=${warning_count}, total=${all_issues})"
+
+  # Write A4-queen-verdict.json with evidence
+  mkdir -p "$phases_dir"
+  local timestamp
+  timestamp=$(date -Iseconds)
+  if ! jq -n \
+    --arg verdict "$verdict" \
+    --argjson critical "$critical_count" \
+    --argjson warning "$warning_count" \
+    --argjson total "$all_issues" \
+    --arg ts "$timestamp" \
+    '{
+      "verdict": $verdict,
+      "total_issues": ($critical + $warning),
+      "critical_issues": $critical,
+      "warning_issues": $warning,
+      "info_issues": ($total - $critical - $warning),
+      "evidence": [
+        ("Arbiter found " + ($critical | tostring) + " critical and " + ($warning | tostring) + " warning issues"),
+        ("Total issues across all severities: " + ($total | tostring)),
+        ("Verdict evaluated inline by TaskCompleted hook at " + $ts)
+      ],
+      "evaluatedAt": $ts,
+      "evaluatedBy": "on-task-completed.sh (inline A4)"
+    }' > "${phases_dir}/A4-queen-verdict.json"; then
+    teams_reject_completion "Failed to write A4-queen-verdict.json"
+    exit 2
+  fi
+
+  webhook_phase_event "A3" "completed" || true
+
+  if [[ "$verdict" == "clean" ]]; then
+    # Clean verdict — mark A3/A4 complete, advance to A5, set signal flag.
+    # Single atomic update prevents partial state where A3/A4 are complete
+    # but currentPhase has not advanced to A5 and needsA5Tasks is unset.
+    if ! update_state '
+      .updatedAt = $ts |
+      .phases.A3.status = "complete" |
+      .phases.A3.completedAt = $ts |
+      .phases.A4.status = "complete" |
+      .phases.A4.completedAt = $ts |
+      .currentPhase = "A5" |
+      .needsA5Tasks = true
+    '; then
+      teams_reject_completion "Clean verdict but failed to advance state to A5. Retry."
       exit 2
     fi
-    # Reject completion so A3 does not advance with critical issues
-    teams_reject_completion "Arbiter found ${critical_count} critical issues. Fix and resubmit."
-    exit 2
-  else
-    cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
-  fi
 
-  teams_log "A3 arbiter checkpoint valid"
+    webhook_phase_event "A4" "completed" || true
+    cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+    webhook_phase_event "A5" "started" || true
+    teams_log "A4 verdict clean, advanced to A5 (needsA5Tasks signal set)"
+  else
+    # Issues found — use handle_a4_verdict() from swarm.sh for battle-tested loop-back logic.
+    # NOTE: Do NOT mark A3/A4 complete here. handle_a4_verdict() calls
+    # reset_phases_for_loop() first (which clears A1-A4 to pending), then sets
+    # A4 status to complete with the verdict. Marking A3/A4 complete before
+    # handle_a4_verdict would be overwritten by reset_phases_for_loop anyway.
+    local loop
+    loop=$(state_get '.loop // 1')
+    loop=$(require_int "$loop" "loop")
+    local max_loops
+    max_loops=$(state_get '.maxLoops // 5')
+    max_loops=$(require_int "$max_loops" "maxLoops")
+
+    # Mark A3 complete and set currentPhase to A4 so handle_a4_verdict() idempotency guard passes.
+    # A4 completion is handled inside handle_a4_verdict after reset_phases_for_loop.
+    if ! update_state '
+      .currentPhase = "A4" |
+      .updatedAt = $ts |
+      .phases.A3.status = "complete" |
+      .phases.A3.completedAt = $ts
+    '; then
+      teams_reject_completion "Failed to set currentPhase to A4 for verdict evaluation. Retry."
+      exit 2
+    fi
+
+    # handle_a4_verdict sets RESULT_PHASE in caller scope
+    local RESULT_PHASE=""
+    handle_a4_verdict "$verdict" "$loop" "$max_loops"
+
+    case "$RESULT_PHASE" in
+      A1)
+        # Loop-back: set signal flag for command's monitoring loop
+        if ! update_state '.needsLoopReset = true'; then
+          teams_reject_completion "Failed to set needsLoopReset signal flag. Command cannot create fresh tasks without it. Retry."
+          exit 2
+        fi
+        webhook_phase_event "A4" "loop_back" || true
+        teams_log "A4 verdict issues_found, looped back to A1 (needsLoopReset signal set)"
+        ;;
+      STOPPED)
+        webhook_phase_event "A4" "stopped" || true
+        teams_log "A4 verdict issues_found, max loops reached — workflow stopped"
+        ;;
+      BLOCKED)
+        webhook_phase_event "A4" "blocked" || true
+        teams_log "A4 verdict issues_found, budget exhausted — workflow blocked"
+        ;;
+      A5)
+        # Should not happen for issues_found, but handle gracefully
+        teams_log "WARNING: handle_a4_verdict returned A5 for issues_found verdict"
+        ;;
+      *)
+        teams_log "A4 verdict already processed (RESULT_PHASE=${RESULT_PHASE})"
+        ;;
+    esac
+  fi
 }
 
 # ─────────────────────────────────────────────────────────────
-# LEGACY: Agent Teams mode only (not called in swarm/pswarm path)
-# This function handles A3 result aggregation in the Agent Teams delegate
-# pipeline where TaskCompleted hooks validate worker output. In the current
-# orchestrator-driven swarm/pswarm path, A3 aggregation is performed by
-# the review-arbiter agent dispatched directly by the orchestrator command.
-# Kept for potential Agent Teams reactivation.
+# LEGACY: Agent Teams mode catch-all for A3 aggregate validation.
+# In v0.6, individual A3 sub-type handlers (worker, sentinel, guardian,
+# simplifier, arbiter, fixer) handle all A3 tasks. This catch-all should
+# not fire for properly-formed task subjects. Kept as safety fallback.
 # ─────────────────────────────────────────────────────────────
-handle_a3_aggregate() {
+handle_a3_legacy_aggregate() {
   local phases_dir="$1"
 
   # Validate A3-build.json: existence + valid JSON + required fields in a single jq call
@@ -262,41 +573,46 @@ handle_a3_aggregate() {
   fi
 
   webhook_phase_event "A3" "completed" || true
-  teams_log "A3 checkpoint valid (build + quality)"
+  teams_log "WARNING: A3 legacy catch-all handler fired -- task subject did not match any v0.6 sub-type pattern (subject may be malformed or from stale state)"
+  teams_log "A3 checkpoint valid (build + quality) [legacy catch-all]"
 }
 
-handle_a4() {
+# ─────────────────────────────────────────────────────────────
+# LEGACY: A4 verdict is now evaluated inline by handle_a3_arbiter().
+# This function is retained as a compatibility shim. If a task with
+# an A4 subject fires, it validates the verdict file if present but
+# does not perform any state transitions.
+# ─────────────────────────────────────────────────────────────
+handle_a4_legacy() {
   local phases_dir="$1"
 
-  if [[ ! -f "${phases_dir}/A4-queen-verdict.json" ]]; then
-    teams_reject_completion "A4-queen-verdict.json not found. Queen must write verdict before A4 can complete."
-    exit 2
+  if [[ -f "${phases_dir}/A4-queen-verdict.json" ]]; then
+    if validate_json_file "${phases_dir}/A4-queen-verdict.json" "A4-queen-verdict.json"; then
+      teams_log "A4 verdict file valid (inline verdict already processed by A3 arbiter)"
+    else
+      teams_reject_completion "A4-queen-verdict.json is invalid JSON."
+      exit 2
+    fi
   fi
-  if ! validate_json_file "${phases_dir}/A4-queen-verdict.json" "A4-queen-verdict.json"; then
-    teams_reject_completion "A4-queen-verdict.json is invalid JSON."
+
+  teams_log "A4 handler (legacy compatibility — verdict evaluated inline by A3 arbiter)"
+}
+
+handle_a5_nurse() {
+  local phases_dir="$1"
+
+  # Nurse writes A5-docs.json (optional output)
+  teams_log "A5 nurse completed (A5-docs.json: $(test -f "${phases_dir}/A5-docs.json" && echo found || echo absent))"
+
+  # Mark nurse as done in state (used by teams_get_next_ready_task as backup;
+  # primary sequencing is via A5-drone blockedBy A5-nurse dependency)
+  if ! update_state '.phases.A5.nurseDone = true | .updatedAt = $ts'; then
+    teams_reject_completion "Failed to set nurseDone in state. Drone dispatch depends on this flag. Retry."
     exit 2
   fi
 
-  # Validate required fields: verdict must exist and be a recognized value
-  local verdict_value
-  verdict_value=$(jq -r '.verdict // empty' "${phases_dir}/A4-queen-verdict.json" 2>/dev/null || echo "")
-  if [[ -z "$verdict_value" ]]; then
-    teams_reject_completion "A4-queen-verdict.json missing required 'verdict' field."
-    exit 2
-  fi
-  if [[ "$verdict_value" != "clean" && "$verdict_value" != "issues_found" ]]; then
-    teams_reject_completion "A4-queen-verdict.json has unrecognized verdict '${verdict_value}'. Expected 'clean' or 'issues_found'."
-    exit 2
-  fi
-
-  # Validate evidence array exists (queen must provide reasoning)
-  if ! jq -e 'has("evidence") and (.evidence | type == "array") and (.evidence | length > 0)' "${phases_dir}/A4-queen-verdict.json" >/dev/null 2>&1; then
-    teams_reject_completion "A4-queen-verdict.json missing or empty 'evidence' array. Queen must provide reasoning for the verdict."
-    exit 2
-  fi
-
-  webhook_phase_event "A4" "completed" || true
-  teams_log "A4 checkpoint valid (verdict: ${verdict_value})"
+  # Nurse completion accepted — drone task is blockedBy nurse and will start next
+  return 0
 }
 
 handle_a5() {
@@ -316,7 +632,69 @@ handle_a5() {
   fi
 
   webhook_phase_event "A5" "completed" || true
-  teams_log "A5 checkpoint valid"
+
+  # Check pipeline type
+  local pipeline
+  pipeline=$(state_get '.pipeline // "swarm"')
+
+  if [[ "$pipeline" == "pswarm" ]]; then
+    # pswarm: check if more runs are needed
+    local pswarm_run
+    pswarm_run=$(state_get '.pswarmRun // 1')
+    pswarm_run=$(require_int "$pswarm_run" "pswarmRun")
+    local max_runs
+    max_runs=$(state_get '.maxRuns // 50')
+    max_runs=$(require_int "$max_runs" "maxRuns")
+
+    if [[ "$pswarm_run" -lt "$max_runs" ]]; then
+      # More runs available — reset for next pswarm run
+      local next_run=$((pswarm_run + 1))
+
+      if ! reset_phases_for_pswarm; then
+        teams_log "ERROR: reset_phases_for_pswarm failed"
+        if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Failed to reset phases for pswarm run boundary"'; then
+          teams_reject_completion "Pswarm reset failed and could not block workflow."
+          exit 2
+        fi
+        teams_log "Workflow blocked due to pswarm reset failure"
+        return 0
+      fi
+
+      if ! cb_reset_for_run; then
+        teams_log "WARNING: cb_reset_for_run failed — circuit breaker state may be stale"
+      fi
+
+      if ! update_state --argjson nextRun "$next_run" '
+        .pswarmRun = $nextRun |
+        .loop = 1 |
+        .currentPhase = "A0" |
+        .updatedAt = $ts |
+        .needsPswarmReset = true
+      '; then
+        teams_reject_completion "A5 valid but failed to reset state for pswarm run ${next_run}. Retry."
+        exit 2
+      fi
+
+      webhook_phase_event "A0" "started" || true
+      teams_log "A5 complete, pswarm run ${pswarm_run} done, starting run ${next_run} (needsPswarmReset signal set)"
+      return 0
+    fi
+  fi
+
+  # Workflow complete (swarm/sswarm, or pswarm max runs reached)
+  if ! update_state '
+    .status = "complete" |
+    .currentPhase = "DONE" |
+    .updatedAt = $ts |
+    .phases.A5.status = "complete" |
+    .phases.A5.completedAt = $ts
+  '; then
+    teams_reject_completion "A5 valid but failed to mark workflow complete. Retry."
+    exit 2
+  fi
+
+  webhook_workflow_event "completed" || true
+  teams_log "A5 complete, workflow DONE"
 }
 
 # ---------------------------------------------------------------------------
@@ -350,6 +728,8 @@ main() {
   # Map task subject to phase ID.
   # Subjects are anchored: "A3 Worker: ...", "A0: ...", etc.
   # Match start-of-subject to avoid misrouting when descriptions mention other phases.
+  # IMPORTANT: A3 sub-patterns MUST appear before the generic A3* catch-all
+  # (bash case uses first-match semantics).
   local phase=""
   case "$TASK_SUBJECT" in
     "A3 Guardian"*|"A3 guardian"*|"A3-guardian"*)
@@ -358,13 +738,24 @@ main() {
       phase="A3-worker" ;;
     "A3 Sentinel"*|"A3 sentinel"*|"A3-sentinel"*)
       phase="A3-sentinel" ;;
-    "A3 Arbiter"*|"A3 arbiter"*|"A3-arbiter"*)
+    "A3 Simplifier"*|"A3 simplifier"*|"A3-simplifier"*)
+      phase="A3-simplifier" ;;
+    "A3 Review Arbiter"*|"A3 Arbiter"*|"A3 arbiter"*|"A3-arbiter"*)
       phase="A3-arbiter" ;;
+    "A3 Review Fixer"*|"A3 review fixer"*|"A3-review-fixer"*|"A3 Review-Fixer"*)
+      phase="A3-fixer" ;;
     "A3"*) phase="A3" ;;
-    "A0"*) phase="A0" ;;
+    "A0 Forager"*|"A0 Cartographer"*) phase="A0-sub" ;;
+    "A0 Explore Aggregator"*|"A0: Colony Exploration"*|"A0"*) phase="A0" ;;
+    "A1 Architect"[[:space:]][0-9]*) phase="A1-sub" ;;
+    "A1 Plan Arbiter"*) phase="A1" ;;
     "A1"*) phase="A1" ;;
+    "A2 Blueprint Reviewer"[[:space:]][0-9]*) phase="A2-sub" ;;
+    "A2 Review Lead"*) phase="A2" ;;
     "A2"*) phase="A2" ;;
     "A4"*) phase="A4" ;;
+    "A5 Nurse"*|"A5 nurse"*|"A5-nurse"*) phase="A5-nurse" ;;
+    "A5 Drone"*|"A5 drone"*|"A5-drone"*) phase="A5-drone" ;;
     "A5"*) phase="A5" ;;
     *)
       # Not an ants phase task, allow completion
@@ -378,16 +769,23 @@ main() {
   local phases_dir=".agents/tmp/phases/loop-${loop}"
 
   case "$phase" in
-    A0)          handle_a0 ;;
-    A1)          handle_a1 "$phases_dir" ;;
-    A2)          handle_a2 "$phases_dir" ;;
-    A3-worker)   handle_a3_worker "$INPUT" "$TASK_SUBJECT" ;;
-    A3-guardian) handle_a3_guardian ;;
-    A3-sentinel) handle_a3_sentinel "$phases_dir" "$TASK_SUBJECT" ;;
-    A3-arbiter)  handle_a3_arbiter "$phases_dir" ;;
-    A3)          handle_a3_aggregate "$phases_dir" ;;
-    A4)          handle_a4 "$phases_dir" ;;
-    A5)          handle_a5 "$phases_dir" ;;
+    A0-sub)        teams_log "A0 sub-task completed (${TASK_SUBJECT}), awaiting aggregator"; return 0 ;;
+    A0)            handle_a0 ;;
+    A1-sub)        teams_log "A1 competing sub-task completed (${TASK_SUBJECT}), awaiting arbiter"; return 0 ;;
+    A1)            handle_a1 "$phases_dir" ;;
+    A2-sub)        teams_log "A2 competing sub-task completed (${TASK_SUBJECT}), awaiting lead"; return 0 ;;
+    A2)            handle_a2 "$phases_dir" ;;
+    A3-worker)     handle_a3_worker "$INPUT" "$TASK_SUBJECT" ;;
+    A3-guardian)   handle_a3_guardian "$phases_dir" ;;
+    A3-sentinel)   handle_a3_sentinel "$phases_dir" "$TASK_SUBJECT" ;;
+    A3-simplifier) handle_a3_simplifier "$phases_dir" ;;
+    A3-arbiter)    handle_a3_arbiter "$phases_dir" ;;
+    A3-fixer)      handle_a3_fixer "$phases_dir" ;;
+    A3)            handle_a3_legacy_aggregate "$phases_dir" ;;
+    A4)            handle_a4_legacy "$phases_dir" ;;
+    A5-nurse)      handle_a5_nurse "$phases_dir" ;;
+    A5-drone)      handle_a5 "$phases_dir" ;;
+    A5)            handle_a5 "$phases_dir" ;;
   esac
 
   exit 0

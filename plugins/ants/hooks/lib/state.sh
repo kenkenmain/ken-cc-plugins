@@ -31,11 +31,13 @@ check_ants_workflow() {
     exit 2
   fi
 
-  # Batch-read all guard fields in a single jq call to avoid repeated file reads
+  # Batch-read all guard fields in a single jq call to avoid repeated file reads.
+  # Uses pipe delimiter instead of tab because bash IFS with tab (whitespace)
+  # collapses consecutive empty fields, misassigning values when ownerPpid/sessionId are empty.
   local guard_fields
-  guard_fields=$(jq -r '[.plugin // "", .status // "", .ownerPpid // "", .sessionId // "", (.version // 1 | tostring)] | join("\t")' "$STATE_FILE")
+  guard_fields=$(jq -r '[.plugin // "", .status // "", .ownerPpid // "", .sessionId // "", (.version // 1 | tostring)] | join("|")' "$STATE_FILE")
   local plugin status owner_ppid state_session_id version
-  IFS=$'\t' read -r plugin status owner_ppid state_session_id version <<< "$guard_fields"
+  IFS='|' read -r plugin status owner_ppid state_session_id version <<< "$guard_fields"
 
   # Plugin guard — only handle ants workflows
   if [[ "$plugin" != "ants" ]]; then
@@ -57,7 +59,7 @@ check_ants_workflow() {
     exit 0
   fi
 
-  # Migrate state schema if needed (fall-through: v1->v2->v3->v4->v5)
+  # Migrate state schema if needed (fall-through: v1->v2->v3->v4->v5->v6)
   if [[ "$version" == "1" ]]; then
     migrate_state_v1_to_v2
     version="2"
@@ -74,11 +76,17 @@ check_ants_workflow() {
     migrate_state_v4_to_v5
     version="5"
   fi
+  if [[ "$version" == "5" ]]; then
+    migrate_state_v5_to_v6
+    version="6"
+  fi
 
   return 0
 }
 
 # Read a field from state.json. Exits 2 if the field is missing/empty and required.
+# IMPORTANT: The filter parameter must be a trusted hardcoded string, never user input.
+# Unsanitized user input would allow jq filter injection.
 # Usage: state_get '.currentPhase' [--required]
 state_get() {
   local filter="$1"
@@ -208,8 +216,10 @@ _update_state_inner() {
   local jq_err_file
   jq_err_file=$(mktemp "${STATE_FILE}.err.XXXXXX")
 
-  # Clean up temp files on any exit from this function scope
-  trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' EXIT
+  # NOTE: No EXIT trap here — the function runs inside a subshell (flock/mkdir lock block),
+  # and local variables ($tmp_file, $jq_err_file) go out of scope when the subshell exits.
+  # An EXIT trap referencing them would fail with "unbound variable" under set -u.
+  # Instead, every code path below explicitly cleans up temp files before returning.
 
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
     if jq empty "$tmp_file" 2>/dev/null; then
@@ -359,6 +369,30 @@ migrate_state_v4_to_v5() {
     return 1
   fi
   echo "INFO: State migration v4->v5 complete" >&2
+  return 0
+}
+
+# Migrate state.json from v5 to v6.
+# Renames queenDispatched to teamCreated, adds teammateCount, taskGraphVersion,
+# and signal flags for Agent Teams command-as-active-lead model.
+# Usage: migrate_state_v5_to_v6
+migrate_state_v5_to_v6() {
+  echo "INFO: Migrating state.json from v5 to v6" >&2
+  if ! update_state '
+    .version = 6 |
+    .teamCreated = (.queenDispatched // false) |
+    del(.queenDispatched) |
+    .teammateCount //= 0 |
+    .taskGraphVersion //= 1 |
+    .needsA3Tasks //= false |
+    .needsA5Tasks //= false |
+    .needsLoopReset //= false |
+    .needsPswarmReset //= false
+  '; then
+    echo "ERROR: Failed to migrate state from v5 to v6" >&2
+    return 1
+  fi
+  echo "INFO: State migration v5->v6 complete" >&2
   return 0
 }
 

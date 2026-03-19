@@ -6,6 +6,15 @@
 # for sending HTTP notifications to an external URL configured in state.json.
 #
 # All webhook calls are non-blocking (background curl) and never fail the hook.
+#
+# Threat model: The webhook URL is user-controlled (set by the workflow owner
+# in state.json). This is a self-SSRF scenario where the attacker IS the user.
+# Mitigations: scheme validation (http/https only), --max-redirs 0 (no redirect
+# chasing), --max-time 5 (bounded duration), response body discarded. No private
+# IP range deny-list is applied because the user already has local network access.
+# Future maintainers: if webhooks are ever exposed to untrusted input, add a
+# deny-list for 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, and
+# 169.254.169.254.
 
 set -euo pipefail
 
