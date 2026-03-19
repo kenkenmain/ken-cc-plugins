@@ -518,7 +518,8 @@ handle_a3_arbiter() {
       A1)
         # Loop-back: set signal flag for command's monitoring loop
         if ! update_state '.needsLoopReset = true'; then
-          teams_log "WARNING: Failed to set needsLoopReset signal flag"
+          teams_reject_completion "Failed to set needsLoopReset signal flag. Command cannot create fresh tasks without it. Retry."
+          exit 2
         fi
         webhook_phase_event "A4" "loop_back" || true
         teams_log "A4 verdict issues_found, looped back to A1 (needsLoopReset signal set)"
@@ -609,7 +610,8 @@ handle_a5_nurse() {
 
   # Mark nurse as done so teams_get_next_ready_task() can route to drone
   if ! update_state '.phases.A5.nurseDone = true | .updatedAt = $ts'; then
-    teams_log "WARNING: Failed to set nurseDone in state"
+    teams_reject_completion "Failed to set nurseDone in state. Drone dispatch depends on this flag. Retry."
+    exit 2
   fi
 
   # Nurse completion accepted — drone task is blockedBy nurse and will start next

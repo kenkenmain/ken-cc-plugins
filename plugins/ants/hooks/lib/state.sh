@@ -212,8 +212,10 @@ _update_state_inner() {
   local jq_err_file
   jq_err_file=$(mktemp "${STATE_FILE}.err.XXXXXX")
 
-  # Clean up temp files on any exit from this function scope
-  trap 'rm -f "$tmp_file" "$jq_err_file" 2>/dev/null' EXIT
+  # NOTE: No EXIT trap here — the function runs inside a subshell (flock/mkdir lock block),
+  # and local variables ($tmp_file, $jq_err_file) go out of scope when the subshell exits.
+  # An EXIT trap referencing them would fail with "unbound variable" under set -u.
+  # Instead, every code path below explicitly cleans up temp files before returning.
 
   if jq --arg ts "$timestamp" ${args[@]+"${args[@]}"} "$filter" "$STATE_FILE" >"$tmp_file" 2>"$jq_err_file"; then
     if jq empty "$tmp_file" 2>/dev/null; then

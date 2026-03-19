@@ -215,9 +215,12 @@ esac
 
 | Pattern | Phase ID | Handler | Description |
 |---------|----------|---------|-------------|
-| `A0*` | `A0` | `handle_a0()` | Validates A0-explore.md, advances to A1 |
-| `A1*` | `A1` | `handle_a1()` | Validates A1-plan.md + A1-tasks.json, inits task pool, advances to A2 |
-| `A2*` | `A2` | `handle_a2()` | Validates A2-review.json, approved -> A3 or needs_revision -> loop to A1 |
+| `A0 Forager*` or `A0 Cartographer*` | `A0-sub` | (accept, no state change) | Individual A0 sub-task completed, awaiting aggregator |
+| `A0 Explore Aggregator*` or `A0*` | `A0` | `handle_a0()` | Validates A0-explore.md, advances to A1 |
+| `A1 Architect [0-9]*` | `A1-sub` | (accept, no state change) | Competing architect completed (sswarm), awaiting arbiter |
+| `A1 Plan Arbiter*` or `A1*` | `A1` | `handle_a1()` | Validates A1-plan.md + A1-tasks.json, inits task pool, advances to A2 |
+| `A2 Blueprint Reviewer [0-9]*` | `A2-sub` | (accept, no state change) | Competing reviewer completed (sswarm), awaiting lead |
+| `A2 Review Lead*` or `A2*` | `A2` | `handle_a2()` | Validates A2-review.json, approved -> A3 or needs_revision -> loop to A1 |
 | `A3 Worker*` | `A3-worker` | `handle_a3_worker()` | Updates task pool, checks build track completion |
 | `A3 Sentinel*` | `A3-sentinel` | `handle_a3_sentinel()` | Marks sentinel output file, checks all sentinels done |
 | `A3 Guardian*` | `A3-guardian` | `handle_a3_guardian()` | Marks guardian complete |
@@ -226,7 +229,9 @@ esac
 | `A3 Review Fixer*` | `A3-fixer` | `handle_a3_fixer()` | Marks fixer complete |
 | `A3*` (catch-all) | `A3` | `handle_a3_aggregate()` | Legacy fallback -- should not fire in v0.6 |
 | `A4*` | `A4` | `handle_a4()` | Legacy compatibility shim -- verdict now inline in A3-arbiter |
-| `A5*` | `A5` | `handle_a5()` | Marks workflow DONE (swarm/sswarm) or sets pswarm reset flag |
+| `A5 Nurse*` | `A5-nurse` | `handle_a5_nurse()` | Validates A5-docs.json, marks nurseDone for drone routing |
+| `A5 Drone*` | `A5-drone` | `handle_a5()` | Validates A5-ship.json, marks workflow DONE or sets pswarm reset |
+| `A5*` (catch-all) | `A5` | `handle_a5()` | Generic A5 fallback |
 
 ### Routing Precedence
 
