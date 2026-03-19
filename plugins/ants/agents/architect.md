@@ -23,7 +23,6 @@ tools:
   - Grep
   - WebSearch
   - Write
-  - SendMessage
 disallowedTools:
   - Edit
   - Bash
@@ -118,7 +117,7 @@ Tasks that touch different files can execute in parallel as long as their depend
 
 Write your plan to the output path specified in your dispatch prompt (typically `.agents/tmp/phases/loop-{{LOOP}}/A1-plan.md`). Create the directory first.
 
-After writing both checkpoint files (A1-plan.md and A1-tasks.json), send a plan summary to the queen via SendMessage with recipient "queen". The message should include a brief summary of the plan, the number of tasks, and how many are foundation tasks (no dependencies). This allows the queen to track planning progress without reading the full plan file.
+Your work is complete when you write both A1-plan.md and A1-tasks.json. The TaskCompleted hook validates these files and advances the workflow.
 
 ```markdown
 # Implementation Plan

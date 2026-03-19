@@ -57,7 +57,7 @@ check_ants_workflow() {
     exit 0
   fi
 
-  # Migrate state schema if needed (fall-through: v1->v2->v3->v4->v5)
+  # Migrate state schema if needed (fall-through: v1->v2->v3->v4->v5->v6)
   if [[ "$version" == "1" ]]; then
     migrate_state_v1_to_v2
     version="2"
@@ -73,6 +73,10 @@ check_ants_workflow() {
   if [[ "$version" == "4" ]]; then
     migrate_state_v4_to_v5
     version="5"
+  fi
+  if [[ "$version" == "5" ]]; then
+    migrate_state_v5_to_v6
+    version="6"
   fi
 
   return 0
@@ -359,6 +363,30 @@ migrate_state_v4_to_v5() {
     return 1
   fi
   echo "INFO: State migration v4->v5 complete" >&2
+  return 0
+}
+
+# Migrate state.json from v5 to v6.
+# Renames queenDispatched to teamCreated, adds teammateCount, taskGraphVersion,
+# and signal flags for Agent Teams command-as-active-lead model.
+# Usage: migrate_state_v5_to_v6
+migrate_state_v5_to_v6() {
+  echo "INFO: Migrating state.json from v5 to v6" >&2
+  if ! update_state '
+    .version = 6 |
+    .teamCreated = (.queenDispatched // false) |
+    del(.queenDispatched) |
+    .teammateCount //= 0 |
+    .taskGraphVersion //= 1 |
+    .needsA3Tasks //= false |
+    .needsA5Tasks //= false |
+    .needsLoopReset //= false |
+    .needsPswarmReset //= false
+  '; then
+    echo "ERROR: Failed to migrate state from v5 to v6" >&2
+    return 1
+  fi
+  echo "INFO: State migration v5->v6 complete" >&2
   return 0
 }
 

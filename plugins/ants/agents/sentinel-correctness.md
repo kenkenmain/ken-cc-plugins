@@ -23,7 +23,6 @@ tools:
   - Grep
   - Bash
   - Write
-  - SendMessage
 disallowedTools:
   - Edit
   - Task
@@ -115,15 +114,9 @@ Write your output as valid JSON to stdout. Use CORR- prefix for all issue IDs, n
 
 Write your JSON output to: `.agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-correctness.json`
 
-### Notify Arbiter
+### Completion
 
-After writing the output file, send your findings to the review-arbiter via SendMessage:
-
-```
-SendMessage(recipient: "review-arbiter", content: "<your JSON output>")
-```
-
-This ensures the arbiter receives your results even if file-based coordination has timing issues.
+After writing the output file, your work is complete. The review-arbiter reads all sentinel output files directly via task dependency chains.
 
 ## Anti-Patterns
 

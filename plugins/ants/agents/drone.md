@@ -24,7 +24,6 @@ tools:
   - Edit
   - Write
   - Bash
-  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -143,7 +142,7 @@ EOF
 
 Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-ship.json`
 
-**Important:** Write the A5-ship.json file FIRST, then send the commit SHA and PR URL to the queen via SendMessage (recipient: "queen") so the queen can confirm shipment.
+After writing A5-ship.json, your work is complete. The TaskCompleted hook reads this file to mark the workflow as DONE (swarm) or trigger the next pswarm run.
 
 ### Step 6: Worktree Cleanup (if applicable)
 

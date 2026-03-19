@@ -1,6 +1,6 @@
 # ants
 
-Ant-colony themed swarm workflow for Claude Code. Builds software using parallel agents with adversarial review teams: workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the orchestrator decides to ship or loop. Features a social swarm mode with competing architects and reviewers. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
+Ant-colony themed swarm workflow for Claude Code using Agent Teams delegate mode. The command creates a team, populates a shared task list with dependency chains, spawns teammates, and enters a monitoring loop. Teammates self-claim work via the TeammateIdle hook; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the verdict hook decides to ship or loop. Features a social swarm mode with competing architects and reviewers coordinated via task dependencies. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
 
 ## Installation
 
@@ -11,6 +11,14 @@ claude --plugin-dir ./plugins/ants
 # Or install to project scope
 claude plugin install ./plugins/ants --scope project
 ```
+
+**Requirement:** The swarm, sswarm, and pswarm pipelines require Agent Teams (experimental). Set this environment variable before running:
+
+```bash
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+Commands check this at startup and abort with a clear error if it is not set. The debug and improve pipelines do not require this variable.
 
 ## Quick Start
 
@@ -63,7 +71,7 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
        |               guardian writes + runs tests
        |               review-arbiter consolidates findings
        |
-  A4 Queen Sync       reads arbiter verdict, decides: ship or loop
+  A4 Verdict          TaskCompleted hook evaluates inline: ship or loop
       / \                (circuit breaker aware)
   ship   loop ------> back to A1 (max 5 loops)
    |
@@ -72,27 +80,29 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
 
 ## Social Swarm Pipeline
 
-`/ants:sswarm` extends swarm with **competing parallel agents**. Instead of one architect and one reviewer, sswarm dispatches three of each — and dedicated lead agents consolidate their outputs:
+`/ants:sswarm` extends swarm with **competing parallel agents**. Instead of one architect and one reviewer, sswarm creates three task entries for each -- and dedicated lead tasks (blocked by all competitors) consolidate their outputs via file reading:
 
 ```
   A0 Explore         same as swarm
        |
-  A1 Competing       plan-arbiter (lead, background)
-     Architects      architect ×3 (parallel) ──SendMessage──→ plan-arbiter
-       |             plan-arbiter selects/merges best plan
-  A2 Competing       review-lead (lead, background)
-     Reviews         blueprint-reviewer ×3 ──SendMessage──→ review-lead
-       |             review-lead consolidates verdicts
+  A1 Competing       architect x3 (parallel, no deps on each other)
+     Architects           |
+                     plan-arbiter (blockedBy all 3 architects)
+       |             plan-arbiter reads output files, selects/merges best plan
+  A2 Competing       blueprint-reviewer x3 (parallel, blockedBy plan-arbiter)
+     Reviews              |
+                     review-lead (blockedBy all 3 reviewers)
+       |             review-lead reads output files, consolidates verdicts
   A3-A5              same as swarm
 ```
 
 | Phase | Agent(s) | Lead? |
 |-------|----------|-------|
 | A0 | foragers + cartographer + explore-aggregator | explore-aggregator |
-| A1 | architect ×3 | plan-arbiter |
-| A2 | blueprint-reviewer ×3 | review-lead |
+| A1 | architect x3 | plan-arbiter (blockedBy all 3) |
+| A2 | blueprint-reviewer x3 | review-lead (blockedBy all 3) |
 | A3 | workers + sentinels + guardian + simplifier | review-arbiter |
-| A4 | orchestrator (internal) | — |
+| A4 | TaskCompleted hook (inline) | -- |
 | A5 | nurse + drone | drone |
 
 **Choose sswarm when:** Your task benefits from diverse planning perspectives — multiple architects explore different approaches, and the plan-arbiter selects the strongest design. Good for complex features where the "right approach" isn't obvious.
@@ -157,7 +167,20 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Choose improve when:** You have existing code that works but want to systematically clean up all issues across correctness, security, and performance. Unlike swarm (which builds new features) or debug (which investigates specific bugs), improve focuses purely on iterating review-fix cycles until the code is clean.
 
-**Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's queen, which only blocks on critical and warning issues.
+**Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's A4 verdict, which only blocks on critical and warning issues.
+
+### What's New in v0.6.0
+
+- **Agent Teams delegate mode** -- Commands now create Agent Teams with task dependency chains (blockedBy) and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook is the full task router; TaskCompleted hook validates output, advances state, and evaluates A4 verdict inline.
+- **Inline A4 verdict** -- The A4 verdict is now evaluated inside the TaskCompleted hook when the A3 review-arbiter completes, rather than by a separate queen agent dispatch. This eliminates context overhead and simplifies the control flow.
+- **sswarm task dependencies** -- Social swarm competing agents (architects, reviewers) are now coordinated via task dependency chains (blockedBy) instead of SendMessage spawn order. Lead agents (plan-arbiter, review-lead) read competitor output files directly.
+- **Queen repurposed** -- The queen agent is no longer the persistent central dispatcher. It is retained as an A4 verdict evaluator / team lead initializer for edge cases only. SendMessage removed from its tools.
+- **Signal flags** -- Four new boolean flags in state.json (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`) enable hooks to request dynamic task creation from the command's monitoring loop, since hooks (shell scripts) cannot call Claude tools like TaskCreate.
+- **State schema v6** -- `queenDispatched` replaced by `teamCreated`, new fields: `teammateCount`, `taskGraphVersion`. Auto-migration from v5 (and earlier) is handled by state.sh.
+- **SendMessage removed** -- SendMessage eliminated from all 18 agent tools lists. Retained for optional peer communication only, not for dispatch coordination.
+- **pswarm fresh task graphs** -- pswarm run boundaries now create entirely fresh A0-A5 task graphs via the command's monitoring loop, triggered by the `needsPswarmReset` signal flag.
+- **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` required** -- Commands check this env var at startup (Step 0) and abort with a clear error if not set.
+- **Display modes** -- Agent Teams supports both in-process and split-pane display for teammate output.
 
 ### What's New in v0.5.6
 
@@ -255,7 +278,7 @@ The key innovation is **Phase A3: Dual-Track Execution with Adversarial Review**
 - **Build track:** Workers claim tasks from a self-organizing pool -- tasks with satisfied dependencies are dispatched in parallel automatically
 - **Quality track (adversarial):** Four specialist sentinels review from different angles (correctness, security, performance, style), then an arbiter cross-references and deduplicates findings into a single verdict
 
-This catches issues from multiple perspectives rather than relying on a single reviewer, and the queen synthesizes the arbiter's consolidated verdict before deciding to ship or loop.
+This catches issues from multiple perspectives rather than relying on a single reviewer, and the TaskCompleted hook evaluates the arbiter's consolidated verdict inline before deciding to ship or loop.
 
 ## Agent Roster
 
@@ -276,7 +299,7 @@ This catches issues from multiple perspectives rather than relying on a single r
 | review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
 | guardian | Test writer and runner for quality track | sonnet | A3 quality |
 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | A1 |
-| queen | Persistent central dispatcher — drives A0→A5 via SendMessage, evaluates A4 verdict internally | sonnet | A0-A5 |
+| queen | A4 verdict evaluator / team lead initializer | sonnet | A4 (edge case) |
 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | A2 |
 | nurse | Updates documentation | sonnet | A5 |
 | drone | Commits and opens PR | inherit | A5 |
@@ -286,20 +309,24 @@ This catches issues from multiple perspectives rather than relying on a single r
 | fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 24 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/pswarm workflow is driven by the queen agent via SendMessage — the queen dispatches each phase, receives results, and decides to advance or loop. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots). The debug pipeline is orchestrated synchronously by the `/ants:debug` command.
+All 24 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/sswarm/pswarm workflows use Agent Teams delegate mode -- commands create teams with task dependency chains, spawn teammates, and enter a monitoring loop. The TeammateIdle hook routes tasks to idle teammates; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks. The debug and improve pipelines are orchestrated synchronously by their respective commands (no Agent Teams).
 
 ## How It Works
 
-### Queen-Driven Orchestration
+### Agent Teams Delegate Mode
 
-The workflow is driven by the **queen agent** via SendMessage — not by TeammateIdle/TaskCompleted hooks:
+The workflow is driven by Agent Teams with a Command-as-Active-Lead model:
 
-1. The `/ants:swarm` command creates a team and spawns the queen as the persistent coordinator
-2. The queen dispatches each phase by sending messages to specialist agents (forager, cartographer, architect, etc.)
-3. Each agent reports results back to the queen via SendMessage
-4. The queen evaluates A4 (verdict) internally — no separate agent is dispatched for sync
-5. On a clean verdict the queen dispatches A5 (ship); on issues found it loops back to A1
-6. Hooks provide supplementary gates: edit control (on-edit-gate.sh), lint-on-save, config snapshots, and compaction metadata
+1. The `/ants:swarm` command checks `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` and initializes state.json (v6 schema)
+2. The command creates task entries with dependency chains (A0 -> A1 -> A2) via TaskCreate
+3. The command spawns 3-5 teammates and enters a **monitoring loop**
+4. The **TeammateIdle hook** routes ready tasks to idle teammates (full task router for all phases)
+5. The **TaskCompleted hook** validates output, advances state, and evaluates A4 verdict inline when the A3 arbiter completes
+6. Hooks set signal flags in state.json (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`); the command's monitoring loop detects these and calls TaskCreate for dynamic tasks
+7. On a clean verdict the hook sets `needsA5Tasks`; on issues found it sets `needsLoopReset` -- the command creates the appropriate tasks
+8. Additional hooks provide supplementary gates: edit control (on-edit-gate.sh), lint-on-save, config snapshots, and compaction metadata
+
+**Display modes:** Agent Teams supports both in-process display (teammates shown inline in the lead's output) and split-pane display (each teammate gets its own terminal pane). The display mode is controlled by Claude Code's Agent Teams UI, not by the ants plugin.
 
 ### Dual-Track Phase A3
 
@@ -342,7 +369,7 @@ When any limit is exceeded, the workflow blocks with a diagnostic message. Succe
 
 ### Loop-Back
 
-If the queen finds unresolved critical or warning issues, the workflow loops back to A1. The architect reads the previous loop's feedback and plans targeted fixes (not a full re-plan). Maximum 5 loops before blocking.
+If the TaskCompleted hook's inline A4 verdict evaluation finds unresolved critical or warning issues, it sets the `needsLoopReset` signal flag and resets the workflow to A1. The command's monitoring loop detects this flag and creates fresh A1-A4 tasks. The architect reads the previous loop's feedback and plans targeted fixes (not a full re-plan). Maximum 5 loops before blocking.
 
 ## Comparison with Minions
 
@@ -351,7 +378,7 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 | Phases | 6 (A0-A5) | 15 (S0-S14) |
 | Build model | Task pool + adversarial review teams | Sequential with review-fix cycles |
 | Review style | 4 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
-| Loop type | Queen verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
+| Loop type | Inline A4 verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
 | Agents | 24 colony-themed | 26+ generic |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Best for | Medium complexity tasks | Complex tasks needing thorough coverage |
@@ -363,7 +390,7 @@ If the queen finds unresolved critical or warning issues, the workflow loops bac
 
 ## State and Output
 
-Workflow state lives in `.agents/tmp/state.json` (v5 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
+Workflow state lives in `.agents/tmp/state.json` (v6 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
 
 All state and output files are gitignored. They are temporary artifacts of the workflow execution.
 

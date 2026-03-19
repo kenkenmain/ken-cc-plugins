@@ -24,7 +24,6 @@ tools:
   - Edit
   - Write
   - Bash
-  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -156,12 +155,7 @@ npm run typecheck  # or: tsc --noEmit, mypy, etc.
 
 ### Step 5: Report
 
-Output structured JSON and send a completion message to the queen via SendMessage with recipient "queen". The message payload must include:
-- `taskId` -- the task ID assigned to this worker
-- `status` -- "complete", "blocked", or "needs_review"
-- `summary` -- brief description of what was done
-
-This allows the queen to track task completion without polling output files.
+Write your results to the output file specified in your task. Output structured JSON at the end of your work. The TaskCompleted hook will validate your output and advance the workflow automatically.
 
 ## Output Format
 

@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# on-teammate-idle.sh — TeammateIdle handler for queen-driven dispatch model
+# on-teammate-idle.sh -- Full task router for Agent Teams delegate mode (v0.6)
 #
-# In the queen-driven model, the queen dispatches work to teammates via
-# SendMessage. This hook's role is simplified:
-#   1. Check preconditions (circuit breaker, shutdown, session ownership)
-#   2. If queen is already dispatched, exit 0 (queen handles dispatch via SendMessage)
-#   3. If queen is NOT dispatched yet and a phase is pending, create the initial queen task
+# Fires when a teammate goes idle. Routes the next ready task to the idle
+# teammate by building a phase-specific prompt and returning it via exit 2.
 #
-# Exit codes:
-#   0 silent — allow idle (queen is dispatching, or workflow complete/blocked)
-#   2 with stderr — assign initial queen kickoff task
+# Routing logic:
+#   - Sequential phases (A0, A1, A2, A5): single-agent dispatch with
+#     atomic in_progress claim to prevent double-dispatch
+#   - A3: dual-track routing -- worker tasks from the task pool (build
+#     track), then quality agents (sentinels, guardian, simplifier),
+#     then review-arbiter
+#   - A4: no direct dispatch (verdict evaluated inline by TaskCompleted
+#     hook when A3 arbiter completes)
+#   - sswarm A1/A2: competing agent dispatch (3 parallel + 1 consolidator)
+#   - pswarm: run-boundary safety net (core logic in TaskCompleted hook)
+#
+# Exit paths:
+#   exit 0: allow idle (no work, complete/stopped/blocked/shutdown/waiting)
+#   exit 2 + stderr: assign work (next ready task found)
+# Never blocks indefinitely. Every path either assigns work or allows idle.
 
 set -euo pipefail
 
@@ -17,32 +26,52 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/circuit-breaker.sh"
 source "$SCRIPT_DIR/lib/teams.sh"
+source "$SCRIPT_DIR/lib/swarm.sh"
+source "$SCRIPT_DIR/lib/dag.sh"
+source "$SCRIPT_DIR/lib/task-pool.sh"
 
 check_ants_workflow
 
-# Read stdin (Agent Teams passes hook input JSON) — cap at 1MB to prevent memory pressure
+# Read stdin (Agent Teams passes hook input JSON) -- cap at 1MB
 INPUT=$(head -c 1048576)
 
+# ---------------------------------------------------------------------------
 # Batch-read all needed state fields in a single jq call
+# v5/v6 compat: teamCreated falls back to queenDispatched for v5 state files
+# ---------------------------------------------------------------------------
 local_fields=$(jq -r '[
   (.shutdown // false | tostring),
-  (.queenDispatched // false | tostring),
   (.status // "unknown"),
   (.currentPhase // "DONE"),
   (.task // ""),
-  ((.loop // 1) | tostring)
+  ((.loop // 1) | tostring),
+  (.pipeline // "swarm"),
+  ((.teamCreated // .queenDispatched // false) | tostring),
+  ((.maxLoops // 5) | tostring)
 ] | join("\t")' "$STATE_FILE")
-IFS=$'\t' read -r shutdown_flag queen_dispatched status current_phase task loop <<< "$local_fields"
+IFS=$'\t' read -r shutdown_flag status current_phase task loop pipeline team_created max_loops <<< "$local_fields"
 
-# Check for graceful shutdown
+# ===========================================================================
+# Precondition checks (Task 16)
+# ===========================================================================
+
+# Shutdown check
 if [[ "$shutdown_flag" == "true" ]]; then
   teams_log "Shutdown flag set, allowing idle (graceful shutdown)"
   exit 0
 fi
 
-# Circuit breaker check: if tripped, stop assigning work
+# Status check -- terminal states allow idle
+case "$status" in
+  complete|blocked|stopped)
+    teams_log "Workflow status is ${status}, allowing idle"
+    exit 0
+    ;;
+esac
+
+# Circuit breaker check
 if cb_is_tripped; then
-  teams_log "Circuit breaker tripped, allowing idle"
+  teams_log "Circuit breaker tripped, blocking workflow"
   if ! update_state '.status = "blocked" | .updatedAt = $ts | .failure = "Circuit breaker tripped: too many consecutive failures"'; then
     echo "ERROR: Failed to update state to blocked after circuit breaker trip." >&2
     exit 2
@@ -50,61 +79,564 @@ if cb_is_tripped; then
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# Queen-driven dispatch logic
-# ---------------------------------------------------------------------------
-
-# If queen is already dispatched and workflow is in progress, do nothing.
-# The queen handles all task dispatch via SendMessage.
-if [[ "$queen_dispatched" == "true" && "$status" == "in_progress" ]]; then
-  teams_log "Queen already dispatched, allowing idle (queen handles dispatch)"
-  exit 0
-fi
-
-# Queen is NOT dispatched yet — check if there is a pending phase to kick off
+# Terminal phase check
 case "$current_phase" in
-  A0|A1|A2|A3|A4|A5)
-    # Check phase status — need a separate read since phase is dynamic
-    phase_status=$(state_get ".phases.${current_phase}.status // \"unknown\"")
-    if [[ "$phase_status" == "pending" ]]; then
-      teams_log "Queen not dispatched, phase $current_phase is pending — creating initial queen task"
-
-      if [[ -z "$task" ]]; then
-        echo "ERROR: state.json field '.task' is missing or empty. Workflow state is incomplete." >&2
-        exit 2
-      fi
-
-      # Sanitize task description before interpolation into prompt
-      task="$(printf '%s' "$task" | head -c 2000 | tr -d '\000-\031')"
-
-      # Mark queen as dispatched to prevent duplicate kickoffs
-      if ! update_state '.queenDispatched = true | .updatedAt = $ts'; then
-        echo "ERROR: Failed to mark queenDispatched in state.json" >&2
-        exit 2
-      fi
-
-      # Build a queen kickoff prompt
-      PROMPT="## Ants Colony — Queen Kickoff
-
-Task: ${task}
-Current Phase: ${current_phase}
-Loop: ${loop}
-Status: ${status}
-
-You are the queen. Dispatch the appropriate agents for phase ${current_phase} using SendMessage.
-Read the workflow state from .agents/tmp/state.json and the phase prompt templates to determine
-which agents to dispatch and what instructions to give them.
-
-Coordinate the colony. Assign work to teammates via SendMessage. Monitor progress and advance
-phases as agents complete their work."
-
-      # Assign the queen kickoff via exit 2
-      printf '%s\n' "$PROMPT" >&2
-      exit 2
-    fi
+  DONE|STOPPED|BLOCKED)
+    teams_log "Phase is ${current_phase}, allowing idle"
+    exit 0
     ;;
 esac
 
-# No actionable state — allow idle
-teams_log "No action needed (phase=$current_phase, queenDispatched=$queen_dispatched), allowing idle"
+# pswarm run-boundary safety net (Task 21)
+if [[ "$pipeline" == "pswarm" ]]; then
+  local_pswarm=$(jq -r '[((.pswarmRun // 1) | tostring), ((.maxRuns // 50) | tostring)] | join("\t")' "$STATE_FILE" 2>/dev/null || echo "1	50")
+  IFS=$'\t' read -r pswarm_run max_runs <<< "$local_pswarm"
+  pswarm_run=$(require_int "$pswarm_run" "pswarmRun")
+  max_runs=$(require_int "$max_runs" "maxRuns")
+  if [[ "$pswarm_run" -gt "$max_runs" ]]; then
+    teams_log "pswarm run ${pswarm_run} exceeds maxRuns ${max_runs}, completing workflow"
+    if ! update_state '.status = "complete" | .currentPhase = "DONE" | .updatedAt = $ts'; then
+      echo "ERROR: Failed to mark workflow complete at pswarm run limit" >&2
+      exit 2
+    fi
+    exit 0
+  fi
+fi
+
+# Validate task field
+if [[ -z "$task" ]]; then
+  echo "ERROR: state.json field '.task' is missing or empty. Workflow state is incomplete." >&2
+  exit 2
+fi
+
+# Sanitize task description before interpolation into prompts
+task="$(printf '%s' "$task" | head -c 2000 | tr -d '\000-\031')"
+
+# Validate loop
+loop=$(require_int "$loop" "loop")
+
+# Resolve phases directory
+phases_dir=".agents/tmp/phases/loop-${loop}"
+
+# ===========================================================================
+# Helper: dispatch_phase -- atomic claim + prompt for sequential phases
+# ===========================================================================
+# For phases A0, A1, A2, A5 (single-agent sequential dispatch).
+# Checks if the phase is pending, atomically marks it in_progress,
+# builds the prompt, and exits 2 to assign work.
+#
+# Arguments:
+#   $1 -- phase ID (A0, A1, A2, A5)
+#   $2 -- (optional) task context JSON for prompt builder
+dispatch_phase() {
+  local phase="$1"
+  local task_ctx="${2:-}"
+
+  local phase_status
+  phase_status=$(jq -r --arg p "$phase" '.phases[$p].status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+
+  case "$phase_status" in
+    complete)
+      teams_log "Phase $phase already complete, allowing idle"
+      exit 0
+      ;;
+    in_progress)
+      # Another teammate already claimed this phase
+      teams_log "Phase $phase already in_progress (claimed by another teammate), allowing idle"
+      exit 0
+      ;;
+    pending)
+      # Atomically mark phase as in_progress to prevent double-dispatch
+      if ! update_state --arg p "$phase" \
+        '.phases[$p].status = "in_progress" | .phases[$p].startedAt = $ts | .updatedAt = $ts'; then
+        teams_log "Failed to claim phase $phase (likely race condition), allowing idle"
+        exit 0
+      fi
+
+      # Build prompt
+      local prompt
+      if [[ -n "$task_ctx" ]]; then
+        prompt="$(teams_build_teammate_prompt "$phase" "$task_ctx")"
+      else
+        prompt="$(teams_build_teammate_prompt "$phase")"
+      fi
+
+      teams_log "Dispatching phase $phase to idle teammate"
+      teams_assign_idle_teammate "$prompt"
+      exit 2
+      ;;
+    *)
+      teams_log "Phase $phase has unexpected status '${phase_status}', allowing idle"
+      exit 0
+      ;;
+  esac
+}
+
+# ===========================================================================
+# Helper: dispatch_a3_task -- dual-track A3 routing (Task 18)
+# ===========================================================================
+# Routes idle teammates to A3 sub-tasks:
+#   Sub-phase 1 (build track): claim worker tasks from the pool
+#   Sub-phase 2 (quality track): dispatch sentinels, guardian, simplifier
+#   Sub-phase 3 (consolidation): dispatch review-arbiter after all quality done
+dispatch_a3_task() {
+  local build_complete
+  build_complete=$(jq -r '.phases.A3.buildTrackComplete // false' "$STATE_FILE" 2>/dev/null || echo "false")
+
+  # --- Sub-phase 1: Worker tasks (build track) ---
+  if [[ "$build_complete" != "true" ]]; then
+    # Try to claim a ready task from the pool
+    local task_id
+    if task_id=$(pool_claim_task "teammate-$$"); then
+      # Build worker-specific prompt
+      local prompt
+      prompt="$(teams_get_a3_task_prompt "$task_id")"
+      teams_log "Dispatching A3 worker task ${task_id} to idle teammate"
+      teams_assign_idle_teammate "$prompt"
+      exit 2
+    fi
+
+    # No ready tasks but build not complete -- workers still running
+    teams_log "A3 build track: no ready tasks available, allowing idle"
+    exit 0
+  fi
+
+  # --- Sub-phase 2: Quality track agents (Task 19) ---
+  dispatch_a3_quality
+}
+
+# ===========================================================================
+# Helper: dispatch_a3_quality -- quality track dispatch (Task 19)
+# ===========================================================================
+# Dispatches sentinels, guardian, simplifier in parallel using marker files
+# to prevent double-dispatch. After all quality agents complete, dispatches
+# the review-arbiter.
+dispatch_a3_quality() {
+  local marker_dir="${phases_dir}"
+  mkdir -p "$marker_dir"
+
+  # Quality agents to dispatch (parallel)
+  local quality_agents=("sentinel-correctness" "sentinel-security" "sentinel-perf" "sentinel-style" "guardian" "simplifier")
+
+  # Track completion
+  local all_quality_done=true
+
+  for agent in "${quality_agents[@]}"; do
+    local dispatched_marker="${marker_dir}/.${agent}.dispatched"
+    local done_marker="${marker_dir}/.${agent}.done"
+
+    if [[ -f "$done_marker" ]]; then
+      # This agent already completed
+      continue
+    fi
+
+    all_quality_done=false
+
+    if [[ -f "$dispatched_marker" ]]; then
+      # Already dispatched but not done -- skip (it is running)
+      continue
+    fi
+
+    # Atomic dispatch claim via mkdir (prevents double-dispatch)
+    local lock_marker="${marker_dir}/.${agent}.dispatch-lock"
+    if ! mkdir "$lock_marker" 2>/dev/null; then
+      # Another teammate is dispatching this agent right now
+      continue
+    fi
+
+    # Create dispatched marker
+    touch "$dispatched_marker"
+    rm -rf "$lock_marker" 2>/dev/null || true
+
+    # Build quality agent prompt
+    local prompt
+    prompt="$(build_a3_quality_prompt "$agent")"
+    teams_log "Dispatching A3 quality agent ${agent} to idle teammate"
+    teams_assign_idle_teammate "$prompt"
+    exit 2
+  done
+
+  if [[ "$all_quality_done" != "true" ]]; then
+    # Some quality agents still running, no undispatched ones left
+    teams_log "A3 quality track: all agents dispatched but not all complete, allowing idle"
+    exit 0
+  fi
+
+  # --- Sub-phase 3: Review arbiter (all quality agents done) ---
+  local arbiter_dispatched="${marker_dir}/.arbiter.dispatched"
+  local arbiter_done="${marker_dir}/.arbiter.done"
+
+  if [[ -f "$arbiter_done" ]]; then
+    # Arbiter already completed -- A3 is fully done, waiting for phase transition
+    teams_log "A3 arbiter already complete, allowing idle"
+    exit 0
+  fi
+
+  if [[ -f "$arbiter_dispatched" ]]; then
+    # Arbiter already dispatched
+    teams_log "A3 arbiter already dispatched, allowing idle"
+    exit 0
+  fi
+
+  # Dispatch arbiter
+  if mkdir "${marker_dir}/.arbiter.dispatch-lock" 2>/dev/null; then
+    touch "$arbiter_dispatched"
+    rm -rf "${marker_dir}/.arbiter.dispatch-lock" 2>/dev/null || true
+
+    local prompt
+    prompt="$(build_a3_arbiter_prompt)"
+    teams_log "Dispatching A3 review-arbiter to idle teammate"
+    teams_assign_idle_teammate "$prompt"
+    exit 2
+  fi
+
+  teams_log "A3 arbiter dispatch race, allowing idle"
+  exit 0
+}
+
+# ===========================================================================
+# Helper: build_a3_quality_prompt -- prompt for quality track agents
+# ===========================================================================
+build_a3_quality_prompt() {
+  local agent="$1"
+
+  # Map agent name to subject and description in a single case block
+  local subject="" agent_desc=""
+  case "$agent" in
+    sentinel-correctness)
+      subject="A3 Sentinel Correctness: Review"
+      agent_desc="Review the implementation for bugs, logic errors, missing error handling, and race conditions." ;;
+    sentinel-security)
+      subject="A3 Sentinel Security: Review"
+      agent_desc="Review the implementation for OWASP top 10, injection, authentication, secrets exposure, and access control." ;;
+    sentinel-perf)
+      subject="A3 Sentinel Perf: Review"
+      agent_desc="Review the implementation for N+1 queries, blocking I/O, unnecessary allocations, and algorithmic complexity." ;;
+    sentinel-style)
+      subject="A3 Sentinel Style: Review"
+      agent_desc="Review the implementation for code style, readability, maintainability, excessive nesting, magic numbers, and dead code." ;;
+    guardian)
+      subject="A3 Guardian: Write tests"
+      agent_desc="Write tests for the implemented code. Cover happy path, edge cases, and error paths." ;;
+    simplifier)
+      subject="A3 Simplifier: Code cleanup"
+      agent_desc="Apply targeted code cleanup to worker outputs -- dead code removal, complexity reduction, over-engineering cleanup without behavioral changes." ;;
+  esac
+
+  cat <<PROMPT
+## Ants Colony -- Phase A3 Quality Track -- Loop ${loop}
+
+Task: ${task}
+Subject: ${subject}
+Agent: ${agent}
+
+${agent_desc}
+
+Input files:
+- .agents/tmp/phases/loop-${loop}/A1-plan.md (implementation plan)
+- .agents/tmp/phases/loop-${loop}/A1-tasks.json (task descriptors)
+
+Output directory: ${phases_dir}
+Create the directory first: mkdir -p ${phases_dir}
+
+## File-Based Output
+
+Write your results to the output file path. Other agents read your
+output files directly via task dependency chains (blockedBy). No
+SendMessage coordination is needed.
+PROMPT
+}
+
+# ===========================================================================
+# Helper: build_a3_arbiter_prompt -- prompt for review-arbiter
+# ===========================================================================
+build_a3_arbiter_prompt() {
+  cat <<PROMPT
+## Ants Colony -- Phase A3 Review Arbiter -- Loop ${loop}
+
+Task: ${task}
+
+Cross-reference and deduplicate sentinel findings into a unified quality verdict.
+
+Input files:
+- ${phases_dir}/A3-review.sentinel-correctness.json
+- ${phases_dir}/A3-review.sentinel-security.json
+- ${phases_dir}/A3-review.sentinel-perf.json
+- ${phases_dir}/A3-review.sentinel-style.json
+
+Output: ${phases_dir}/A3-quality.json
+
+Create the directory first: mkdir -p ${phases_dir}
+
+Produce a JSON verdict with:
+{
+  "summary": {"verdict": "clean|issues_found", "total_issues": N},
+  "issues": [{"severity": "critical|warning|info", "description": "...", "file": "...", "line": N}]
+}
+
+## File-Based Output
+
+Write your consolidated verdict to A3-quality.json. The TaskCompleted hook
+reads this file to evaluate the A4 verdict inline.
+PROMPT
+}
+
+# ===========================================================================
+# Helper: dispatch_sswarm_a1 -- competing architect dispatch (Task 20)
+# ===========================================================================
+dispatch_sswarm_a1() {
+  local phase_status
+  phase_status=$(jq -r '.phases.A1.status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+
+  if [[ "$phase_status" == "complete" ]]; then
+    teams_log "sswarm A1 already complete, allowing idle"
+    exit 0
+  fi
+
+  # Mark A1 as in_progress if still pending
+  if [[ "$phase_status" == "pending" ]]; then
+    if ! update_state '.phases.A1.status = "in_progress" | .phases.A1.startedAt = $ts | .updatedAt = $ts'; then
+      teams_log "Failed to claim A1 for sswarm, allowing idle"
+      exit 0
+    fi
+  fi
+
+  local marker_dir="${phases_dir}"
+  mkdir -p "$marker_dir"
+
+  # Dispatch 3 competing architects
+  local slot
+  for slot in 1 2 3; do
+    local dispatched_marker="${marker_dir}/.architect.${slot}.dispatched"
+    if [[ -f "$dispatched_marker" ]]; then
+      continue
+    fi
+
+    # Atomic claim
+    local lock_marker="${marker_dir}/.architect.${slot}.dispatch-lock"
+    if ! mkdir "$lock_marker" 2>/dev/null; then
+      continue
+    fi
+    touch "$dispatched_marker"
+    rm -rf "$lock_marker" 2>/dev/null || true
+
+    local task_ctx
+    task_ctx=$(jq -n \
+      --arg idx "$slot" \
+      --arg out "${phases_dir}/A1-plan.architect.${slot}.tmp" \
+      --arg tasks_out "${phases_dir}/A1-tasks.architect.${slot}.tmp" \
+      '{
+        "competitorIndex": $idx,
+        "outputFile": $out,
+        "tasksOutputFile": $tasks_out
+      }')
+
+    local prompt
+    prompt="$(teams_build_teammate_prompt "A1" "$task_ctx")"
+    teams_log "Dispatching sswarm A1 architect ${slot} to idle teammate"
+    teams_assign_idle_teammate "$prompt"
+    exit 2
+  done
+
+  # All 3 architects dispatched. Check if plan-arbiter needs dispatch.
+  local arbiter_dispatched="${marker_dir}/.plan-arbiter.dispatched"
+  if [[ -f "$arbiter_dispatched" ]]; then
+    teams_log "sswarm A1 plan-arbiter already dispatched, allowing idle"
+    exit 0
+  fi
+
+  # Check if all 3 architect outputs exist
+  local all_done=true
+  for slot in 1 2 3; do
+    if [[ ! -f "${phases_dir}/A1-plan.architect.${slot}.tmp" ]]; then
+      all_done=false
+      break
+    fi
+  done
+
+  if [[ "$all_done" != "true" ]]; then
+    teams_log "sswarm A1: waiting for architect outputs, allowing idle"
+    exit 0
+  fi
+
+  # Dispatch plan-arbiter
+  if mkdir "${marker_dir}/.plan-arbiter.dispatch-lock" 2>/dev/null; then
+    touch "$arbiter_dispatched"
+    rm -rf "${marker_dir}/.plan-arbiter.dispatch-lock" 2>/dev/null || true
+
+    local task_ctx
+    task_ctx=$(jq -n \
+      --arg in1 "${phases_dir}/A1-plan.architect.1.tmp" \
+      --arg in2 "${phases_dir}/A1-plan.architect.2.tmp" \
+      --arg in3 "${phases_dir}/A1-plan.architect.3.tmp" \
+      '{"inputFiles": ($in1 + "\n" + $in2 + "\n" + $in3)}')
+
+    local prompt
+    prompt="$(teams_build_teammate_prompt "A1" "$task_ctx")"
+    teams_log "Dispatching sswarm A1 plan-arbiter to idle teammate"
+    teams_assign_idle_teammate "$prompt"
+    exit 2
+  fi
+
+  teams_log "sswarm A1 plan-arbiter dispatch race, allowing idle"
+  exit 0
+}
+
+# ===========================================================================
+# Helper: dispatch_sswarm_a2 -- competing reviewer dispatch (Task 20)
+# ===========================================================================
+dispatch_sswarm_a2() {
+  local phase_status
+  phase_status=$(jq -r '.phases.A2.status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+
+  if [[ "$phase_status" == "complete" ]]; then
+    teams_log "sswarm A2 already complete, allowing idle"
+    exit 0
+  fi
+
+  # Mark A2 as in_progress if still pending
+  if [[ "$phase_status" == "pending" ]]; then
+    if ! update_state '.phases.A2.status = "in_progress" | .phases.A2.startedAt = $ts | .updatedAt = $ts'; then
+      teams_log "Failed to claim A2 for sswarm, allowing idle"
+      exit 0
+    fi
+  fi
+
+  local marker_dir="${phases_dir}"
+  mkdir -p "$marker_dir"
+
+  # Dispatch 3 competing reviewers
+  local slot
+  for slot in 1 2 3; do
+    local dispatched_marker="${marker_dir}/.reviewer.${slot}.dispatched"
+    if [[ -f "$dispatched_marker" ]]; then
+      continue
+    fi
+
+    # Atomic claim
+    local lock_marker="${marker_dir}/.reviewer.${slot}.dispatch-lock"
+    if ! mkdir "$lock_marker" 2>/dev/null; then
+      continue
+    fi
+    touch "$dispatched_marker"
+    rm -rf "$lock_marker" 2>/dev/null || true
+
+    local task_ctx
+    task_ctx=$(jq -n \
+      --arg idx "$slot" \
+      --arg out "${phases_dir}/A2-review.reviewer.${slot}.tmp" \
+      --arg plan "${phases_dir}/A1-plan.md" \
+      '{
+        "competitorIndex": $idx,
+        "outputFile": $out,
+        "inputPlan": $plan
+      }')
+
+    local prompt
+    prompt="$(teams_build_teammate_prompt "A2" "$task_ctx")"
+    teams_log "Dispatching sswarm A2 reviewer ${slot} to idle teammate"
+    teams_assign_idle_teammate "$prompt"
+    exit 2
+  done
+
+  # All 3 reviewers dispatched. Check if review-lead needs dispatch.
+  local lead_dispatched="${marker_dir}/.review-lead.dispatched"
+  if [[ -f "$lead_dispatched" ]]; then
+    teams_log "sswarm A2 review-lead already dispatched, allowing idle"
+    exit 0
+  fi
+
+  # Check if all 3 reviewer outputs exist
+  local all_done=true
+  for slot in 1 2 3; do
+    if [[ ! -f "${phases_dir}/A2-review.reviewer.${slot}.tmp" ]]; then
+      all_done=false
+      break
+    fi
+  done
+
+  if [[ "$all_done" != "true" ]]; then
+    teams_log "sswarm A2: waiting for reviewer outputs, allowing idle"
+    exit 0
+  fi
+
+  # Dispatch review-lead
+  if mkdir "${marker_dir}/.review-lead.dispatch-lock" 2>/dev/null; then
+    touch "$lead_dispatched"
+    rm -rf "${marker_dir}/.review-lead.dispatch-lock" 2>/dev/null || true
+
+    local task_ctx
+    task_ctx=$(jq -n \
+      --arg in1 "${phases_dir}/A2-review.reviewer.1.tmp" \
+      --arg in2 "${phases_dir}/A2-review.reviewer.2.tmp" \
+      --arg in3 "${phases_dir}/A2-review.reviewer.3.tmp" \
+      '{"inputFiles": ($in1 + "\n" + $in2 + "\n" + $in3)}')
+
+    local prompt
+    prompt="$(teams_build_teammate_prompt "A2" "$task_ctx")"
+    teams_log "Dispatching sswarm A2 review-lead to idle teammate"
+    teams_assign_idle_teammate "$prompt"
+    exit 2
+  fi
+
+  teams_log "sswarm A2 review-lead dispatch race, allowing idle"
+  exit 0
+}
+
+# ===========================================================================
+# Main routing function: route_idle_teammate (Task 17)
+# ===========================================================================
+route_idle_teammate() {
+  case "$current_phase" in
+    A0)
+      dispatch_phase "A0"
+      ;;
+    A1)
+      if [[ "$pipeline" == "sswarm" ]]; then
+        dispatch_sswarm_a1
+      else
+        dispatch_phase "A1"
+      fi
+      ;;
+    A2)
+      if [[ "$pipeline" == "sswarm" ]]; then
+        dispatch_sswarm_a2
+      else
+        dispatch_phase "A2"
+      fi
+      ;;
+    A3)
+      # Mark A3 in_progress if pending
+      local a3_status
+      a3_status=$(jq -r '.phases.A3.status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
+      if [[ "$a3_status" == "pending" ]]; then
+        update_state '.phases.A3.status = "in_progress" | .phases.A3.startedAt = $ts | .updatedAt = $ts' || true
+      fi
+      dispatch_a3_task
+      ;;
+    A4)
+      # A4 verdict is handled inline by TaskCompleted hook (handle_a3_arbiter).
+      # No direct dispatch needed. Allow idle.
+      teams_log "A4 is handled inline by TaskCompleted hook, allowing idle"
+      exit 0
+      ;;
+    A5)
+      dispatch_phase "A5"
+      ;;
+    # DONE|STOPPED|BLOCKED already handled by precondition check above
+    *)
+      teams_log "Unknown phase '${current_phase}', allowing idle"
+      exit 0
+      ;;
+  esac
+}
+
+# ===========================================================================
+# Entry point
+# ===========================================================================
+
+route_idle_teammate
+
+# Defensive catch-all: if route_idle_teammate returns without exiting, allow idle
+teams_log "Route returned without explicit exit (phase=${current_phase}), allowing idle"
 exit 0

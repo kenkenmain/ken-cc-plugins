@@ -23,7 +23,6 @@ tools:
   - Edit
   - Glob
   - Grep
-  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -89,7 +88,7 @@ Use the Edit tool for surgical updates. Use the Write tool only for new sections
 
 Write output to: `.agents/tmp/phases/loop-{{LOOP}}/A5-docs.json`
 
-**Important:** Write the A5-docs.json file FIRST, then send completion to the queen via SendMessage (recipient: "queen") with a summary of what was updated.
+After writing A5-docs.json, your work is complete. The drone task is dependency-blocked on you and will proceed once your output file is validated by the TaskCompleted hook.
 
 ## What You DO
 

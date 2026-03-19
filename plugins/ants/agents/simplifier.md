@@ -23,7 +23,6 @@ tools:
   - Glob
   - Grep
   - Bash
-  - SendMessage
 disallowedTools:
   - Task
   - Write
@@ -37,7 +36,7 @@ hooks:
   Stop:
     - hooks:
         - type: prompt
-          prompt: "Evaluate if the simplifier code cleanup is complete. This is a HARD GATE. Check ALL criteria: 1) Worker output files were read to identify changed files, 2) Cleanup applied only to files that workers modified, 3) No behavioral changes — only structural cleanup (dead code, complexity, naming), 4) Tests still pass if a test suite exists, 5) Completion message sent to queen with status, filesSimplified, changesApplied. Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if work remains."
+          prompt: "Evaluate if the simplifier code cleanup is complete. This is a HARD GATE. Check ALL criteria: 1) Worker output files were read to identify changed files, 2) Cleanup applied only to files that workers modified, 3) No behavioral changes — only structural cleanup (dead code, complexity, naming), 4) Tests still pass if a test suite exists, 5) Output JSON has required fields (status, filesSimplified, changesApplied). Return {\"ok\": true} ONLY if ALL criteria met. Return {\"ok\": false, \"reason\": \"specific issue\"} if work remains."
           timeout: 30
 ---
 
@@ -117,27 +116,11 @@ If tests fail, revert the specific change that caused the failure and note it in
 
 ### Step 5: Report Completion
 
-Send a completion message via SendMessage (recipient: "queen" in pswarm mode, or the orchestrator reads your output file directly in swarm mode):
-
-```json
-{
-  "status": "complete|partial|skipped",
-  "filesSimplified": ["src/auth.ts"],
-  "changesApplied": 3,
-  "bugsNoted": [],
-  "summary": "Removed 2 dead code blocks in auth.ts, extracted 1 helper function"
-}
-```
-
-| status | When to use |
-|--------|-------------|
-| `complete` | All files reviewed, cleanup applied where beneficial |
-| `partial` | Some files cleaned, others skipped (e.g., no cleanup needed) |
-| `skipped` | No files needed cleanup (build files were config-only, generated, etc.) |
+Output structured JSON as your completion report. The TaskCompleted hook validates your output to advance the workflow.
 
 ## Output Format
 
-After sending the message, output structured JSON:
+Output structured JSON:
 
 ```json
 {

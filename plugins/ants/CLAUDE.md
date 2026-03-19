@@ -1,6 +1,6 @@
 # ants Plugin -- Agent Instructions
 
-Ant-colony themed swarm workflow with Agent Teams delegate mode, dual-track parallel build, adversarial quality review, and self-improvement pipeline.
+Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Active-Lead), dual-track parallel build, adversarial quality review, and self-improvement pipeline. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
 
 ## Plugin Structure
 
@@ -19,7 +19,7 @@ plugins/ants/
 │   ├── nurse.md                   # Documentation updater
 │   ├── plan-arbiter.md            # A1 lead: evaluates competing architect plans (sswarm)
 │   ├── review-lead.md             # A2 lead: consolidates competing blueprint reviews (sswarm)
-│   ├── queen.md                   # Persistent central dispatcher, phase driver, A0→A5 orchestrator
+│   ├── queen.md                   # A4 verdict evaluator / team lead initializer
 │   ├── review-arbiter.md          # Consolidates adversarial sentinel findings
 │   ├── review-fixer.md            # Targeted repair agent for review-fix cycles
 │   ├── sentinel.md                # (deprecated) Generic sentinel reviewer -- use specialist sentinels
@@ -39,8 +39,8 @@ plugins/ants/
 │   └── teams-migration.md         # Agent Teams API migration guide
 ├── hooks/                         # Shell hooks (Agent Teams delegate mode)
 │   ├── hooks.json                 # Hook event configuration (8 hooks)
-│   ├── on-teammate-idle.sh        # TeammateIdle: task router (assigns next ready phase)
-│   ├── on-task-completed.sh       # TaskCompleted: quality gate (validates output, advances state)
+│   ├── on-teammate-idle.sh        # TeammateIdle: full task router (assigns next ready phase/task)
+│   ├── on-task-completed.sh       # TaskCompleted: quality gate + state advancement (validates output, advances state, sets signal flags)
 │   ├── on-stop.sh                 # Stop: allows lead to stop (teammates continue)
 │   ├── on-subagent-stop.sh        # SubagentStop: no-op (exit 0)
 │   ├── on-edit-gate.sh            # PreToolUse (Edit/Write): edit control
@@ -74,37 +74,47 @@ plugins/ants/
 └── README.md                      # User-facing documentation
 ```
 
+## Environment Requirement
+
+The swarm, sswarm, and pswarm pipelines require the Agent Teams experimental flag:
+
+```
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+Commands check this env var as Step 0 and abort with a clear error message if it is not set. The debug and improve pipelines do NOT require this flag (they are stateless, direct-dispatch pipelines).
+
 ## Agent Roster
 
 | # | Agent | Role | Model | Tools | Leaf? |
 |---|-------|------|-------|-------|-------|
-| 1 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write, SendMessage | Yes |
-| 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
+| 1 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write | Yes |
+| 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write | Yes |
 | 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | Yes |
-| 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
-| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write, SendMessage | Yes |
+| 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
+| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write | Yes |
+| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write | Yes |
 | 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
-| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch, SendMessage | Yes |
-| 9 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch, SendMessage | Yes |
-| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep, SendMessage | Yes |
-| 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes |
-| 12 | queen | Persistent central dispatcher, phase driver, A0→A5 orchestrator | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
-| 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes |
-| 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep, SendMessage | Yes |
-| 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes |
+| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
+| 9 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch | Yes |
+| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep | Yes |
+| 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep | Yes |
+| 12 | queen | A4 verdict evaluator / team lead initializer | sonnet | Read, Glob, Grep, Write | Yes |
+| 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write | Yes |
+| 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep | Yes |
+| 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep | Yes |
 | 16 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
-| 17 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 18 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 19 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 20 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes |
-| 21 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash, SendMessage | Yes |
+| 17 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write | Yes |
+| 18 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write | Yes |
+| 19 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write | Yes |
+| 20 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write | Yes |
+| 21 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash | Yes |
 | 22 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | Yes |
 | 23 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | Yes |
-| 24 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes |
-| 25 | (orchestrator) | Agent Teams delegate mode (hooks, not an agent file) | -- | -- | -- |
+| 24 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
+| 25 | (orchestrator) | Agent Teams delegate mode with Command-as-Active-Lead (hooks, not an agent file) | -- | -- | -- |
 
-All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. The orchestrator (command executor) dispatches agents directly via the Agent tool for each phase and drives all phase transitions. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots, compaction) and lifecycle support.
+All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. Commands create Agent Teams and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook routes tasks to idle teammates. TaskCompleted hook validates output and advances state. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks (hooks are shell scripts and cannot call Claude tools). SendMessage is retained for optional peer communication only, NOT for dispatch coordination.
 
 **Sentinel tool design:** Specialist sentinels (rows 17-20) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
 
@@ -131,21 +141,21 @@ WebSearch is opt-in. The `--web` CLI flag sets `webSearch: true` in state.json, 
 EXPLORE ──> PLAN ──> BUILD ──────────────> SHIP
   A0        A1,A2     A3                    A5
                        |
-                  orchestrator evaluates
-                  (A4 internal)
+                  TaskCompleted hook evaluates
+                  A4 verdict inline (when arbiter completes)
                        |
                    verdict?
                   /        \
                ship       loop ──> back to A1
 ```
 
-The orchestrator dispatches agents directly via the Agent tool for each phase. A4 (sync/verdict) is not a separate agent dispatch -- it is evaluated directly by the orchestrator after receiving all A3 results.
+Commands create Agent Teams with task dependency chains (blockedBy) and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook routes ready tasks to idle teammates. TaskCompleted hook validates output and advances state. A4 (sync/verdict) is evaluated inline by the TaskCompleted hook when the A3 arbiter completes -- it is not a separate agent dispatch.
 
 Three pipeline variants are supported, selected by the `pipeline` field in state.json:
 
 - **`swarm`** -- Single A0→A5 run; workflow completes after A5 ships (command: `/ants:swarm`)
-- **`sswarm`** -- Social swarm with competing agents; A1 dispatches 3 architects + plan-arbiter lead, A2 dispatches 3 reviewers + review-lead lead; otherwise same as swarm (command: `/ants:sswarm`)
-- **`pswarm`** -- Persistent multi-run loop; after A5 ships, all phases reset to pending and the pipeline restarts from A0 until `pswarmRun >= maxRuns` or `shutdown == true` (command: `/ants:pswarm`)
+- **`sswarm`** -- Social swarm with competing agents; A1 creates 3 architect tasks + plan-arbiter (blockedBy all 3), A2 creates 3 reviewer tasks + review-lead (blockedBy all 3); otherwise same as swarm (command: `/ants:sswarm`)
+- **`pswarm`** -- Persistent multi-run loop; after A5 ships, the command's monitoring loop creates a fresh A0→A5 task graph and the pipeline restarts from A0 until `pswarmRun >= maxRuns` or `shutdown == true` (command: `/ants:pswarm`)
 
 | Phase | Stage | Agent(s) | Description |
 |-------|-------|----------|-------------|
@@ -153,7 +163,7 @@ Three pipeline variants are supported, selected by the `pipeline` field in state
 | A1 | PLAN | architect x1 | Structured plan with task assignments |
 | A2 | PLAN | blueprint-reviewer x1 | Plan validation |
 | A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style (adversarial review), simplifier x1, review-arbiter x1, guardian x1 | Self-organizing task pool with adversarial review and cleanup tracks |
-| A4 | SYNC | orchestrator (internal) | Orchestrator evaluates all A3 evidence, renders ship/loop verdict (circuit breaker aware) |
+| A4 | SYNC | TaskCompleted hook (inline) | Evaluated inline by TaskCompleted hook when A3 arbiter completes; reads A3-quality.json, renders ship/loop verdict (circuit breaker aware), sets signal flags |
 | A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
 
 ## Debug Pipeline (D0-D5)
@@ -212,20 +222,20 @@ Output files: `.agents/tmp/improve/` with per-iteration subdirectories (`iter-1/
 
 ## Social Swarm Pipeline (sswarm)
 
-The sswarm (social swarm) pipeline extends swarm with **competing parallel agents** and **per-phase lead consolidators**. Phases A1 and A2 dispatch multiple agents whose outputs are consolidated by dedicated leads via SendMessage:
+The sswarm (social swarm) pipeline extends swarm with **competing parallel agents** and **per-phase lead consolidators**. Phases A1 and A2 create multiple competing task entries whose outputs are consolidated by dedicated lead tasks via task dependency chains (blockedBy):
 
 | Phase | swarm | sswarm |
 |-------|-------|--------|
 | A0 | foragers + cartographer + aggregator | Same |
-| A1 | 1 architect | 3 competing architects + plan-arbiter (lead) |
-| A2 | 1 blueprint-reviewer | 3 competing reviewers + review-lead (lead) |
+| A1 | 1 architect | 3 competing architects + plan-arbiter (blockedBy all 3) |
+| A2 | 1 blueprint-reviewer | 3 competing reviewers + review-lead (blockedBy all 3) |
 | A3 | workers + sentinels + guardian + simplifier | Same |
-| A4 | orchestrator verdict | Same |
+| A4 | TaskCompleted hook (inline verdict) | Same |
 | A5 | nurse + drone | Same |
 
-**Lead spawn order (critical):** Lead agents must be spawned FIRST with `run_in_background: true`, then feeder agents in parallel (foreground). This ensures leads are alive to receive SendMessage from feeders.
+**Task dependency dispatch:** Competing agents at A1 and A2 are created as independent tasks (no deps on each other) all blockedBy the previous phase. The consolidator task (plan-arbiter / review-lead) is blockedBy all competing tasks. No spawn order constraints needed -- task dependencies replace SendMessage coordination.
 
-**New agents:** plan-arbiter (row 11) and review-lead (row 15) are leaf agents with `disallowedTools: [Task]`. Both follow the review-arbiter consolidation pattern with cross-reference elevation and deduplication.
+**Lead agents:** plan-arbiter (row 11) and review-lead (row 15) read competing output files at known paths (set by dispatch prompt). Both follow the review-arbiter consolidation pattern with cross-reference elevation and deduplication.
 
 **State additions:** `pipeline: "sswarm"`, `phaseLeads` map, `teamName: "ants-sswarm-<slug>"`.
 
@@ -265,40 +275,49 @@ Library: `hooks/lib/circuit-breaker.sh`
 
 ## Agent Teams Helpers
 
-In v0.5.x the orchestrator drives all phase transitions directly via the Agent tool. The `hooks/lib/teams.sh` library provides hooks and helpers for this orchestrator-driven pipeline (the original Agent Teams delegate mode functions are retained as legacy stubs):
+The `hooks/lib/teams.sh` library provides task graph generation, teammate prompt building, and dispatch helpers for the Agent Teams delegate mode pipeline:
 
-- `teams_create_phase_tasks()` -- Creates TaskCreate entries for A0→A5 with dependency chains
+- `teams_create_phase_tasks()` -- Creates TaskCreate entries for full A0→A5 linear dependency chain
+- `teams_create_sswarm_tasks()` -- Creates sswarm-specific task graph with competing agents at A1/A2 (3 architects + plan-arbiter, 3 reviewers + review-lead)
 - `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes sentinel-style; arbiter blockedBy includes all 4 sentinels + guardian + simplifier)
-- `teams_get_next_ready_task()` -- Reads state.json, returns next dispatchable phase
-- `teams_build_teammate_prompt()` -- Generates direct execution prompts for teammates
+- `teams_create_verdict_tasks()` -- Generates A5 tasks (nurse + drone) after clean A4 verdict
+- `teams_create_pswarm_run_tasks()` -- Wrapper that generates fresh task graph for pswarm run boundary
+- `teams_get_next_ready_task()` -- Reads state.json, returns next dispatchable phase/task
+- `teams_get_a3_task_prompt()` -- Generates task-specific prompt for A3 worker task assignment
+- `teams_build_teammate_prompt()` -- Generates phase-specific execution prompts for teammates
 - `teams_assign_idle_teammate()` -- Builds exit-2 output for TeammateIdle hook
 - `teams_reject_completion()` -- Builds exit-2 output for TaskCompleted rejection
 
-The swarm command uses ToolSearch to load Agent Teams tools (TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop) before creating the team.
+Commands use TaskCreate, TaskGet, TaskList, TaskUpdate, and TaskStop tools to manage the team. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks.
 
 ## Hook Architecture
 
-Eight hooks support the workflow. The orchestrator drives all phase transitions by dispatching agents via the Agent tool. Hooks provide supplementary gates (edit control, lint-on-save, config snapshots, compaction) and lifecycle support:
+Eight hooks drive the Agent Teams delegate mode workflow. TeammateIdle is the full task router (assigns next ready phase/task to idle teammates). TaskCompleted validates output, advances state, evaluates A4 verdict inline, and sets signal flags for the command's monitoring loop. Additional hooks provide edit control, lint-on-save, config snapshots, and compaction support:
 
-### on-teammate-idle.sh (TeammateIdle event)
+### on-teammate-idle.sh (TeammateIdle event) -- Full Task Router
 
-- Checks circuit breaker (if tripped → allows idle, workflow blocks)
-- Reads `state.json` to find next ready phase via `teams_get_next_ready_task()`
-- Generates phase-specific teammate execution prompt via `teams_build_teammate_prompt()`
-- Returns exit 2 with prompt to keep teammate working
-- Returns exit 0 if no tasks ready (workflow complete/blocked/waiting)
+- Checks preconditions: shutdown flag, terminal status, circuit breaker
+- Routes by currentPhase via case statement (A0-A5, sswarm variants, pswarm run boundary)
+- A3 dispatch: dual-track routing (worker tasks from pool, then quality agents, then arbiter)
+- sswarm A1/A2: dispatches competing slots (architect-1/2/3, reviewer-1/2/3) + consolidator
+- Generates task-specific prompts via `teams_build_teammate_prompt()` and `teams_get_a3_task_prompt()`
+- Returns exit 2 with prompt to assign work to idle teammate
+- Returns exit 0 if no tasks ready (workflow complete/blocked/waiting/shutdown)
 
-### on-task-completed.sh (TaskCompleted event)
+### on-task-completed.sh (TaskCompleted event) -- Quality Gate + State Advancement
 
 - Validates output file exists and is valid JSON
-- Phase-specific quality gates:
-  - A0: A0-explore.md exists → advance to A1
-  - A1: A1-plan.md exists → advance to A2 (checks A1-tasks.json for A3 sub-tasks)
-  - A2: Review verdict — needs_revision with HIGH → loop to A1; else → A3. `.status` is the sole canonical verdict field in A2-review.json.
-  - A3: Workers update task pool, sentinels write markers, arbiter consolidates
-  - A4: Parse queen verdict — clean → A5, issues_found → loop to A1
-  - A5: A5-ship.json with commit_sha → workflow DONE (swarm) or reset to A0 (pswarm)
+- Phase-specific quality gates with state advancement:
+  - A0: A0-explore.md exists → advance currentPhase to A1
+  - A1: A1-plan.md exists → init task pool, advance to A2, set `needsA3Tasks` signal flag
+  - A2: Review verdict — needs_revision with HIGH → loop to A1 (circuit breaker); else → A3. `.status` is the sole canonical verdict field in A2-review.json.
+  - A3 Worker: Updates task pool, checks build track completion
+  - A3 Sentinel/Guardian/Simplifier: Marks agent complete, checks all quality agents done
+  - A3 Arbiter: Consolidates quality verdict, evaluates **A4 verdict inline** -- reads A3-quality.json, determines clean/issues_found. Clean → sets `needsA5Tasks` flag, advances to A5. Issues found → sets `needsLoopReset` flag, resets to A1.
+  - A4: Legacy compatibility shim (verdict now evaluated inline by A3 arbiter handler)
+  - A5: A5-ship.json with commit_sha → workflow DONE (swarm/sswarm) or sets `needsPswarmReset` flag (pswarm)
 - Updates circuit breaker on success/failure
+- Sets signal flags for command's monitoring loop (hooks cannot call TaskCreate directly)
 - Exit 0 = accept | Exit 2 = reject with feedback
 
 ### on-stop.sh (Stop event)
@@ -370,7 +389,7 @@ Eight hooks support the workflow. The orchestrator drives all phase transitions 
 State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 
 ### state.sh (core)
-- `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v5
+- `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v6
 - `state_get()` -- read fields with optional required validation
 - `update_state()` -- atomic state update with file locking (flock with mkdir fallback on macOS)
 - `validate_json_file()` -- check file exists and contains valid JSON
@@ -400,10 +419,14 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 - `pool_get_file_owner()` -- file ownership enforcement for edit gate
 
 ### teams.sh (Agent Teams dispatch)
-- `teams_create_phase_tasks()` -- creates TaskCreate entries for A0→A5 dependency chain
+- `teams_create_phase_tasks()` -- creates TaskCreate entries for full A0→A5 linear dependency chain
+- `teams_create_sswarm_tasks()` -- creates sswarm-specific task graph with competing agents at A1/A2
 - `teams_add_a3_subtasks()` -- dynamically adds worker/sentinel/arbiter tasks after A1
-- `teams_get_next_ready_task()` -- finds next dispatchable phase from state
-- `teams_build_teammate_prompt()` -- generates execution prompts for teammates
+- `teams_create_verdict_tasks()` -- generates A5 tasks (nurse + drone) after clean verdict
+- `teams_create_pswarm_run_tasks()` -- wrapper for fresh task graph at pswarm run boundary
+- `teams_get_next_ready_task()` -- finds next dispatchable phase/task from state
+- `teams_get_a3_task_prompt()` -- generates task-specific prompt for A3 worker task assignment
+- `teams_build_teammate_prompt()` -- generates phase-specific execution prompts for teammates
 - `teams_assign_idle_teammate()` / `teams_reject_completion()` -- exit-2 handlers
 
 ### webhook.sh (HTTP notifications -- v0.4)
@@ -422,7 +445,7 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 
 ```
 .agents/tmp/
-├── state.json                           # Workflow state (v5)
+├── state.json                           # Workflow state (v6)
 ├── phases/
 │   ├── A0-explore.forager.1.tmp         # Forager results
 │   ├── A0-explore.forager.2.tmp
@@ -440,29 +463,36 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 │   │   ├── A3-review.sentinel-perf.json         # Performance review
 │   │   ├── A3-review.sentinel-style.json        # Style review
 │   │   ├── A3-quality.json            # Arbiter consolidated verdict
-│   │   ├── A4-queen-verdict.json     # Queen verdict
+│   │   ├── A4-queen-verdict.json     # Verdict (written by TaskCompleted hook inline A4 evaluation)
 │   │   ├── A5-docs.json              # Nurse documentation summary
 │   │   └── A5-ship.json              # Drone commit/PR output
 │   ├── loop-2/                        # If looped back
 │   │   └── ...
 ```
 
-## State Schema (v5)
+## State Schema (v6)
 
 ```json
 {
-  "version": 5,
+  "version": 6,
   "plugin": "ants",
   "pipeline": "swarm|sswarm|pswarm",
   "status": "in_progress|blocked|complete",
   "task": "<task description>",
   "ownerPpid": "<process ID>",
   "sessionId": "<session ID if available>",
-  "currentPhase": "A0|A1|A2|A3|A4|A5|DONE|STOPPED",
+  "currentPhase": "A0|A1|A2|A3|A4|A5|DONE|STOPPED|BLOCKED",
   "loop": 1,
   "maxLoops": 5,
   "teamName": "ants-<branch-slug>",
   "startedAt": "ISO timestamp",
+  "teamCreated": false,
+  "teammateCount": 0,
+  "taskGraphVersion": 1,
+  "needsA3Tasks": false,
+  "needsA5Tasks": false,
+  "needsLoopReset": false,
+  "needsPswarmReset": false,
   "schedule": [
     {"phase": "A0", "stage": "EXPLORE", "label": "Colony Exploration", "type": "agents"},
     {"phase": "A1", "stage": "PLAN", "label": "Architect Plan", "type": "agents"},
@@ -497,12 +527,23 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
   "lintConfig": null,
   "configSnapshot": null,
   "compactMetadata": null,
-  "webSearch": false,
-  "queenDispatched": false
+  "webSearch": false
 }
 ```
 
-### New v0.4 State Fields
+### New v0.6 State Fields (Agent Teams)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `teamCreated` | boolean | false | Replaces `queenDispatched`. Set true after team creation + teammate spawn. |
+| `teammateCount` | number | 0 | Number of teammates spawned (3 for swarm/pswarm, 5 for sswarm). |
+| `taskGraphVersion` | number | 1 | Incremented on loop-back (`reset_phases_for_loop`) and pswarm run boundary (`reset_phases_for_pswarm`). Commands use this to detect when fresh TaskCreate calls are needed. |
+| `needsA3Tasks` | boolean | false | Signal flag: set by `on-task-completed.sh` when A1 completes. Command creates A3 worker/sentinel/arbiter tasks. |
+| `needsA5Tasks` | boolean | false | Signal flag: set by `on-task-completed.sh` when A4 verdict is clean. Command creates A5 nurse/drone tasks. |
+| `needsLoopReset` | boolean | false | Signal flag: set by `on-task-completed.sh` when A4 verdict is `issues_found`. Command creates fresh A1-A4 tasks. |
+| `needsPswarmReset` | boolean | false | Signal flag: set by `on-task-completed.sh` when A5 completes in pswarm and `pswarmRun < maxRuns`. Command creates fresh A0-A5 task graph. |
+
+### v0.4 State Fields (preserved)
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -514,7 +555,6 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 | `lintConfig` | object/null | null | Lint configuration (`{"enabled": true/false}`) for PostToolUse lint-on-save |
 | `configSnapshot` | object/null | null | Last config change metadata (`{"lastChangeAt": ..., "source": ...}`) |
 | `compactMetadata` | object/null | null | Workflow state snapshot saved before context compaction |
-| `queenDispatched` | boolean | false | Whether the queen has been spawned for the current workflow run (prevents duplicate dispatches) |
 
 ### New v0.4.3 State Fields
 
@@ -541,24 +581,27 @@ When `.planApproved` is `false` (default), the TaskCompleted hook holds the work
 
 ## Teammate Messaging (v0.4)
 
-Cross-phase communication via the `messages` array in state.json. Agents can send messages to other agents using `add_message "from" "to" "content"` and retrieve them with `get_messages_for "recipient"`. Messages are tagged with the current loop number and timestamp. This enables feedback loops without re-planning (e.g., queen sending targeted notes to the architect for the next loop).
+Cross-phase communication via the `messages` array in state.json. Agents can send messages to other agents using `add_message "from" "to" "content"` and retrieve them with `get_messages_for "recipient"`. Messages are tagged with the current loop number and timestamp. This enables feedback loops without re-planning (e.g., passing targeted notes to the architect for the next loop). Note: this uses the state.json messages array, not SendMessage.
 
 ## Communication
 
-The orchestrator dispatches agents directly via the Agent tool for each phase. Agents communicate results via their output files (written to `.agents/tmp/phases/`). The naming contract for output files is documented in the Phase Output Files section of the swarm SKILL.md.
+Agents communicate results via output files written to `.agents/tmp/phases/`. The naming contract for output files is documented in the Phase Output Files section of the swarm SKILL.md and in `docs/shared-teams-init.md` (section 9).
+
+### File-Based Communication (v0.6)
+
+All inter-agent communication uses file-based output. Each agent writes its results to a known file path:
+
+- **Linear phases (A0, A1, A2, A5)**: task dependencies via blockedBy chains ensure agents read predecessor output files
+- **Competing agents (sswarm A1/A2)**: 3 independent tasks write to competitor-specific temp files; the consolidator task (blockedBy all 3) reads all files
+- **A3 quality track**: sentinels write individual review JSONs; arbiter reads all sentinel + guardian + simplifier output files
 
 ### SendMessage
 
-SendMessage-based communication is used in two pipeline variants:
+SendMessage is retained for **optional peer communication only**, NOT for dispatch coordination. All dispatch and phase transitions are handled by task dependencies (blockedBy chains), TeammateIdle hook routing, and TaskCompleted hook state advancement. No agent requires SendMessage for core workflow functionality.
 
-- **sswarm** — Lead agents (plan-arbiter, review-lead) receive competing outputs from feeder agents (architects, blueprint-reviewers) via SendMessage during A1 and A2. The orchestrator spawns leads first (background), then feeders send results to leads.
-- **pswarm** — The `queen` agent drives the pipeline and receives agent results via SendMessage.
+### teamCreated State Field
 
-In **swarm** mode, the orchestrator drives all phases directly and SendMessage is not required (though agents that support it may use it).
-
-### queenDispatched State Field
-
-The `queenDispatched` field in state.json tracks whether the pipeline has started execution. It is set to `true` when the first phase begins and prevents duplicate pipeline starts.
+The `teamCreated` field (v6, replaces `queenDispatched` from v5) tracks whether the Agent Team has been created and teammates have been spawned. It is set to `true` after team creation and prevents duplicate team initialization.
 
 ## Worktree Isolation (v0.4)
 
@@ -606,7 +649,7 @@ Set `.webhookUrl` in state.json to receive fire-and-forget HTTP POST notificatio
 
 ### Never
 
-- Skip A4 queen verdict -- always sync before shipping
+- Skip A4 verdict evaluation -- always evaluate A4 verdict (inline in TaskCompleted hook) before shipping
 - Ship when critical or warning issues remain unresolved
 - Allow agents to spawn subagents (all are leaf agents)
 - Commit secrets or credentials
