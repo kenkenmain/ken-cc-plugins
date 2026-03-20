@@ -227,7 +227,7 @@ Each worker:
 - Can only edit files listed in the task's `files_owned` field (enforced by edit gate)
 - Self-verifies (tests, lint, typecheck)
 - Has git blocked by hook (no commits)
-- After completing, sends a SendMessage to the review-arbiter with task completion notice, files changed, and self-verification status
+- After completing, sends a SendMessage to the team with task completion notice, files changed, and self-verification status
 
 **Fallback:** If no `taskPool` exists in state (v0.1 state files), A3 falls back to legacy wave-based dispatch with the generic sentinel.
 

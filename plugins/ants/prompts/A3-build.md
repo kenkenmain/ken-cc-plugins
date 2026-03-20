@@ -181,7 +181,7 @@ Read worker results from: .agents/tmp/phases/loop-{{LOOP}}/A3-build.json
 Apply cleanup to files_changed: dead code removal, complexity reduction, naming improvements.
 Do NOT change behavior — only structural cleanup.
 
-Report to queen: {status, filesSimplified, changesApplied, summary}
+Output: {status, filesSimplified, changesApplied, summary}
 ```
 
 ### 4. Arbiter Consolidation

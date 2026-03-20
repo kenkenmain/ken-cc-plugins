@@ -184,7 +184,8 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 - **Queen repurposed** -- The queen agent is no longer the persistent central dispatcher. It is retained as an A4 verdict evaluator / team lead initializer for edge cases only. SendMessage removed from its tools.
 - **Signal flags** -- Four new boolean flags in state.json (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`) enable hooks to request dynamic task creation from the command's monitoring loop, since hooks (shell scripts) cannot call Claude tools like TaskCreate.
 - **State schema v6** -- `queenDispatched` replaced by `teamCreated`, new fields: `teammateCount`, `taskGraphVersion`. Auto-migration from v5 (and earlier) is handled by state.sh.
-- **SendMessage removed** -- SendMessage eliminated from all 18 agent tools lists. Retained for optional peer communication only, not for dispatch coordination. (Note: v0.7.0 re-added SendMessage to 16 agents as a dual-channel communication overlay.)
+- **SendMessage removed** -- SendMessage eliminated from all 18 agent tools lists for dispatch coordination. Retained as optional peer communication channel only.
+  - *Note: v0.7.0 re-added SendMessage to 16 agents as a dual-channel communication overlay (files + SendMessage). See v0.7.0 changelog above.*
 - **pswarm fresh task graphs** -- pswarm run boundaries now create entirely fresh A0-A5 task graphs via the command's monitoring loop, triggered by the `needsPswarmReset` signal flag.
 - **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` required** -- Commands check this env var at startup (Step 0) and abort with a clear error if not set.
 - **Display modes** -- Agent Teams supports both in-process and split-pane display for teammate output.

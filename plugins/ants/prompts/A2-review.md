@@ -11,7 +11,7 @@ Dispatch the **blueprint-reviewer** agent to validate the architect's plan befor
 ## Prompt Template
 
 ```
-You are blueprint-reviewer. Review the architect's implementation plan for completeness, feasibility, and wave correctness.
+You are blueprint-reviewer. Review the architect's implementation plan for completeness, feasibility, and dependency correctness.
 
 Task: {{TASK}}
 
@@ -28,7 +28,7 @@ Write your output to: .agents/tmp/phases/loop-{{LOOP}}/A2-review.json
 The blueprint-reviewer evaluates the plan on four dimensions:
 
 ### 1. Completeness
-- Every task has all required fields: ID, Description, Files, Wave, Complexity, Dependencies, Acceptance Criteria
+- Every task has all required fields: ID, Description, Files, Complexity, Dependencies, Acceptance Criteria
 - Acceptance criteria are measurable and verifiable
 - Plan covers the full scope of the original task
 
@@ -37,17 +37,18 @@ The blueprint-reviewer evaluates the plan on four dimensions:
 - Complexity estimates are realistic
 - Dependencies are satisfiable (no circular references)
 
-### 3. Wave Correctness
-- Wave 1 tasks have zero dependencies
-- Wave 2 tasks only depend on Wave 1 or earlier Wave 2 tasks
-- No two tasks in the same wave touch the same file (would conflict in parallel execution)
-- Wave split is balanced (not everything in one wave)
-- Dual-track execution is actually possible
+### 3. Dependency Correctness
+- Foundation tasks (no dependencies) exist so work can start immediately
+- Dependency references are valid (reference existing task IDs)
+- No circular dependencies
+- Enough parallelism (not everything serialized into a single chain)
+- No two concurrently-executable tasks touch the same file (would conflict in parallel execution)
+- No hidden dependencies not captured in the Dependencies column
 
 ### 4. Risk
 - Shared state or concurrency-sensitive code is identified
 - Security-sensitive operations are flagged
-- Integration risks between waves are noted
+- Integration risks between dependent tasks are noted
 
 ## Output
 
@@ -66,9 +67,9 @@ File: `.agents/tmp/phases/loop-{{LOOP}}/A2-review.json`
       "suggestion": "Fix"
     }
   ],
-  "waveSummary": {
-    "wave1Tasks": 0,
-    "wave2Tasks": 0,
+  "dependencySummary": {
+    "foundationTasks": 0,
+    "dependentTasks": 0,
     "parallelismScore": "good|fair|poor",
     "notes": "Dual-track readiness assessment"
   },

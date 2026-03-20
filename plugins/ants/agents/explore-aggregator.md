@@ -130,13 +130,13 @@ The `A0-explore.md` file should follow this structure:
 
 After writing `A0-explore.md`, send a message to the team so teammates know exploration is complete. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
 
-Use SendMessage with recipient `"team"` and include the issue count from your synthesized report:
+Use SendMessage with recipient `"team"` and include a count of key findings from your synthesized report:
 
 ```
-A0 exploration complete. [N] issues identified. Report at .agents/tmp/phases/A0-explore.md
+A0 exploration complete. [N] key findings synthesized. Report at .agents/tmp/phases/A0-explore.md
 ```
 
-Replace `[N]` with the actual number of key risks and constraints surfaced in the report. If the report has no risks section or zero items, use `0`.
+Replace `[N]` with the actual number of key findings, risks, and constraints surfaced in the report. If the report has no findings or zero items, use `0`.
 
 ## What You DO NOT Do
 
