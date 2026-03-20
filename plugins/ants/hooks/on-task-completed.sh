@@ -295,7 +295,13 @@ handle_a3_worker() {
   cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
 
   if [[ "$has_pool" != "yes" ]]; then
-    teams_log "WARNING: A3 worker completed but no valid task pool found (backward compat fallback)"
+    local state_version
+    state_version=$(state_get '.version // 1')
+    if [[ "$state_version" -ge 6 ]]; then
+      teams_reject_completion "A3 worker completed but task pool is missing. This indicates pool_init failed during A1. Workflow state is inconsistent — investigate A1 task pool initialization."
+      exit 2
+    fi
+    teams_log "WARNING: A3 worker completed but no valid task pool found (v${state_version} backward compat fallback)"
   fi
   teams_log "A3 worker completed"
 }

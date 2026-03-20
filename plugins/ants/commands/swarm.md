@@ -206,22 +206,48 @@ Circuit breaker: 5 consecutive failures -> halt
 
 You are the active lead. You do NOT dispatch agents directly. Instead, you create tasks via TaskCreate (which populates the shared task list), spawn teammates, and enter a monitoring loop.
 
-### 3a. Create initial task graph (A0, A1, A2)
+### 3a. Create initial task graph (A0 multi-agent + A1 + A2)
 
-Create 3 tasks with blockedBy dependency chains. Use TaskCreate for each one and store the returned task IDs.
+Create tasks with blockedBy dependency chains. Use TaskCreate for each one and store the returned task IDs.
 
-**Task 1 -- A0: Colony Exploration**
+**A0 tasks — parallel exploration (foragers + cartographer + aggregator):**
+
+A0 requires multiple agents exploring in parallel, then an aggregator to synthesize results. Create 4 tasks:
 
 ```
+# Forager 1 — file structure and project layout
+TaskCreate(
+  subject: "A0 Forager 1: File Structure",
+  description: "Explore the codebase file structure, directory layout, key entry points, and build configuration for task: <task description>. Write findings to .agents/tmp/phases/A0-explore.forager.1.tmp"
+)
+→ Store as FORAGER_1_ID
+
+# Forager 2 — relevant code and patterns
+TaskCreate(
+  subject: "A0 Forager 2: Code Patterns",
+  description: "Explore existing implementations, coding patterns, error handling conventions, and test patterns relevant to task: <task description>. Write findings to .agents/tmp/phases/A0-explore.forager.2.tmp"
+)
+→ Store as FORAGER_2_ID
+
+# Cartographer — deep architecture tracing
+TaskCreate(
+  subject: "A0 Cartographer: Architecture",
+  description: "Trace the architecture: execution paths, dependency graphs, module boundaries, and layered structure relevant to task: <task description>. Write findings to .agents/tmp/phases/A0-explore.cartographer.tmp"
+)
+→ Store as CARTOGRAPHER_ID
+
+# Explore aggregator — synthesize all exploration results
 TaskCreate(
   subject: "A0: Colony Exploration",
-  description: "Explore the codebase to understand project structure, existing patterns, and relevant code for task: <task description>"
+  description: "Synthesize exploration findings from all foragers and cartographer into a unified exploration report. Read: .agents/tmp/phases/A0-explore.forager.1.tmp, .agents/tmp/phases/A0-explore.forager.2.tmp, .agents/tmp/phases/A0-explore.cartographer.tmp. Write unified report to: .agents/tmp/phases/A0-explore.md",
+  blockedBy: [FORAGER_1_ID, FORAGER_2_ID, CARTOGRAPHER_ID]
 )
+→ Store as A0_TASK_ID
 ```
 
-Store the returned task ID as `A0_TASK_ID`.
+The aggregator's task subject MUST be `"A0: Colony Exploration"` — this is what on-task-completed.sh routes on. The forager/cartographer tasks complete silently (their subjects don't match any handler, which is correct — they just write temp files).
 
-**Task 2 -- A1: Architect Plan**
+**Task — A1: Architect Plan**
 
 ```
 TaskCreate(
@@ -233,7 +259,7 @@ TaskCreate(
 
 Store the returned task ID as `A1_TASK_ID`.
 
-**Task 3 -- A2: Blueprint Review**
+**Task — A2: Blueprint Review**
 
 ```
 TaskCreate(
@@ -352,14 +378,14 @@ while true:
   # The hook has already incremented loop, reset A1-A4 to pending, and set currentPhase = "A1".
   if needsLoopReset == true:
     1. Read the current loop number from state.json (already incremented by hook)
-    2. Create fresh A1 task:
+    2. Create loop directory FIRST (before any tasks reference it):
+       mkdir -p .agents/tmp/phases/loop-{loop}
+    3. Create fresh A1 task:
        - TaskCreate(subject: "A1: Architect Plan", description: "This is loop {loop}. Read previous loop's quality review at .agents/tmp/phases/loop-{prev}/A3-quality.json and verdict at .agents/tmp/phases/loop-{prev}/A4-queen-verdict.json. Plan targeted fixes for: <task>. Write plan to .agents/tmp/phases/loop-{loop}/A1-plan.md and tasks to .agents/tmp/phases/loop-{loop}/A1-tasks.json")
        Store returned task ID as NEW_A1_TASK_ID.
-    3. Create fresh A2 task:
+    4. Create fresh A2 task:
        - TaskCreate(subject: "A2: Blueprint Review", description: "Review the plan at .agents/tmp/phases/loop-{loop}/A1-plan.md. Write review to .agents/tmp/phases/loop-{loop}/A2-review.json", blockedBy: [NEW_A1_TASK_ID])
        Store returned task ID as NEW_A2_TASK_ID.
-    4. Create loop directory:
-       mkdir -p .agents/tmp/phases/loop-{loop}
     5. Clear needsLoopReset flag:
        jq '.needsLoopReset = false | .taskGraphVersion = (.taskGraphVersion + 1)' state.json
 

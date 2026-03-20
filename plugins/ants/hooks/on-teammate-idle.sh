@@ -160,7 +160,9 @@ dispatch_phase() {
       # Atomically mark phase as in_progress to prevent double-dispatch
       if ! update_state --arg p "$phase" \
         '.phases[$p].status = "in_progress" | .phases[$p].startedAt = $ts | .updatedAt = $ts'; then
-        teams_log "Failed to claim phase $phase (likely race condition), allowing idle"
+        # Record failure to detect persistent state corruption
+        cb_record_failure 2>/dev/null || true
+        teams_log "WARNING: Failed to claim phase $phase (state update failed). If this persists, check state.json integrity."
         exit 0
       fi
 
