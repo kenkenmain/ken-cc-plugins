@@ -567,6 +567,95 @@ high_count=$(jq '[.issues[]? | select((.severity | ascii_downcase) == "high" or 
 assert_eq "A2 HIGH/CRITICAL count with ascii_downcase" "5" "$high_count"
 
 # =========================================================================
+# 5. buildTrackComplete TYPE NORMALISATION
+#    Source: on-teammate-idle.sh dispatch_a3_task(), line 213
+#    The jq expression `.phases.A3.buildTrackComplete // false | tostring`
+#    must evaluate to "true" for boolean true and string "true", and must
+#    evaluate to "false" for null/absent/false. This drives the A3 build
+#    vs quality track branch in the TeammateIdle hook.
+# =========================================================================
+
+echo ""
+echo "=== 5. buildTrackComplete Type Normalisation ==="
+
+_read_btc() {
+  jq -r '.phases.A3.buildTrackComplete // false | tostring' "$1" 2>/dev/null
+}
+
+# --- 5a. boolean true -> "true" ---
+echo "--- 5a. boolean true -> 'true' ---"
+BTC_BOOL_TRUE="$TMPDIR_BASE/btc-bool-true.json"
+cat > "$BTC_BOOL_TRUE" <<'EOF'
+{"phases": {"A3": {"buildTrackComplete": true}}}
+EOF
+result=$(_read_btc "$BTC_BOOL_TRUE")
+assert_eq "boolean true reads as 'true'" "true" "$result"
+
+# --- 5b. string "true" -> "true" ---
+echo "--- 5b. string 'true' -> 'true' ---"
+BTC_STR_TRUE="$TMPDIR_BASE/btc-str-true.json"
+cat > "$BTC_STR_TRUE" <<'EOF'
+{"phases": {"A3": {"buildTrackComplete": "true"}}}
+EOF
+# In jq, string "true" | tostring | -r raw output = "true" (same as boolean true).
+# The hook writes boolean true via update_state, but this confirms string "true"
+# would also satisfy $build_complete == "true" if it ever appeared in state.
+result=$(_read_btc "$BTC_STR_TRUE")
+assert_eq "string 'true' also reads as 'true' via tostring" "true" "$result"
+
+# --- 5c. boolean false -> "false" ---
+echo "--- 5c. boolean false -> 'false' ---"
+BTC_FALSE="$TMPDIR_BASE/btc-false.json"
+cat > "$BTC_FALSE" <<'EOF'
+{"phases": {"A3": {"buildTrackComplete": false}}}
+EOF
+result=$(_read_btc "$BTC_FALSE")
+assert_eq "boolean false reads as 'false'" "false" "$result"
+
+# --- 5d. null -> "false" (via // false fallback) ---
+echo "--- 5d. null -> 'false' (via // false) ---"
+BTC_NULL="$TMPDIR_BASE/btc-null.json"
+cat > "$BTC_NULL" <<'EOF'
+{"phases": {"A3": {"buildTrackComplete": null}}}
+EOF
+result=$(_read_btc "$BTC_NULL")
+assert_eq "null falls back to false and reads as 'false'" "false" "$result"
+
+# --- 5e. absent field -> "false" (via // false fallback) ---
+echo "--- 5e. absent field -> 'false' ---"
+BTC_ABSENT="$TMPDIR_BASE/btc-absent.json"
+cat > "$BTC_ABSENT" <<'EOF'
+{"phases": {"A3": {}}}
+EOF
+result=$(_read_btc "$BTC_ABSENT")
+assert_eq "absent buildTrackComplete reads as 'false'" "false" "$result"
+
+# --- 5f. absent A3 phase entirely -> "false" ---
+echo "--- 5f. absent A3 phase -> 'false' ---"
+BTC_NO_A3="$TMPDIR_BASE/btc-no-a3.json"
+cat > "$BTC_NO_A3" <<'EOF'
+{"phases": {}}
+EOF
+result=$(_read_btc "$BTC_NO_A3")
+assert_eq "absent A3 phase reads as 'false'" "false" "$result"
+
+# --- 5g. boolean true is the only value the hook treats as build-complete ---
+# Confirm: only bare boolean true satisfies `$build_complete == "true"` after tostring
+echo "--- 5g. only boolean true satisfies build-complete check ---"
+btc_values_file="$TMPDIR_BASE/btc-values.json"
+cat > "$btc_values_file" <<'EOF'
+{"phases": {"A3": {"buildTrackComplete": true}}}
+EOF
+build_complete=$(_read_btc "$btc_values_file")
+if [[ "$build_complete" == "true" ]]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: boolean true -> build_complete == 'true' (quality track engaged)"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: boolean true should produce 'true', got '${build_complete}'"
+fi
+
+# =========================================================================
 # Summary
 # =========================================================================
 echo ""

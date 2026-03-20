@@ -138,13 +138,23 @@ handle_a2() {
 
   # Validate that the review has a status field
   local review_status
-  review_status=$(jq -r '(.status // empty) | ascii_downcase' "${phases_dir}/A2-review.json" 2>/dev/null || echo "")
+  review_status=$(jq -r '(.status // empty) | tostring | ascii_downcase' "${phases_dir}/A2-review.json" 2>/dev/null || echo "")
   if [[ -z "$review_status" ]]; then
     teams_reject_completion "A2-review.json missing .status field. Review must produce a verdict."
     exit 2
   fi
 
-  cb_record_success || teams_log "WARNING: cb_record_success failed -- consecutive failure counter may be stale"
+  # Normalize hyphens to underscores (e.g., "needs-revision" -> "needs_revision")
+  review_status="${review_status//-/_}"
+
+  # Allowlist check: only "approved", "clean", and "needs_revision" are valid verdicts
+  case "$review_status" in
+    approved|clean|needs_revision) ;;
+    *)
+      teams_log "WARNING: A2 review_status '${review_status}' is not a recognized verdict (approved|clean|needs_revision) -- treating as needs_revision"
+      review_status="needs_revision"
+      ;;
+  esac
 
   # Branch on review verdict
   if [[ "$review_status" == "needs_revision" ]]; then
@@ -225,6 +235,11 @@ handle_a2() {
     # needs_revision but no HIGH issues — advance to A3 with advisory
     teams_log "A2 review: needs_revision but no HIGH issues — advancing to A3 with advisory"
   fi
+
+  # Record circuit breaker success only on paths that genuinely advance (approved,
+  # clean, or needs_revision with no HIGH issues). The needs_revision+HIGH loop-back
+  # path returns early above and must NOT record a success.
+  cb_record_success || teams_log "WARNING: cb_record_success failed -- consecutive failure counter may be stale"
 
   # Advance state: A2 complete -> A3 pending
   if ! update_state '
@@ -337,6 +352,16 @@ handle_a3_sentinel() {
     exit 2
   fi
 
+  # Second-pass allowlist check at the write site to make the safety property
+  # visible here, independent of the regex extraction above.
+  case "$sentinel_name" in
+    sentinel-correctness|sentinel-security|sentinel-perf|sentinel-style) ;;
+    *)
+      teams_reject_completion "Sentinel name '${sentinel_name}' is not in the write-site allowlist."
+      exit 2
+      ;;
+  esac
+
   local marker_file
   marker_file="${phases_dir}/.${sentinel_name}.done"
   touch "$marker_file"
@@ -369,16 +394,6 @@ handle_a3_simplifier() {
   touch "$marker_file"
 
   teams_log "A3 simplifier completed"
-
-  # Check if all quality agents are done (sentinels + guardian + simplifier)
-  local sentinels_done
-  sentinels_done=$(state_get '.phases.A3.sentinelsDone // false')
-  local guardian_done
-  guardian_done=$(state_get '.phases.A3.guardianDone // false')
-
-  if [[ "$sentinels_done" == "true" && "$guardian_done" == "true" ]]; then
-    teams_log "All quality agents complete (sentinels + guardian + simplifier), arbiter can proceed"
-  fi
 }
 
 handle_a3_fixer() {
@@ -395,18 +410,23 @@ handle_a3_fixer() {
 handle_a3_arbiter() {
   local phases_dir="$1"
 
+  # Idempotency guard — if arbiter already processed AND verdict file exists,
+  # skip to prevent overwriting A4-queen-verdict.json on duplicate TaskCompleted events.
+  # Both conditions are checked to prevent a stuck state: if arbiterDone was set but
+  # the verdict file was never written (crash between the two), re-run the verdict logic.
+  local arbiter_done
+  arbiter_done=$(state_get '.phases.A3.arbiterDone // false')
+  if [[ "$arbiter_done" == "true" && -f "${phases_dir}/A4-queen-verdict.json" ]]; then
+    teams_log "A3 arbiter already processed, skipping"
+    return 0
+  fi
+
   if [[ ! -f "${phases_dir}/A3-quality.json" ]]; then
     teams_reject_completion "A3-quality.json not found. Arbiter must write consolidated verdict."
     exit 2
   fi
   if ! validate_json_file "${phases_dir}/A3-quality.json" "A3-quality.json"; then
     teams_reject_completion "A3-quality.json is invalid JSON."
-    exit 2
-  fi
-
-  # Mark arbiter done in state -- reject if update fails (keystone event for A4 verdict)
-  if ! update_state '.updatedAt = $ts | .phases.A3.arbiterDone = true'; then
-    teams_reject_completion "Failed to mark arbiter as done in state. Retry."
     exit 2
   fi
 
@@ -445,7 +465,6 @@ handle_a3_arbiter() {
   teams_log "A4 inline verdict: ${verdict} (critical=${critical_count}, warning=${warning_count}, total=${all_issues})"
 
   # Write A4-queen-verdict.json with evidence
-  mkdir -p "$phases_dir"
   local timestamp
   timestamp=$(date -Iseconds)
   if ! jq -n \
@@ -469,6 +488,14 @@ handle_a3_arbiter() {
       "evaluatedBy": "on-task-completed.sh (inline A4)"
     }' > "${phases_dir}/A4-queen-verdict.json"; then
     teams_reject_completion "Failed to write A4-queen-verdict.json"
+    exit 2
+  fi
+
+  # Mark arbiter done AFTER verdict file is successfully written.
+  # This ordering prevents the stuck state where arbiterDone=true but the
+  # verdict file was never created (the idempotency guard checks both).
+  if ! update_state '.updatedAt = $ts | .phases.A3.arbiterDone = true'; then
+    teams_reject_completion "Verdict file written but failed to mark arbiter as done in state. Retry."
     exit 2
   fi
 
@@ -597,12 +624,11 @@ handle_a4_legacy() {
   local phases_dir="$1"
 
   if [[ -f "${phases_dir}/A4-queen-verdict.json" ]]; then
-    if validate_json_file "${phases_dir}/A4-queen-verdict.json" "A4-queen-verdict.json"; then
-      teams_log "A4 verdict file valid (inline verdict already processed by A3 arbiter)"
-    else
+    if ! validate_json_file "${phases_dir}/A4-queen-verdict.json" "A4-queen-verdict.json"; then
       teams_reject_completion "A4-queen-verdict.json is invalid JSON."
       exit 2
     fi
+    teams_log "A4 verdict file valid (inline verdict already processed by A3 arbiter)"
   fi
 
   teams_log "A4 handler (legacy compatibility — verdict evaluated inline by A3 arbiter)"
@@ -610,6 +636,14 @@ handle_a4_legacy() {
 
 handle_a5_nurse() {
   local phases_dir="$1"
+
+  # Idempotency guard — skip if nurse already processed
+  local nurse_done
+  nurse_done=$(state_get '.phases.A5.nurseDone // false')
+  if [[ "$nurse_done" == "true" ]]; then
+    teams_log "A5 nurse already processed, skipping"
+    return 0
+  fi
 
   # Nurse writes A5-docs.json (optional output)
   teams_log "A5 nurse completed (A5-docs.json: $(test -f "${phases_dir}/A5-docs.json" && echo found || echo absent))"
@@ -622,7 +656,6 @@ handle_a5_nurse() {
   fi
 
   # Nurse completion accepted — drone task is blockedBy nurse and will start next
-  return 0
 }
 
 handle_a5() {

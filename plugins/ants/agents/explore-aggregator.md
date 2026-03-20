@@ -25,6 +25,7 @@ disallowedTools:
   - Edit
   - Bash
   - Grep
+permissionMode: plan
 hooks:
   Stop:
     - hooks:
