@@ -21,6 +21,7 @@ tools:
   - Write
   - Glob
   - Grep
+  - SendMessage
 disallowedTools:
   - Task
   - Edit
@@ -144,7 +145,19 @@ Write consolidated JSON to: `.agents/tmp/phases/loop-{{LOOP}}/A2-review.json`
 }
 ```
 
-Your work is complete when you have written A2-review.json. The TaskCompleted hook validates this file and advances the workflow. No separate confirmation message is needed.
+Your work is complete when you have written A2-review.json and sent the completion message (see Communication Protocol below). The TaskCompleted hook validates this file and advances the workflow.
+
+## Communication Protocol
+
+After writing `A2-review.json`, send a message to the team so teammates know review consolidation is complete. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the reviewer count, verdict, and issue count from your consolidated review:
+
+```
+Review lead complete. Consolidated [N] reviews. Verdict: [approved/needs_revision]. [issue count] issues. Review at .agents/tmp/phases/loop-{LOOP}/A2-review.json
+```
+
+Replace `[N]` with the number of reviewer files evaluated (2 or 3), `[approved/needs_revision]` with the actual `.status` value from the consolidated review, `[issue count]` with the total number of deduplicated issues, and `{LOOP}` with the current loop number.
 
 ## What You DO NOT Do
 

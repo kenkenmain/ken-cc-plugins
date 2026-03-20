@@ -24,6 +24,7 @@ tools:
   - Edit
   - Write
   - Bash
+  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -193,6 +194,18 @@ Write your results to the output file specified in your task. Output structured 
 | `complete`     | Task done, all criteria met, verification passed        |
 | `blocked`      | Cannot proceed — needs clarification or external fix    |
 | `needs_review` | Task done but with caveats                              |
+
+## Communication Protocol
+
+**Golden rule: Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+After completing your task implementation and writing your output JSON, use SendMessage to notify the team:
+
+```
+SendMessage to "team": "Task [TASK_ID] complete. Files modified: [list]. Self-verification: [pass/fail]."
+```
+
+Replace `[TASK_ID]` with your actual task ID, `[list]` with the files you modified/created, and `[pass/fail]` with whether your self-verification checks passed. This message is informational only -- the TaskCompleted hook validates your output file independently.
 
 ## Anti-Patterns
 

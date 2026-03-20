@@ -1,6 +1,6 @@
 # Agent Teams -- Architecture Reference
 
-> **Status: IMPLEMENTED** -- v0.6.0 uses Agent Teams delegate mode with Command-as-Active-Lead.
+> **Status: IMPLEMENTED** -- v0.7.0 uses Agent Teams delegate mode with Command-as-Active-Lead and dual-channel communication (file-based artifacts + SendMessage live coordination overlay).
 
 ## Migration History
 
@@ -112,7 +112,16 @@ Hooks are shell scripts and CANNOT call Claude tools (TaskCreate, TaskGet, etc.)
 | Queen agent | Persistent central dispatcher, A0->A5 orchestrator | A4 verdict evaluator / team lead initializer (edge case only) |
 | State schema | v5 (queenDispatched) | v6 (teamCreated, teammateCount, taskGraphVersion, signal flags) |
 | SendMessage | Required for sswarm leads, queen dispatch | Retained for optional peer communication only |
-| Agent tools | SendMessage in 18 agents | SendMessage removed from all agents |
+| Agent tools | SendMessage in 18 agents | SendMessage removed from all agents (re-added in v0.7.0) |
+
+### v0.7.0 (Dual-Channel Communication)
+
+| Component | v0.6.0 | v0.7.0 |
+|-----------|--------|--------|
+| SendMessage | Removed from all agents | Re-added to 16 agents as live coordination overlay |
+| Communication model | File-based only | Dual-channel: files (source of truth for hooks) + SendMessage (live coordination) |
+| Agent prompts | No SendMessage protocol | Communication Protocol section with golden rule: write files first, then SendMessage |
+| Hook prompt templates | File-only references | Acknowledge dual-channel model |
 
 ## What Was Preserved
 

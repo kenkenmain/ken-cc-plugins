@@ -24,6 +24,7 @@ tools:
   - Edit
   - Write
   - Bash
+  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -130,6 +131,18 @@ Write your output to: `.agents/tmp/phases/loop-{{LOOP}}/A3-review-fix.json`
   ]
 }
 ```
+
+## Communication Protocol
+
+After writing your output JSON, send a message to the team so teammates know the fixes are applied. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the fix summary:
+
+```
+Review fixes applied. [N] issues fixed. [list of files modified].
+```
+
+Replace `[N]` with the actual number of issues fixed from `fixedIssues` and `[list of files modified]` with the unique files that were edited.
 
 ## Anti-Patterns
 

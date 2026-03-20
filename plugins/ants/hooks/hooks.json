@@ -1,5 +1,5 @@
 {
-  "description": "Ants v0.6 Agent Teams workflow: TeammateIdle full task router, TaskCompleted quality gate + state advancement, edit control, lint advisory, config change, pre-compact, subagent context",
+  "description": "Ants v0.7 Agent Teams workflow: TeammateIdle full task router, TaskCompleted quality gate + state advancement, dual-channel communication (files + SendMessage), edit control, lint advisory, config change, pre-compact, subagent context",
   "hooks": {
     "Stop": [
       {

@@ -23,6 +23,7 @@ tools:
   - Edit
   - Glob
   - Grep
+  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -133,6 +134,18 @@ After writing A5-docs.json, your work is complete. The drone task is dependency-
   "notes": "No CHANGELOG entry needed — project does not maintain one"
 }
 ```
+
+## Communication Protocol
+
+**Golden rule: Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+After updating documentation and writing your output JSON to A5-docs.json, use SendMessage to notify the drone:
+
+```
+SendMessage to "drone": "Documentation updated. Ready to ship. Files modified: [list]."
+```
+
+Replace `[list]` with the files you updated. This message is informational only -- the drone's task dependency (blockedBy) on your task ensures it does not start until your output file is validated by the TaskCompleted hook.
 
 ## Anti-Patterns
 

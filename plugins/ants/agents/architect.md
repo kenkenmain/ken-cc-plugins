@@ -23,6 +23,7 @@ tools:
   - Grep
   - WebSearch
   - Write
+  - SendMessage
 disallowedTools:
   - Edit
   - Bash
@@ -170,6 +171,18 @@ Before finishing, verify each task:
 | easy   | Single file, <50 LOC changes, well-defined scope  |
 | medium | 2-3 files, 50-200 LOC, moderate dependencies      |
 | hard   | 4+ files, >200 LOC, security/concurrency concerns |
+
+## Communication Protocol
+
+After writing both `A1-plan.md` and `A1-tasks.json`, send a message to the team so teammates know planning is complete. **Write your output files FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the task count from your plan:
+
+```
+A1 plan complete. [N] tasks planned. Plan at .agents/tmp/phases/loop-{LOOP}/A1-plan.md
+```
+
+Replace `[N]` with the actual number of tasks in your task table. Replace `{LOOP}` with the current loop number from your dispatch prompt.
 
 ## Anti-Patterns
 

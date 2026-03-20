@@ -87,35 +87,35 @@ Commands check this env var as Step 0 and abort with a clear error message if it
 
 ## Agent Roster
 
-| # | Agent | Role | Model | Tools | Leaf? |
-|---|-------|------|-------|-------|-------|
-| 1 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write | Yes |
-| 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write | Yes |
-| 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | Yes |
-| 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
-| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write | Yes |
-| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write | Yes |
-| 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
-| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
-| 9 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch | Yes |
-| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep | Yes |
-| 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep | Yes |
-| 12 | queen | A4 verdict evaluator / team lead initializer | sonnet | Read, Glob, Grep, Write | Yes |
-| 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write | Yes |
-| 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep | Yes |
-| 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep | Yes |
-| 16 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
-| 17 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 18 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 19 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 20 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write | Yes |
-| 21 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash | Yes |
-| 22 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | Yes |
-| 23 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | Yes |
-| 24 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
-| 25 | (orchestrator) | Agent Teams delegate mode with Command-as-Active-Lead (hooks, not an agent file) | -- | -- | -- |
+| # | Agent | Role | Model | Tools | SendMessage | Leaf? |
+|---|-------|------|-------|-------|-------------|-------|
+| 1 | architect | Plans implementation with task assignments | sonnet | Read, Glob, Grep, WebSearch, Write, SendMessage | Yes | Yes |
+| 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
+| 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | No | Yes |
+| 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | No | Yes |
+| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write, Glob, SendMessage | Yes | Yes |
+| 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | No | Yes |
+| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | No | Yes |
+| 9 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch, SendMessage | Yes | Yes |
+| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep, SendMessage | Yes | Yes |
+| 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
+| 12 | queen | A4 verdict evaluator / team lead initializer | sonnet | Read, Glob, Grep, Write | No | Yes |
+| 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
+| 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
+| 16 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | No | Yes |
+| 17 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 18 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 19 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 20 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 21 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash, SendMessage | Yes | Yes |
+| 22 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | No | Yes |
+| 23 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | No | Yes |
+| 24 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 25 | (orchestrator) | Agent Teams delegate mode with Command-as-Active-Lead (hooks, not an agent file) | -- | -- | -- | -- |
 
-All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. Commands create Agent Teams and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook routes tasks to idle teammates. TaskCompleted hook validates output and advances state. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks (hooks are shell scripts and cannot call Claude tools). SendMessage is retained for optional peer communication only, NOT for dispatch coordination.
+All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. Commands create Agent Teams and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook routes tasks to idle teammates. TaskCompleted hook validates output and advances state. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks (hooks are shell scripts and cannot call Claude tools). SendMessage is a live coordination overlay -- agents write files first (source of truth for hooks), then SendMessage summaries to the team or relevant agents.
 
 **Sentinel tool design:** Specialist sentinels (rows 17-20) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
 
@@ -234,7 +234,7 @@ The sswarm (social swarm) pipeline extends swarm with **competing parallel agent
 | A4 | TaskCompleted hook (inline verdict) | Same |
 | A5 | nurse + drone | Same |
 
-**Task dependency dispatch:** Competing agents at A1 and A2 are created as independent tasks (no deps on each other) all blockedBy the previous phase. The consolidator task (plan-arbiter / review-lead) is blockedBy all competing tasks. No spawn order constraints needed -- task dependencies replace SendMessage coordination.
+**Task dependency dispatch:** Competing agents at A1 and A2 are created as independent tasks (no deps on each other) all blockedBy the previous phase. The consolidator task (plan-arbiter / review-lead) is blockedBy all competing tasks. Task dependencies handle dispatch ordering; SendMessage provides a live coordination overlay for status broadcasts and handoff signals (dual-channel model -- see Communication section).
 
 **Lead agents:** plan-arbiter (row 11) and review-lead (row 15) read competing output files at known paths (set by dispatch prompt). Both follow the review-arbiter consolidation pattern with cross-reference elevation and deduplication.
 
@@ -593,15 +593,40 @@ Agents communicate results via output files written to `.agents/tmp/phases/`. Th
 
 ### File-Based Communication (v0.6)
 
-All inter-agent communication uses file-based output. Each agent writes its results to a known file path:
+All inter-agent communication uses file-based output. Each agent writes its results to a known file path. SendMessage provides a live coordination overlay on top of the file-based backbone -- see the SendMessage section below.
 
 - **Linear phases (A0, A1, A2, A5)**: task dependencies via blockedBy chains ensure agents read predecessor output files
 - **Competing agents (sswarm A1/A2)**: 3 independent tasks write to competitor-specific temp files; the consolidator task (blockedBy all 3) reads all files
 - **A3 quality track**: sentinels write individual review JSONs; arbiter reads all sentinel + guardian + simplifier output files
 
-### SendMessage
+### SendMessage (Dual-Channel Model)
 
-SendMessage is retained for **optional peer communication only**, NOT for dispatch coordination. All dispatch and phase transitions are handled by task dependencies (blockedBy chains), TeammateIdle hook routing, and TaskCompleted hook state advancement. No agent requires SendMessage for core workflow functionality.
+**Golden rule:** Write the output file FIRST, then SendMessage.
+
+Files are the persistent artifacts validated by hooks (TaskCompleted reads JSON files, not messages). SendMessage is a **live coordination overlay** for status broadcasts, handoff signals, and progress updates. All dispatch and phase transitions are handled by task dependencies (blockedBy chains), TeammateIdle hook routing, and TaskCompleted hook state advancement. SendMessage complements but never replaces the file-based backbone.
+
+**Who messages whom:**
+
+| Sender | Recipient | Content |
+|--------|-----------|---------|
+| architect | team | Plan summary with task count |
+| blueprint-reviewer | team | Review verdict and issue count |
+| explore-aggregator | team | Exploration synthesis summary |
+| plan-arbiter | team | Consolidated plan selection summary (sswarm) |
+| review-lead | team | Consolidated review verdict (sswarm) |
+| worker | team | Task completion status and files modified |
+| sentinel-correctness | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| sentinel-security | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| sentinel-perf | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| sentinel-style | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| guardian | team | Test summary (pass/fail counts) |
+| simplifier | team | Cleanup summary (changes applied) |
+| review-arbiter | team | Consolidated quality verdict |
+| review-fixer | team | Fix summary with files repaired |
+| nurse | drone | Documentation update ready signal |
+| drone | team | Ship confirmation with commit SHA and PR URL |
+
+**Agents without SendMessage (8):** bug-scout, cartographer, fix-worker, forager, queen, sentinel (deprecated), solution-aggregator, solution-proposer. These are either stateless pipeline agents (debug/improve) or agents that communicate exclusively through file output.
 
 ### teamCreated State Field
 

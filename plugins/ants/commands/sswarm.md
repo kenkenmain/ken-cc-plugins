@@ -43,7 +43,7 @@ All clean --> A5 ships the work
 Dispatch: Agent Teams delegate mode (TaskCreate with blockedBy chains)
 Competing agents: 3 architects (A1) and 3 reviewers (A2) run in parallel
 Consolidators: plan-arbiter and review-lead run after all competitors finish
-No SendMessage: task dependencies (blockedBy) replace spawn order constraints
+Dispatch coordination: task dependencies (blockedBy). SendMessage: live coordination overlay (dual-channel model)
 ```
 
 ## Step 0: Preflight Checks
@@ -198,7 +198,7 @@ Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline, no age
 Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
 
 Dispatch: Agent Teams delegate mode (TaskCreate with blockedBy chains)
-Competing agents: 3 architects (A1), 3 reviewers (A2) -- task dependencies replace SendMessage
+Competing agents: 3 architects (A1), 3 reviewers (A2) -- task dependencies + SendMessage coordination overlay
 Teammates: 5 (higher concurrency for competing agents)
 Circuit breaker: 5 consecutive failures --> halt
 ```

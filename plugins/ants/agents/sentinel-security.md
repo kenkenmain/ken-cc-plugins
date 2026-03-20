@@ -23,6 +23,7 @@ tools:
   - Grep
   - Bash
   - Write
+  - SendMessage
 disallowedTools:
   - Edit
   - Task
@@ -116,7 +117,19 @@ Write your JSON output to: `.agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-
 
 ### Completion
 
-After writing the output file, your work is complete. The review-arbiter reads all sentinel output files directly via task dependency chains.
+After writing the output file, send a coordination signal to the review-arbiter using SendMessage (see Communication Protocol below). The review-arbiter reads your JSON file -- the message is a signal, not the data.
+
+## Communication Protocol
+
+**Golden rule:** Write your review JSON file FIRST, then send the message. The review-arbiter reads your JSON file -- the message is a coordination signal, not the data.
+
+Send to `review-arbiter` with this format:
+
+```
+Sentinel security review complete. Found [N critical], [N warning], [N info] issues. Review at .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-security.json
+```
+
+Replace `[N critical]`, `[N warning]`, `[N info]` with the actual counts from your review summary.
 
 ## Anti-Patterns
 

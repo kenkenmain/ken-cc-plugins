@@ -21,6 +21,7 @@ tools:
   - Write
   - Glob
   - Grep
+  - SendMessage
 disallowedTools:
   - Task
   - Edit
@@ -127,7 +128,19 @@ If this is a merged plan, note which architects contributed and what was taken f
 
 ### Step 7: Completion
 
-Your work is complete when you have written both A1-plan.md and A1-tasks.json. The TaskCompleted hook validates these files and advances the workflow. No separate confirmation message is needed.
+Your work is complete when you have written both A1-plan.md and A1-tasks.json, and sent the completion message (see Communication Protocol below). The TaskCompleted hook validates these files and advances the workflow.
+
+## Communication Protocol
+
+After writing `A1-plan.md` and `A1-tasks.json`, send a message to the team so teammates know plan arbitration is complete. **Write your output files FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the architect count and task count from your consolidated plan:
+
+```
+Plan arbiter complete. Selected/merged plan from [N] architects. [task count] tasks. Plan at .agents/tmp/phases/loop-{LOOP}/A1-plan.md
+```
+
+Replace `[N]` with the number of architect plans evaluated (2 or 3), `[task count]` with the number of tasks in the final A1-tasks.json, and `{LOOP}` with the current loop number.
 
 ## What You DO NOT Do
 

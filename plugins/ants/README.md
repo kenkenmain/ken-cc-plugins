@@ -169,6 +169,13 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's A4 verdict, which only blocks on critical and warning issues.
 
+### What's New in v0.7.0
+
+- **Dual-channel communication** -- SendMessage re-added as a live coordination overlay alongside file-based artifacts. Files remain the source of truth (hooks read output files, not messages), while SendMessage provides real-time coordination between teammates during active phases. Golden rule: write files first (source of truth for hooks), then SendMessage for live coordination.
+- **16 agents now include SendMessage** -- Worker, all four specialist sentinels (correctness, security, perf, style), guardian, simplifier, review-arbiter, review-fixer, architect, blueprint-reviewer, plan-arbiter, review-lead, explore-aggregator, nurse, and drone all have SendMessage in their tools lists with Communication Protocol sections in their prompts.
+- **Hook prompt templates updated** -- Phase prompt templates (A0-A5) acknowledge the dual-channel model, instructing agents to write output files first and then use SendMessage for status updates and coordination signals.
+- **Golden rule enforced in agent prompts** -- Every agent with SendMessage includes the protocol: "Write files first (source of truth for hooks), then SendMessage for live coordination. Never rely on SendMessage as a substitute for writing output files."
+
 ### What's New in v0.6.0
 
 - **Agent Teams delegate mode** -- Commands now create Agent Teams with task dependency chains (blockedBy) and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook is the full task router; TaskCompleted hook validates output, advances state, and evaluates A4 verdict inline.
@@ -177,7 +184,8 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 - **Queen repurposed** -- The queen agent is no longer the persistent central dispatcher. It is retained as an A4 verdict evaluator / team lead initializer for edge cases only. SendMessage removed from its tools.
 - **Signal flags** -- Four new boolean flags in state.json (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`) enable hooks to request dynamic task creation from the command's monitoring loop, since hooks (shell scripts) cannot call Claude tools like TaskCreate.
 - **State schema v6** -- `queenDispatched` replaced by `teamCreated`, new fields: `teammateCount`, `taskGraphVersion`. Auto-migration from v5 (and earlier) is handled by state.sh.
-- **SendMessage removed** -- SendMessage eliminated from all 18 agent tools lists. Retained for optional peer communication only, not for dispatch coordination.
+- **SendMessage removed** -- SendMessage eliminated from all 18 agent tools lists for dispatch coordination. Retained as optional peer communication channel only.
+  - *Note: v0.7.0 re-added SendMessage to 16 agents as a dual-channel communication overlay (files + SendMessage). See v0.7.0 changelog above.*
 - **pswarm fresh task graphs** -- pswarm run boundaries now create entirely fresh A0-A5 task graphs via the command's monitoring loop, triggered by the `needsPswarmReset` signal flag.
 - **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` required** -- Commands check this env var at startup (Step 0) and abort with a clear error if not set.
 - **Display modes** -- Agent Teams supports both in-process and split-pane display for teammate output.

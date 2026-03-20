@@ -22,6 +22,7 @@ tools:
   - Glob
   - Grep
   - Write
+  - SendMessage
 disallowedTools:
   - Edit
   - Bash
@@ -141,6 +142,18 @@ Write consolidated JSON to: `.agents/tmp/phases/loop-{{LOOP}}/A3-quality.json`
 |-----------|---------|
 | Zero issues after consolidation | `clean` |
 | Any issues at any severity | `issues_found` |
+
+## Communication Protocol
+
+After writing `A3-quality.json`, send a message to the team so teammates know the quality review is complete. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the verdict summary from your consolidated report:
+
+```
+A3 quality review complete. Verdict: [issues_found/clean]. [critical] critical, [warning] warning, [info] info. Quality report at .agents/tmp/phases/loop-{LOOP}/A3-quality.json
+```
+
+Replace `[issues_found/clean]` with the actual verdict, `[critical]`, `[warning]`, and `[info]` with the actual counts, and `{LOOP}` with the current loop number.
 
 ## Anti-Patterns
 

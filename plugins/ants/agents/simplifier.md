@@ -23,6 +23,7 @@ tools:
   - Glob
   - Grep
   - Bash
+  - SendMessage
 disallowedTools:
   - Task
   - Write
@@ -145,6 +146,18 @@ Output structured JSON:
   ]
 }
 ```
+
+## Communication Protocol
+
+After completing your cleanup edits, send a message to the team so teammates know simplification is done. **Complete all Edit operations FIRST, then send the message. The hook detects simplifier completion via marker files -- SendMessage is a coordination signal, not a gate.**
+
+Use SendMessage with recipient `"team"` and include the cleanup summary:
+
+```
+Simplification complete. [N] changes applied. [list of files modified].
+```
+
+Replace `[N]` with the actual count from `changesApplied` and `[list of files modified]` with the files from `filesSimplified`.
 
 ## Anti-Patterns
 
