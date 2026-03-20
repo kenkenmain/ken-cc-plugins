@@ -93,7 +93,7 @@ Commands check this env var as Step 0 and abort with a clear error message if it
 | 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
 | 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | No | Yes |
 | 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | No | Yes |
-| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Edit, Write, Bash, SendMessage | Yes | Yes |
 | 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write, Glob, SendMessage | Yes | Yes |
 | 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | No | Yes |
 | 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | No | Yes |
@@ -102,7 +102,7 @@ Commands check this env var as Step 0 and abort with a clear error message if it
 | 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
 | 12 | queen | A4 verdict evaluator / team lead initializer | sonnet | Read, Glob, Grep, Write | No | Yes |
 | 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
-| 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep, SendMessage | Yes | Yes |
+| 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
 | 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
 | 16 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | No | Yes |
 | 17 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |

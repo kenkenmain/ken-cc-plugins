@@ -149,7 +149,7 @@ Output structured JSON:
 
 ## Communication Protocol
 
-After completing your cleanup, send a message to the team so teammates know simplification is done. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+After completing your cleanup edits, send a message to the team so teammates know simplification is done. **Complete all Edit operations FIRST, then send the message. The hook detects simplifier completion via marker files -- SendMessage is a coordination signal, not a gate.**
 
 Use SendMessage with recipient `"team"` and include the cleanup summary:
 

@@ -458,9 +458,10 @@ Write your results to the output file path above. Other agents read your
 output files directly via task dependency chains (blockedBy). Files are the
 source of truth -- hooks validate file existence.
 
-After writing your output file, use SendMessage to notify the team with a
-brief summary. SendMessage provides live coordination so teammates stay
-informed without polling files.
+After writing your output file, use SendMessage to notify the team or the
+relevant agent (see your Communication Protocol) with a brief summary.
+SendMessage provides live coordination so teammates stay informed without
+polling files.
 __ANTS_PROMPT_EOF__
 }
 

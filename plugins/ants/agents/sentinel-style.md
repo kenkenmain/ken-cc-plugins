@@ -120,8 +120,6 @@ After writing the output file, send a coordination signal to the review-arbiter 
 
 ## Communication Protocol
 
-After writing your review JSON file, use SendMessage to notify the review-arbiter that your review is ready. Write the file FIRST, then send the message. The review-arbiter reads your JSON file directly -- the message is a coordination signal, not the data.
-
 **Golden rule:** Write your review JSON file FIRST, then send the message. The review-arbiter reads your JSON file -- the message is a coordination signal, not the data.
 
 Send to `review-arbiter` with this format:

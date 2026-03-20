@@ -112,7 +112,7 @@ Hooks are shell scripts and CANNOT call Claude tools (TaskCreate, TaskGet, etc.)
 | Queen agent | Persistent central dispatcher, A0->A5 orchestrator | A4 verdict evaluator / team lead initializer (edge case only) |
 | State schema | v5 (queenDispatched) | v6 (teamCreated, teammateCount, taskGraphVersion, signal flags) |
 | SendMessage | Required for sswarm leads, queen dispatch | Retained for optional peer communication only |
-| Agent tools | SendMessage in 18 agents | SendMessage removed from all agents |
+| Agent tools | SendMessage in 18 agents | SendMessage removed from all agents (re-added in v0.7.0) |
 
 ### v0.7.0 (Dual-Channel Communication)
 

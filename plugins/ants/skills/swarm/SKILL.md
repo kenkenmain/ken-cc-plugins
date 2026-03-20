@@ -59,44 +59,31 @@ Sixteen agents use SendMessage as a live coordination overlay alongside their fi
 
 | Phase | Sender | Recipient(s) | Message Content |
 |-------|--------|-------------- |-----------------|
-| A0 | explore-aggregator | command (lead) | Synthesis complete, summary of key findings |
-| A1 | architect | command (lead) | Plan ready, task count, complexity estimate |
-| A2 | blueprint-reviewer | command (lead) | Review verdict (approved/needs_revision), issue summary |
-| A3 | worker (each) | review-arbiter | Task completion notice, files changed, self-verification status |
+| A0 | explore-aggregator | team | Synthesis complete, summary of key findings |
+| A1 | architect | team | Plan ready, task count, complexity estimate |
+| A2 | blueprint-reviewer | team | Review verdict (approved/needs_revision), issue summary |
+| A3 | worker (each) | team | Task completion notice, files changed, self-verification status |
 | A3 | sentinel-correctness | review-arbiter | Review complete, critical/warning/info issue counts |
 | A3 | sentinel-security | review-arbiter | Review complete, critical/warning/info issue counts |
 | A3 | sentinel-perf | review-arbiter | Review complete, critical/warning/info issue counts |
 | A3 | sentinel-style | review-arbiter | Review complete, critical/warning/info issue counts |
-| A3 | guardian | review-arbiter | Tests written, pass/fail counts |
-| A3 | simplifier | review-arbiter | Cleanup complete, changes applied summary |
-| A3 | review-arbiter | command (lead) | Consolidated quality verdict, critical issue count |
-| A3 | review-fixer | review-arbiter | Fixes applied, files modified |
+| A3 | guardian | team | Tests written, pass/fail counts |
+| A3 | simplifier | team | Cleanup complete, changes applied summary |
+| A3 | review-arbiter | team | Consolidated quality verdict, critical issue count |
+| A3 | review-fixer | team | Fixes applied, files modified |
 | A5 | nurse | drone | Documentation updated, files modified list |
-| A5 | drone | command (lead) | Commit SHA, PR URL, ship status |
-| A1 (sswarm) | plan-arbiter | command (lead) | Selected plan, merge strategy used |
-| A2 (sswarm) | review-lead | command (lead) | Consolidated review verdict |
+| A5 | drone | team | Commit SHA, PR URL, ship status |
+| A1 (sswarm) | plan-arbiter | team | Selected plan, merge strategy used |
+| A2 (sswarm) | review-lead | team | Consolidated review verdict |
 
 ### Message Format Contract
 
-Agents should follow this structure when sending coordination messages via SendMessage:
+Agents send plain-text summary messages via SendMessage. Messages are brief, human-readable coordination signals -- not structured JSON payloads. Each agent's Communication Protocol section defines its specific message format. Examples:
 
-```
-SendMessage(
-  recipient: "<agent-role or 'lead'>",
-  content: {
-    "phase": "A0|A1|A2|A3|A5",
-    "agent": "<sender agent type>",
-    "status": "complete|in_progress|blocked|error",
-    "summary": "<1-2 sentence human-readable summary>",
-    "data": { <optional structured payload> }
-  }
-)
-```
-
-The `data` field is optional and varies by agent. Examples:
-- Workers: `{"taskId": "T3", "filesChanged": ["src/auth.ts"], "testsPass": true}`
-- Sentinels: `{"critical": 0, "warning": 2, "info": 5}`
-- Drone: `{"commitSha": "abc123", "prUrl": "https://..."}`
+- Worker: `"Task T3 complete. Files modified: src/auth.ts. Self-verification: tests pass."`
+- Sentinel: `"Sentinel correctness review complete. Found 0 critical, 2 warning, 5 info issues. Review at .agents/tmp/phases/loop-1/A3-review.sentinel-correctness.json"`
+- Drone: `"Shipped. Commit: abc123. PR: https://... Files: 3 committed."`
+- Architect: `"A1 plan complete. 5 tasks planned. Plan at .agents/tmp/phases/loop-1/A1-plan.md"`
 
 ### Agents WITHOUT SendMessage
 
@@ -315,18 +302,18 @@ Drone output: `.agents/tmp/phases/loop-{LOOP}/A5-ship.json`
 | Phase | Stage | Agent(s) | SendMessage | Description |
 |-------|-------|----------|-------------|-------------|
 | A0 | EXPLORE | forager x2-3, cartographer x1 | No | Breadth-first + depth-first exploration (file output only) |
-| A0 | EXPLORE | explore-aggregator x1 | Yes -> lead | Synthesizes findings, notifies lead (assigned by TeammateIdle hook) |
-| A1 | PLAN | architect x1 | Yes -> lead | Structured plan with task assignments (assigned by TeammateIdle hook) |
-| A2 | PLAN | blueprint-reviewer x1 | Yes -> lead | Plan validation (assigned by TeammateIdle hook) |
-| A3 | BUILD | worker xN (task pool) | Yes -> arbiter | Self-organizing task pool, workers notify arbiter on completion |
-| A3 | BUILD | sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style | Yes -> arbiter | Adversarial review, sentinels notify arbiter with issue counts |
-| A3 | BUILD | guardian x1 | Yes -> arbiter | Test writer, notifies arbiter with test results |
-| A3 | BUILD | simplifier x1 | Yes -> arbiter | Code cleanup, notifies arbiter with changes summary |
-| A3 | BUILD | review-arbiter x1 | Yes -> lead | Consolidates findings, notifies lead with verdict |
-| A3 | BUILD | review-fixer x0-1 | Yes -> arbiter | Targeted repairs, notifies arbiter after fixes |
+| A0 | EXPLORE | explore-aggregator x1 | Yes -> team | Synthesizes findings, notifies team (assigned by TeammateIdle hook) |
+| A1 | PLAN | architect x1 | Yes -> team | Structured plan with task assignments (assigned by TeammateIdle hook) |
+| A2 | PLAN | blueprint-reviewer x1 | Yes -> team | Plan validation (assigned by TeammateIdle hook) |
+| A3 | BUILD | worker xN (task pool) | Yes -> team | Self-organizing task pool, workers notify team on completion |
+| A3 | BUILD | sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style | Yes -> review-arbiter | Adversarial review, sentinels notify review-arbiter with issue counts |
+| A3 | BUILD | guardian x1 | Yes -> team | Test writer, notifies team with test results |
+| A3 | BUILD | simplifier x1 | Yes -> team | Code cleanup, notifies team with changes summary |
+| A3 | BUILD | review-arbiter x1 | Yes -> team | Consolidates findings, notifies team with verdict |
+| A3 | BUILD | review-fixer x0-1 | Yes -> team | Targeted repairs, notifies team after fixes |
 | A4 | SYNC | TaskCompleted hook (inline) | -- | Evaluated inline by handle_a3_arbiter(); no separate agent dispatch |
 | A5 | SHIP | nurse x1 | Yes -> drone | Documentation update, notifies drone with file list |
-| A5 | SHIP | drone x1 | Yes -> lead | Commit/PR, notifies lead with SHA and PR URL |
+| A5 | SHIP | drone x1 | Yes -> team | Commit/PR, notifies team with SHA and PR URL |
 
 ## Circuit Breaker
 
