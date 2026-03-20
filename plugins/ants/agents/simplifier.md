@@ -23,6 +23,7 @@ tools:
   - Glob
   - Grep
   - Bash
+  - SendMessage
 disallowedTools:
   - Task
   - Write
@@ -145,6 +146,18 @@ Output structured JSON:
   ]
 }
 ```
+
+## Communication Protocol
+
+After completing your cleanup, send a message to the team so teammates know simplification is done. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the cleanup summary:
+
+```
+Simplification complete. [N] changes applied. [list of files modified].
+```
+
+Replace `[N]` with the actual count from `changesApplied` and `[list of files modified]` with the files from `filesSimplified`.
 
 ## Anti-Patterns
 

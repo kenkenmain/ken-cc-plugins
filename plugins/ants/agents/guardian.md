@@ -25,6 +25,7 @@ tools:
   - Glob
   - Grep
   - WebSearch
+  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -186,6 +187,18 @@ After finishing test writing, output structured JSON. The TaskCompleted hook val
 | `complete`     | All tests written and passing                         |
 | `partial`      | Some tests written, some files skipped with reason    |
 | `blocked`      | Cannot write tests — framework missing, build broken  |
+
+## Communication Protocol
+
+After writing your output JSON, send a message to the team so teammates know tests are complete. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the test summary:
+
+```
+Tests written. [N] test cases added. [pass/fail status].
+```
+
+Replace `[N]` with the actual total from `testResults.totalTests` and `[pass/fail status]` with the pass/fail counts (e.g., "5 passed, 0 failed" or "4 passed, 1 failed").
 
 ## Anti-Patterns
 

@@ -1,11 +1,11 @@
 ---
 name: sswarm
-description: Social swarm -- Agent Teams delegate mode 6-phase pipeline with competing agents coordinated via task dependency chains and per-phase lead consolidators
+description: Social swarm -- Agent Teams delegate mode 6-phase pipeline with competing agents coordinated via task dependency chains (dispatch ordering) and SendMessage (live coordination overlay), with per-phase lead consolidators
 ---
 
 # Social Swarm Pipeline
 
-Agent Teams delegate mode 6-phase development pipeline with **competing parallel agents** and **per-phase lead consolidators**. The command creates a team with dependency-chain task graphs, spawns 5 teammates, then enters a monitoring loop. Phases A1 and A2 feature multiple competing agents whose outputs are consolidated by dedicated lead agents (plan-arbiter, review-lead) via **blockedBy task dependency chains** -- not SendMessage. Competing agents write to independent temp files; consolidator tasks are blockedBy all competitors and read their output files directly.
+Agent Teams delegate mode 6-phase development pipeline with **competing parallel agents** and **per-phase lead consolidators**. The command creates a team with dependency-chain task graphs, spawns 5 teammates, then enters a monitoring loop. Phases A1 and A2 feature multiple competing agents whose outputs are consolidated by dedicated lead agents (plan-arbiter, review-lead) via **blockedBy task dependency chains** for dispatch ordering, with **SendMessage as a live coordination overlay** for status broadcasts and handoff signals. Competing agents write to independent temp files (source of truth for hooks); consolidator tasks are blockedBy all competitors and read their output files directly.
 
 ## Key Architecture
 
@@ -27,7 +27,7 @@ Agent Teams delegate mode 6-phase development pipeline with **competing parallel
 | A1 planning | 1 architect | 3 competing architects + plan-arbiter (lead) via blockedBy dependency chain |
 | A2 review | 1 blueprint-reviewer | 3 competing reviewers + review-lead (lead) via blockedBy dependency chain |
 | Lead agents | None | plan-arbiter (A1), review-lead (A2) -- read competitor output files directly |
-| Competitor coordination | N/A | blockedBy task dependencies (no SendMessage) |
+| Competitor coordination | N/A | blockedBy task dependencies + SendMessage live overlay |
 | Teammate count | 3 | 5 (more parallelism for competing agents) |
 | Agent count per run | ~15 agents | ~21 agents (6 more for competing + leads) |
 | A0, A3, A4, A5 | Identical | Identical |
@@ -100,11 +100,12 @@ Command spawns 5 teammates, enters monitoring loop
 
 ### sswarm Task Graph Structure
 
-The sswarm task graph uses **blockedBy dependency chains** instead of SendMessage spawn ordering:
+The sswarm task graph uses **blockedBy dependency chains** for dispatch ordering, with **SendMessage as a live coordination overlay** for status broadcasts and handoff signals (dual-channel model):
 
 - **Competing agents** (architects at A1, reviewers at A2): 3 independent tasks with no dependencies on each other -- they run in parallel when their phase prerequisites complete
 - **Consolidator tasks** (plan-arbiter, review-lead): blockedBy all 3 competitors -- they run only after all competing outputs exist
-- **File-based input**: Consolidator agents read competitor output files at known paths (specified in dispatch prompt), not via SendMessage
+- **File-based input (primary)**: Consolidator agents read competitor output files at known paths (specified in dispatch prompt). Files are the source of truth validated by hooks.
+- **SendMessage (overlay)**: Agents send coordination messages (status updates, completion signals) alongside their file output. SendMessage accelerates coordination but is never required for phase gates.
 - **No spawn order constraint**: All tasks are created upfront with dependency declarations; the Agent Teams runtime schedules them automatically
 
 ## Phase Details
@@ -155,9 +156,9 @@ Same as swarm -- evaluated inline by `handle_a3_arbiter()` in the TaskCompleted 
 
 Same as swarm -- nurse then drone, created via `needsA5Tasks` signal flag.
 
-## Task Dependency Contract (Replaces SendMessage)
+## Task Dependency Contract
 
-SendMessage is no longer used for dispatch coordination. All agent coordination uses **blockedBy task dependency chains** and **file-based output**:
+All dispatch coordination uses **blockedBy task dependency chains** and **file-based output** (validated by hooks). SendMessage provides a **live coordination overlay** alongside these chains -- agents write files first (source of truth), then send coordination messages for status broadcasts and handoff signals:
 
 | Producer | Consumer | Output File | Dependency Mechanism | Phase |
 |----------|----------|-------------|---------------------|-------|

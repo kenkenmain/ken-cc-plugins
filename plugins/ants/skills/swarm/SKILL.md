@@ -1,11 +1,11 @@
 ---
 name: swarm
-description: Ant-colony themed 6-phase swarm pipeline with Agent Teams delegate mode, Command-as-Active-Lead monitoring loop, self-organizing task pool, and adversarial review teams
+description: Ant-colony themed 6-phase swarm pipeline with Agent Teams delegate mode, dual-channel communication (files + SendMessage), Command-as-Active-Lead monitoring loop, self-organizing task pool, and adversarial review teams
 ---
 
 # Swarm Pipeline
 
-Ant-colony themed 6-phase development pipeline with Agent Teams delegate mode, dual-track parallel execution, adversarial review teams, and self-organizing task dispatch. The **command** (lead) creates a team with dependency-chain task graphs, spawns 3 teammates, then enters a **monitoring loop** that reads signal flags from state.json and performs dynamic TaskCreate calls. The **TeammateIdle hook** is the full task router for all phases. The **TaskCompleted hook** validates output, advances state, and evaluates the A4 verdict inline. Uses **ants plugin agents** (self-contained) driven by **ants plugin hooks**. No Codex MCP dependency.
+Ant-colony themed 6-phase development pipeline with Agent Teams delegate mode, dual-channel communication (file artifacts + SendMessage live coordination), dual-track parallel execution, adversarial review teams, and self-organizing task dispatch. The **command** (lead) creates a team with dependency-chain task graphs, spawns 3 teammates, then enters a **monitoring loop** that reads signal flags from state.json and performs dynamic TaskCreate calls. The **TeammateIdle hook** is the full task router for all phases. The **TaskCompleted hook** validates output, advances state, and evaluates the A4 verdict inline. Uses **ants plugin agents** (self-contained) driven by **ants plugin hooks**. No Codex MCP dependency.
 
 ## Key Architecture
 
@@ -14,12 +14,106 @@ Ant-colony themed 6-phase development pipeline with Agent Teams delegate mode, d
 - Other plugins' hooks silently exit (they check `plugin` field in state.json)
 - All agents are `ants:*` prefixed -- they exist in the ants plugin
 - **Agent Teams delegate mode** with Command-as-Active-Lead monitoring loop
+- **Dual-channel communication**: files for persistent artifacts (hooks validate these), SendMessage for live coordination overlay
 - Command creates initial tasks (A0-A2) via TaskCreate with blockedBy dependency chains
 - TeammateIdle hook routes idle teammates to next ready phase/task
 - TaskCompleted hook validates output, advances state, and sets signal flags
 - Command monitoring loop reads signal flags and creates dynamic tasks (A3 workers, A5, loop-back)
 - A4 verdict is evaluated **inline** by `handle_a3_arbiter()` in the TaskCompleted hook -- no separate agent dispatch
 - State schema v6 with `phases`, `circuitBreaker`, `taskPool`, `teamName`, `teamCreated`, `teammateCount`, `taskGraphVersion`, signal flags (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`), `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`, `worktreePath`, and `webSearch` fields
+
+## Dual-Channel Communication Model
+
+The swarm pipeline uses two complementary communication channels. Both channels serve distinct purposes and work together -- neither replaces the other.
+
+### File Channel (Persistent Artifacts)
+
+Files are the **source of truth** for all phase outputs. Hooks validate that expected files exist and contain valid data before advancing state. Every phase gate checks files, not messages. File artifacts persist across compaction, loop-backs, and pswarm run boundaries.
+
+### SendMessage Channel (Live Coordination Overlay)
+
+SendMessage provides **real-time peer coordination** between teammates within a single Agent Teams session. It enables agents to share status updates, partial results, warnings, and coordination signals without writing intermediate files. SendMessage is ephemeral -- messages exist only within the current session context and are not persisted to disk or validated by hooks.
+
+### Golden Rule
+
+**Write the file FIRST, then SendMessage.** An agent must always write its output artifact to disk before sending any coordination message about it. This ensures that:
+1. Hooks can validate the artifact immediately when TaskCompleted fires
+2. If SendMessage delivery is delayed or lost, the file still exists for downstream consumers
+3. The file channel remains the authoritative source of truth
+
+### Channel Comparison
+
+| Aspect | File Channel | SendMessage Channel |
+|--------|-------------|---------------------|
+| **Purpose** | Persistent phase artifacts, hook validation gates | Live coordination, status updates, partial result sharing |
+| **Persistence** | Disk -- survives compaction, loop-backs, restarts | Ephemeral -- session context only |
+| **Validation** | Hooks validate existence, format, content | No hook validation -- advisory only |
+| **Latency** | Write + read from disk | Immediate in-session delivery |
+| **Required for phase gates** | Yes -- hooks check files to advance state | No -- phase transitions never depend on messages |
+| **Used by** | All 24 agents (every agent writes output files) | 16 agents (coordination overlay, see table below) |
+| **Examples** | `A0-explore.md`, `A1-plan.md`, `A3-quality.json` | "Build track complete, starting quality review", "Worker 3 found API conflict in auth module" |
+
+## Who Messages Whom (SendMessage)
+
+Sixteen agents use SendMessage as a live coordination overlay alongside their file output. Messages are informational -- they accelerate coordination but are never required for phase gates.
+
+| Phase | Sender | Recipient(s) | Message Content |
+|-------|--------|-------------- |-----------------|
+| A0 | explore-aggregator | command (lead) | Synthesis complete, summary of key findings |
+| A1 | architect | command (lead) | Plan ready, task count, complexity estimate |
+| A2 | blueprint-reviewer | command (lead) | Review verdict (approved/needs_revision), issue summary |
+| A3 | worker (each) | review-arbiter | Task completion notice, files changed, self-verification status |
+| A3 | sentinel-correctness | review-arbiter | Review complete, critical/warning/info issue counts |
+| A3 | sentinel-security | review-arbiter | Review complete, critical/warning/info issue counts |
+| A3 | sentinel-perf | review-arbiter | Review complete, critical/warning/info issue counts |
+| A3 | sentinel-style | review-arbiter | Review complete, critical/warning/info issue counts |
+| A3 | guardian | review-arbiter | Tests written, pass/fail counts |
+| A3 | simplifier | review-arbiter | Cleanup complete, changes applied summary |
+| A3 | review-arbiter | command (lead) | Consolidated quality verdict, critical issue count |
+| A3 | review-fixer | review-arbiter | Fixes applied, files modified |
+| A5 | nurse | drone | Documentation updated, files modified list |
+| A5 | drone | command (lead) | Commit SHA, PR URL, ship status |
+| A1 (sswarm) | plan-arbiter | command (lead) | Selected plan, merge strategy used |
+| A2 (sswarm) | review-lead | command (lead) | Consolidated review verdict |
+
+### Message Format Contract
+
+Agents should follow this structure when sending coordination messages via SendMessage:
+
+```
+SendMessage(
+  recipient: "<agent-role or 'lead'>",
+  content: {
+    "phase": "A0|A1|A2|A3|A5",
+    "agent": "<sender agent type>",
+    "status": "complete|in_progress|blocked|error",
+    "summary": "<1-2 sentence human-readable summary>",
+    "data": { <optional structured payload> }
+  }
+)
+```
+
+The `data` field is optional and varies by agent. Examples:
+- Workers: `{"taskId": "T3", "filesChanged": ["src/auth.ts"], "testsPass": true}`
+- Sentinels: `{"critical": 0, "warning": 2, "info": 5}`
+- Drone: `{"commitSha": "abc123", "prUrl": "https://..."}`
+
+### Agents WITHOUT SendMessage
+
+Eight agents do not use SendMessage. Their communication is entirely file-based, with task dependency chains (blockedBy) ensuring consumers only run after producers complete:
+
+| Agent | Rationale |
+|-------|-----------|
+| forager | Lightweight haiku scout -- writes temp file only, aggregator reads via blockedBy |
+| cartographer | Writes temp file only, aggregator reads via blockedBy |
+| queen | Legacy/edge-case agent -- not dispatched in standard pipeline flow |
+| sentinel (deprecated) | Replaced by specialist sentinels; retained for v0.1 backward compatibility only |
+| bug-scout | Debug pipeline only (D0) -- stateless, no Agent Teams context |
+| solution-proposer | Debug pipeline only (D1) -- stateless, no Agent Teams context |
+| solution-aggregator | Debug pipeline only (D2) -- stateless, no Agent Teams context |
+| fix-worker | Debug pipeline only (D3) -- stateless, no Agent Teams context |
+
+Note: forager and cartographer are excluded because they are high-volume, low-latency haiku/sonnet scouts whose only job is to write a temp file. The explore-aggregator reads their files via blockedBy dependency -- no live coordination adds value here.
 
 ## 6-Phase Pipeline
 
@@ -36,21 +130,24 @@ Phase A5  | SHIP      | Documentation + Ship   | nurse + drone
 
 ```
 Command creates team + initial tasks (TaskCreate with blockedBy chains):
-  A0-forager-1, A0-forager-2, A0-cartographer → A0-explore-aggregator → A1-architect → A2-blueprint-reviewer
+  A0-forager-1, A0-forager-2, A0-cartographer -> A0-explore-aggregator -> A1-architect -> A2-blueprint-reviewer
 Command spawns 3 teammates, enters monitoring loop
 
          A0 Explore
          foragers + cartographer (parallel, routed by TeammateIdle hook)
          explore-aggregator synthesizes -> A0-explore.md
+         explore-aggregator SendMessage -> lead: "synthesis complete"
          TaskCompleted hook advances state to A1
              |
          A1 Architect
          architect writes plan + task descriptors (assigned by TeammateIdle hook)
+         architect SendMessage -> lead: "plan ready, N tasks"
          TaskCompleted hook advances state to A2, sets needsA3Tasks flag
          Command monitoring loop creates A3 worker/sentinel/arbiter tasks
              |
          A2 Blueprint Review
          blueprint-reviewer validates plan (assigned by TeammateIdle hook)
+         blueprint-reviewer SendMessage -> lead: "approved" or "needs_revision"
          TaskCompleted hook advances state to A3
              |
     +--------+--------+
@@ -64,8 +161,9 @@ Command spawns 3 teammates, enters monitoring loop
     |  pool by         | sentinel-perf         /
     |  TeammateIdle    | sentinel-style       /
     |       |          | guardian (tests)
-    |  build results   | simplifier (cleanup)
-    |                  |       |
+    |  workers SM ->   | simplifier (cleanup)
+    |   arbiter        |       |
+    |  build results   | sentinels+guardian+simplifier SM -> arbiter
     |                  | review-arbiter consolidates
     +--------+--------+
              |
@@ -73,9 +171,13 @@ Command spawns 3 teammates, enters monitoring loop
           /       \
      ship          loop
       |              |
-   A5 Ship      A1 (needsLoopReset flag → command creates fresh A1-A4 tasks)
-   (needsA5Tasks flag → command creates A5 nurse/drone tasks)
+   A5 Ship      A1 (needsLoopReset flag -> command creates fresh A1-A4 tasks)
+   nurse SM -> drone
+   drone SM -> lead: "shipped"
+   (needsA5Tasks flag -> command creates A5 nurse/drone tasks)
 ```
+
+(SM = SendMessage)
 
 ## Phase Details
 
@@ -85,7 +187,7 @@ TeammateIdle hook assigns **forager**, **cartographer**, and **explore-aggregato
 
 - **Foragers** (haiku, x2-3): Breadth-first scouts, each assigned a focused query (file structure, tests, patterns, related code). Write findings to `.agents/tmp/phases/A0-explore.forager.N.tmp`.
 - **Cartographer** (sonnet, x1): Depth-first architecture tracer -- maps execution paths, dependency graphs, layered structure. Writes findings to `.agents/tmp/phases/A0-explore.cartographer.tmp`.
-- **Explore-aggregator** (sonnet, x1): Synthesizes all forager and cartographer findings into a unified report. blockedBy all foragers + cartographer via task dependency chain.
+- **Explore-aggregator** (sonnet, x1): Synthesizes all forager and cartographer findings into a unified report. blockedBy all foragers + cartographer via task dependency chain. After writing the report, sends a SendMessage to the lead with a summary of key findings.
 
 Output: `.agents/tmp/phases/A0-explore.md` (written by explore-aggregator)
 
@@ -95,7 +197,7 @@ This phase is **supplementary, not required**. If agents fail or time out, the w
 
 ### Phase A1: Architect Plan
 
-TeammateIdle hook assigns `ants:architect` (sonnet) with aggregated A0 context. Architect writes a structured implementation plan with task assignments for the task pool.
+TeammateIdle hook assigns `ants:architect` (sonnet) with aggregated A0 context. Architect writes a structured implementation plan with task assignments for the task pool. After writing the plan, sends a SendMessage to the lead with task count and complexity estimate.
 
 On loop 2+, the dispatch prompt includes targeted feedback from the previous A4 verdict, directing the architect to plan fixes rather than re-planning from scratch.
 
@@ -112,7 +214,7 @@ TaskCompleted hook validates output, initializes task pool, sets `needsA3Tasks` 
 
 ### Phase A2: Blueprint Review
 
-TeammateIdle hook assigns `ants:blueprint-reviewer` (sonnet) with paths to A1-plan.md and A1-tasks.json. Blueprint-reviewer validates the plan for completeness, feasibility, dependency correctness, and risk.
+TeammateIdle hook assigns `ants:blueprint-reviewer` (sonnet) with paths to A1-plan.md and A1-tasks.json. Blueprint-reviewer validates the plan for completeness, feasibility, dependency correctness, and risk. After writing the review, sends a SendMessage to the lead with the verdict and issue summary.
 
 Output: `.agents/tmp/phases/loop-{LOOP}/A2-review.json` with `status: "approved" | "needs_revision"`
 
@@ -138,6 +240,7 @@ Each worker:
 - Can only edit files listed in the task's `files_owned` field (enforced by edit gate)
 - Self-verifies (tests, lint, typecheck)
 - Has git blocked by hook (no commits)
+- After completing, sends a SendMessage to the review-arbiter with task completion notice, files changed, and self-verification status
 
 **Fallback:** If no `taskPool` exists in state (v0.1 state files), A3 falls back to legacy wave-based dispatch with the generic sentinel.
 
@@ -152,6 +255,8 @@ After all workers complete (build track complete), TeammateIdle hook assigns **6
 - **guardian** -- writes tests for implemented code
 - **simplifier** -- applies targeted code cleanup without behavioral changes (dead code removal, complexity reduction)
 
+Each quality track agent writes its output file, then sends a SendMessage to the review-arbiter with issue counts and completion status.
+
 Sentinel output files:
 - `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-correctness.json`
 - `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-security.json`
@@ -164,8 +269,9 @@ After all 6 complete, TeammateIdle hook assigns the **review-arbiter**:
 - Deduplicates overlapping issues
 - Resolves conflicts (e.g., security vs performance trade-offs)
 - Produces: `.agents/tmp/phases/loop-{LOOP}/A3-quality.json`
+- Sends a SendMessage to the lead with the consolidated quality verdict and critical issue count
 
-If the arbiter finds critical issues, a **review-fixer** task is created to apply targeted repairs.
+If the arbiter finds critical issues, a **review-fixer** task is created to apply targeted repairs. The review-fixer sends a SendMessage to the arbiter after applying fixes.
 
 #### Task Pool Status Lifecycle
 
@@ -198,22 +304,29 @@ Output: `.agents/tmp/phases/loop-{LOOP}/A4-queen-verdict.json` (written by handl
 
 TeammateIdle hook assigns two agents via task dependency chain:
 
-1. **Nurse** (sonnet): Updates project documentation to reflect implementation changes (README.md, CLAUDE.md, etc.). Created by command when `needsA5Tasks` flag detected.
-2. **Drone** (after nurse completes, blockedBy A5-nurse): Commits changes and opens a PR.
+1. **Nurse** (sonnet): Updates project documentation to reflect implementation changes (README.md, CLAUDE.md, etc.). Created by command when `needsA5Tasks` flag detected. After writing docs, sends a SendMessage to the drone with the list of modified documentation files.
+2. **Drone** (after nurse completes, blockedBy A5-nurse): Commits changes and opens a PR. After shipping, sends a SendMessage to the lead with the commit SHA and PR URL.
 
 Nurse output: `.agents/tmp/phases/loop-{LOOP}/A5-docs.json`
 Drone output: `.agents/tmp/phases/loop-{LOOP}/A5-ship.json`
 
 ## Phase-Agent Mapping
 
-| Phase | Stage | Agent(s) | Description |
-|-------|-------|----------|-------------|
-| A0 | EXPLORE | forager x2-3, cartographer x1, explore-aggregator x1 | Parallel codebase exploration + synthesis (assigned by TeammateIdle hook) |
-| A1 | PLAN | architect x1 | Structured plan with task assignments (assigned by TeammateIdle hook) |
-| A2 | PLAN | blueprint-reviewer x1 | Plan validation (assigned by TeammateIdle hook) |
-| A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style, guardian x1, simplifier x1, review-arbiter x1 | Self-organizing task pool with adversarial review + cleanup (tasks created by command via needsA3Tasks flag) |
-| A4 | SYNC | TaskCompleted hook (inline) | Evaluated inline by handle_a3_arbiter() when arbiter completes; no separate agent dispatch |
-| A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR (tasks created by command via needsA5Tasks flag) |
+| Phase | Stage | Agent(s) | SendMessage | Description |
+|-------|-------|----------|-------------|-------------|
+| A0 | EXPLORE | forager x2-3, cartographer x1 | No | Breadth-first + depth-first exploration (file output only) |
+| A0 | EXPLORE | explore-aggregator x1 | Yes -> lead | Synthesizes findings, notifies lead (assigned by TeammateIdle hook) |
+| A1 | PLAN | architect x1 | Yes -> lead | Structured plan with task assignments (assigned by TeammateIdle hook) |
+| A2 | PLAN | blueprint-reviewer x1 | Yes -> lead | Plan validation (assigned by TeammateIdle hook) |
+| A3 | BUILD | worker xN (task pool) | Yes -> arbiter | Self-organizing task pool, workers notify arbiter on completion |
+| A3 | BUILD | sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style | Yes -> arbiter | Adversarial review, sentinels notify arbiter with issue counts |
+| A3 | BUILD | guardian x1 | Yes -> arbiter | Test writer, notifies arbiter with test results |
+| A3 | BUILD | simplifier x1 | Yes -> arbiter | Code cleanup, notifies arbiter with changes summary |
+| A3 | BUILD | review-arbiter x1 | Yes -> lead | Consolidates findings, notifies lead with verdict |
+| A3 | BUILD | review-fixer x0-1 | Yes -> arbiter | Targeted repairs, notifies arbiter after fixes |
+| A4 | SYNC | TaskCompleted hook (inline) | -- | Evaluated inline by handle_a3_arbiter(); no separate agent dispatch |
+| A5 | SHIP | nurse x1 | Yes -> drone | Documentation update, notifies drone with file list |
+| A5 | SHIP | drone x1 | Yes -> lead | Commit/PR, notifies lead with SHA and PR URL |
 
 ## Circuit Breaker
 
@@ -350,6 +463,8 @@ All outputs live under `.agents/tmp/phases/`:
 | BUILD -> SYNC | `loop-{L}/A3-build.json` + `loop-{L}/A3-quality.json` | After Phase A3 |
 | SYNC -> SHIP | `loop-{L}/A4-queen-verdict.json` with verdict `clean` | After Phase A4 |
 
+Note: Stage gates are validated via the **file channel only**. SendMessage notifications are advisory and do not affect gate progression.
+
 ## Verdict Field Naming
 
 Different phases use different JSON field names for their decision outputs. The hook reads both for compatibility:
@@ -369,6 +484,7 @@ The A2 hook reads `.status` only (the `.verdict` fallback was removed in v0.5.5)
 | Phases | 6 (A0-A5) | 15 (S0-S14) |
 | Theme | Ant colony (forager, architect, worker, sentinel) | Generic minions |
 | Coordination | Agent Teams delegate mode with Command-as-Active-Lead monitoring loop | Sequential phases with hook-driven transitions |
+| Communication | Dual-channel: files (persistent) + SendMessage (live coordination) | File-based only |
 | Key innovation | Task pool + adversarial review teams (4 sentinels + arbiter) | Sequential phases with review-fix cycles |
 | Loop mechanism | Orchestrator verdict (A4) -> A1 re-plan (max 5, circuit breaker) | Review phases with fix attempts + stage restarts |
 | Agents | 24 specialized colony roles | 38 agents |

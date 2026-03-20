@@ -14,8 +14,8 @@
 # dependency-chain task graphs, spawn teammates, then enter a monitoring
 # loop. TeammateIdle hooks route ready tasks to idle teammates.
 # TaskCompleted hooks validate output, advance state, and set signal flags
-# for the command's monitoring loop. SendMessage is eliminated in favor of
-# task dependencies (blockedBy chains) and file-based output.
+# for the command's monitoring loop. SendMessage is a live coordination
+# overlay -- agents write files first, then message teammates.
 #
 # Key functions:
 #   teams_log()                      — Log with [TEAMS] prefix to stderr
@@ -767,9 +767,12 @@ Create the directory first: mkdir -p ${phases_dir}
 ## File-Based Output
 
 Write your results to the output file path above. Other agents read your
-output files directly via task dependency chains (blockedBy). No
-SendMessage coordination is needed -- task dependencies ensure files exist
-before dependent tasks start.
+output files directly via task dependency chains (blockedBy). Files are the
+source of truth -- hooks validate file existence.
+
+After writing your output file, use SendMessage to send a brief summary to
+the team or relevant agent. SendMessage is used for live coordination so
+teammates stay informed without polling files.
 
 PROMPT
 

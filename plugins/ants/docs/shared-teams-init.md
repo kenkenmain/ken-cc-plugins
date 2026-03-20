@@ -1,6 +1,8 @@
-# Shared Naming Contract -- Ants v0.6.0 Agent Teams Migration
+# Shared Naming Contract -- Ants Agent Teams
 
-> **Purpose:** Reference document standardizing naming, schemas, and routing patterns across all v0.6.0 components. NOT a slash command. All commands, hooks, and agents MUST match these exact names. Mismatch causes routing failures.
+> **Purpose:** Reference document standardizing naming, schemas, and routing patterns across all Agent Teams components. NOT a slash command. All commands, hooks, and agents MUST match these exact names. Mismatch causes routing failures.
+>
+> **v0.7.0 update:** SendMessage re-added to 16 agents as a live coordination overlay. The naming contracts, task IDs, routing patterns, and state schema defined in this document remain unchanged -- SendMessage is an additive communication channel that does not affect hook routing or task dependency chains.
 
 ---
 

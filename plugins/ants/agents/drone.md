@@ -24,6 +24,7 @@ tools:
   - Edit
   - Write
   - Bash
+  - SendMessage
 disallowedTools:
   - Task
 hooks:
@@ -192,6 +193,18 @@ fi
   }
 }
 ```
+
+## Communication Protocol
+
+**Golden rule: Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+After committing and opening the PR, and after writing your output JSON to A5-ship.json, use SendMessage to notify the team:
+
+```
+SendMessage to "team": "Shipped. Commit: [SHA]. PR: [URL]. Files: [count] committed."
+```
+
+Replace `[SHA]` with the actual commit SHA, `[URL]` with the PR URL, and `[count]` with the number of files committed. This message is informational only -- the TaskCompleted hook validates your A5-ship.json output file independently.
 
 ## Anti-Patterns
 

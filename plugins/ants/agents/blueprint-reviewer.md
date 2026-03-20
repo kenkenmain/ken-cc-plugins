@@ -3,7 +3,7 @@ name: blueprint-reviewer
 description: "Reviews the architect's implementation plan for completeness, feasibility, dependency correctness, and risk -- used in Phase A2 of the ants workflow"
 model: sonnet
 color: blue
-tools: [Read, Glob, Grep, Write]
+tools: [Read, Glob, Grep, Write, SendMessage]
 disallowedTools: [Edit, Bash, Task]
 ---
 
@@ -103,6 +103,18 @@ Write your output as JSON to `.agents/tmp/phases/loop-{{LOOP}}/A2-review.json`. 
 - **Don't nitpick:** Focus on feasibility, completeness, dependency correctness, and risk -- not wording
 - **Validate dependency logic carefully:** This is the key differentiator from a generic plan review. The task pool depends on correct dependency declarations
 - **Check file conflicts:** Two tasks with overlapping files_owned should have explicit dependencies to avoid concurrent modification
+
+## Communication Protocol
+
+After writing `A2-review.json`, send a message to the team so teammates know the review is complete. **Write your output file FIRST, then send the message. Files are the source of truth -- hooks validate file existence, not messages.**
+
+Use SendMessage with recipient `"team"` and include the verdict and issue count from your review:
+
+```
+A2 review complete. Verdict: [approved/needs_revision]. [N] issues. Review at .agents/tmp/phases/loop-{LOOP}/A2-review.json
+```
+
+Replace `[approved/needs_revision]` with the actual status value from your review JSON. Replace `[N]` with the total number of issues in the `issues` array. Replace `{LOOP}` with the current loop number from your dispatch prompt.
 
 ## Error Handling
 

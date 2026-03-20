@@ -169,6 +169,13 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's A4 verdict, which only blocks on critical and warning issues.
 
+### What's New in v0.7.0
+
+- **Dual-channel communication** -- SendMessage re-added as a live coordination overlay alongside file-based artifacts. Files remain the source of truth (hooks read output files, not messages), while SendMessage provides real-time coordination between teammates during active phases. Golden rule: write files first (source of truth for hooks), then SendMessage for live coordination.
+- **16 agents now include SendMessage** -- Worker, all four specialist sentinels (correctness, security, perf, style), guardian, simplifier, review-arbiter, review-fixer, architect, blueprint-reviewer, plan-arbiter, review-lead, explore-aggregator, nurse, and drone all have SendMessage in their tools lists with Communication Protocol sections in their prompts.
+- **Hook prompt templates updated** -- Phase prompt templates (A0-A5) acknowledge the dual-channel model, instructing agents to write output files first and then use SendMessage for status updates and coordination signals.
+- **Golden rule enforced in agent prompts** -- Every agent with SendMessage includes the protocol: "Write files first (source of truth for hooks), then SendMessage for live coordination. Never rely on SendMessage as a substitute for writing output files."
+
 ### What's New in v0.6.0
 
 - **Agent Teams delegate mode** -- Commands now create Agent Teams with task dependency chains (blockedBy) and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook is the full task router; TaskCompleted hook validates output, advances state, and evaluates A4 verdict inline.
