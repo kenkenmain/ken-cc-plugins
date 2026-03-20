@@ -285,7 +285,6 @@ The `hooks/lib/teams.sh` library provides task graph generation, teammate prompt
 - `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes sentinel-style; arbiter blockedBy includes all 4 sentinels + guardian + simplifier)
 - `teams_create_verdict_tasks()` -- Generates A5 tasks (nurse + drone) after clean A4 verdict
 - `teams_create_pswarm_run_tasks()` -- Wrapper that generates fresh task graph for pswarm run boundary
-- `teams_get_next_ready_task()` -- Reads state.json, returns next dispatchable phase/task
 - `teams_get_a3_task_prompt()` -- Generates task-specific prompt for A3 worker task assignment
 - `teams_build_teammate_prompt()` -- Generates phase-specific execution prompts for teammates
 - `teams_assign_idle_teammate()` -- Builds exit-2 output for TeammateIdle hook
@@ -428,7 +427,6 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 - `teams_add_a3_subtasks()` -- dynamically adds worker/sentinel/arbiter tasks after A1
 - `teams_create_verdict_tasks()` -- generates A5 tasks (nurse + drone) after clean verdict
 - `teams_create_pswarm_run_tasks()` -- wrapper for fresh task graph at pswarm run boundary
-- `teams_get_next_ready_task()` -- finds next dispatchable phase/task from state
 - `teams_get_a3_task_prompt()` -- generates task-specific prompt for A3 worker task assignment
 - `teams_build_teammate_prompt()` -- generates phase-specific execution prompts for teammates
 - `teams_assign_idle_teammate()` / `teams_reject_completion()` -- exit-2 handlers

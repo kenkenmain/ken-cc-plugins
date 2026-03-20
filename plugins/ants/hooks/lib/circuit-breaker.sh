@@ -83,7 +83,8 @@ cb_record_success() {
 # Usage: if cb_is_tripped; then echo "TRIPPED"; fi
 cb_is_tripped() {
   local cb_meta
-  cb_meta=$(jq -r "[(.circuitBreaker.consecutiveFailures // 0), (.circuitBreaker.maxConsecutiveFailures // $CB_MAX_CONSECUTIVE_FAILURES)] | map(tostring) | join(\"\t\")" "$STATE_FILE")
+  cb_meta=$(jq -r --argjson maxFail "$CB_MAX_CONSECUTIVE_FAILURES" \
+    "[(.circuitBreaker.consecutiveFailures // 0), (.circuitBreaker.maxConsecutiveFailures // \$maxFail)] | map(tostring) | join(\"\t\")" "$STATE_FILE")
   local failures max_failures
   IFS=$'\t' read -r failures max_failures <<< "$cb_meta"
   failures=$(require_int "$failures" "circuitBreaker.consecutiveFailures")

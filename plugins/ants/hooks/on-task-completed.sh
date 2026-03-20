@@ -43,7 +43,7 @@ handle_a0() {
     exit 2
   fi
 
-  cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+  cb_record_success || teams_log "WARNING: cb_record_success failed -- consecutive failure counter may be stale"
   webhook_phase_event "A0" "completed" || true
 
   # Advance state: A0 complete -> A1 pending
@@ -87,7 +87,7 @@ handle_a1() {
     exit 2
   fi
 
-  cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+  cb_record_success || teams_log "WARNING: cb_record_success failed -- consecutive failure counter may be stale"
 
   # Initialize task pool and set signal flag if A1-tasks.json exists
   if [[ -f "${phases_dir}/A1-tasks.json" ]]; then
@@ -144,7 +144,7 @@ handle_a2() {
     exit 2
   fi
 
-  cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+  cb_record_success || teams_log "WARNING: cb_record_success failed -- consecutive failure counter may be stale"
 
   # Branch on review verdict
   if [[ "$review_status" == "needs_revision" ]]; then
@@ -292,12 +292,13 @@ handle_a3_worker() {
     fi
   fi
 
-  cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+  cb_record_success || teams_log "WARNING: cb_record_success failed -- consecutive failure counter may be stale"
 
   if [[ "$has_pool" != "yes" ]]; then
     local state_version
     state_version=$(state_get '.version // 1')
     if [[ "$state_version" -ge 6 ]]; then
+      cb_record_failure 2>/dev/null || true
       teams_reject_completion "A3 worker completed but task pool is missing. This indicates pool_init failed during A1. Workflow state is inconsistent — investigate A1 task pool initialization."
       exit 2
     fi
@@ -326,11 +327,13 @@ handle_a3_sentinel() {
   local phases_dir="$1"
   local task_subject="$2"
 
-  # Validate sentinel name against allowlist to prevent arbitrary file writes
+  # Validate sentinel name against allowlist to prevent arbitrary file writes.
+  # Subjects use spaces ("A3 Sentinel Correctness: Review") so match both
+  # space and hyphen between "sentinel" and the specialization, then normalize.
   local sentinel_name
-  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel-(correctness|security|perf|style)' | head -1 | tr '[:upper:]' '[:lower:]' || echo "")
+  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel[- ](correctness|security|perf|style)' | head -1 | tr '[:upper:]' '[:lower:]' | tr ' ' '-' || echo "")
   if [[ -z "$sentinel_name" ]]; then
-    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, or sentinel-style."
+    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, or sentinel-style (hyphenated or space-separated)."
     exit 2
   fi
 
@@ -489,7 +492,7 @@ handle_a3_arbiter() {
     fi
 
     webhook_phase_event "A4" "completed" || true
-    cb_record_success || echo "WARNING: Failed to reset circuit breaker counter" >&2
+    cb_record_success || teams_log "WARNING: cb_record_success failed -- consecutive failure counter may be stale"
     webhook_phase_event "A5" "started" || true
     teams_log "A4 verdict clean, advanced to A5 (needsA5Tasks signal set)"
   else
@@ -611,7 +614,7 @@ handle_a5_nurse() {
   # Nurse writes A5-docs.json (optional output)
   teams_log "A5 nurse completed (A5-docs.json: $(test -f "${phases_dir}/A5-docs.json" && echo found || echo absent))"
 
-  # Mark nurse as done in state (used by teams_get_next_ready_task as backup;
+  # Mark nurse as done in state (nurseDone flag used as dispatch guard;
   # primary sequencing is via A5-drone blockedBy A5-nurse dependency)
   if ! update_state '.phases.A5.nurseDone = true | .updatedAt = $ts'; then
     teams_reject_completion "Failed to set nurseDone in state. Drone dispatch depends on this flag. Retry."
@@ -776,9 +779,39 @@ main() {
   local phases_dir=".agents/tmp/phases/loop-${loop}"
 
   case "$phase" in
-    A0-sub)        teams_log "A0 sub-task completed (${TASK_SUBJECT}), awaiting aggregator"; return 0 ;;
+    A0-sub)
+      # Validate that the sub-task produced an output .tmp file (best-effort check)
+      local a0_output_file=""
+      if [[ "$TASK_SUBJECT" == *"Forager"* ]]; then
+        # Extract forager slot number from subject (e.g., "A0 Forager 1: ...")
+        local a0_slot
+        a0_slot=$(printf '%s' "$TASK_SUBJECT" | grep -oE '[0-9]+' | head -1 || echo "")
+        if [[ -n "$a0_slot" ]]; then
+          a0_output_file=".agents/tmp/phases/A0-explore.forager.${a0_slot}.tmp"
+        fi
+      elif [[ "$TASK_SUBJECT" == *"Cartographer"* ]]; then
+        a0_output_file=".agents/tmp/phases/A0-explore.cartographer.tmp"
+      fi
+      if [[ -n "$a0_output_file" && ! -f "$a0_output_file" ]]; then
+        teams_log "WARNING: A0 sub-task completed but expected output file not found: ${a0_output_file}"
+      fi
+      teams_log "A0 sub-task completed (${TASK_SUBJECT}), awaiting aggregator"
+      return 0
+      ;;
     A0)            handle_a0 ;;
-    A1-sub)        teams_log "A1 competing sub-task completed (${TASK_SUBJECT}), awaiting arbiter"; return 0 ;;
+    A1-sub)
+      # Validate that the competing architect produced output .tmp files (best-effort check)
+      local a1_slot
+      a1_slot=$(printf '%s' "$TASK_SUBJECT" | grep -oE '[0-9]+' | head -1 || echo "")
+      if [[ -n "$a1_slot" ]]; then
+        local a1_plan_file="${phases_dir}/A1-plan.architect.${a1_slot}.tmp"
+        if [[ ! -f "$a1_plan_file" ]]; then
+          teams_log "WARNING: A1 competing sub-task completed but expected output not found: ${a1_plan_file}"
+        fi
+      fi
+      teams_log "A1 competing sub-task completed (${TASK_SUBJECT}), awaiting arbiter"
+      return 0
+      ;;
     A1)            handle_a1 "$phases_dir" ;;
     A2-sub)        teams_log "A2 competing sub-task completed (${TASK_SUBJECT}), awaiting lead"; return 0 ;;
     A2)            handle_a2 "$phases_dir" ;;

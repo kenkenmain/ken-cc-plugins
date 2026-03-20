@@ -35,7 +35,7 @@ check_ants_workflow
 # Consume stdin (Agent Teams passes hook input JSON) -- cap at 1MB.
 # The input is not used; all routing data comes from state.json.
 # Stdin must be consumed to prevent pipe buffer issues.
-cat > /dev/null
+head -c 1048576 > /dev/null
 
 # ---------------------------------------------------------------------------
 # Batch-read all needed state fields in a single jq call
@@ -117,7 +117,10 @@ if [[ -z "$task" ]]; then
   exit 2
 fi
 
-# Sanitize task description before interpolation into prompts
+# Sanitize task description before interpolation into prompts.
+# Note: ${task} in unquoted heredocs is safe because bash variable expansion
+# does NOT re-evaluate the expanded value for command substitution. A task
+# containing '$(cmd)' or backticks expands to the literal string, not executed.
 task="$(printf '%s' "$task" | head -c 2000 | tr -d '\000-\031')"
 
 # Validate loop
@@ -166,12 +169,20 @@ dispatch_phase() {
         exit 0
       fi
 
-      # Build prompt
+      # Build prompt -- validate non-empty before dispatch
       local prompt
       if [[ -n "$task_ctx" ]]; then
-        prompt="$(teams_build_teammate_prompt "$phase" "$task_ctx")"
+        prompt="$(teams_build_teammate_prompt "$phase" "$task_ctx")" || true
       else
-        prompt="$(teams_build_teammate_prompt "$phase")"
+        prompt="$(teams_build_teammate_prompt "$phase")" || true
+      fi
+
+      if [[ -z "$prompt" ]]; then
+        teams_log "ERROR: teams_build_teammate_prompt returned empty for phase $phase"
+        cb_record_failure 2>/dev/null || true
+        # Roll back phase to pending so another idle event can retry
+        update_state --arg p "$phase" '.phases[$p].status = "pending" | .updatedAt = $ts' 2>/dev/null || true
+        exit 0
       fi
 
       teams_log "Dispatching phase $phase to idle teammate"
@@ -204,9 +215,17 @@ dispatch_a3_task() {
     # Try to claim a ready task from the pool
     local task_id
     if task_id=$(pool_claim_task "teammate-$$"); then
-      # Build worker-specific prompt
+      # Build worker-specific prompt -- validate non-empty before dispatch
       local prompt
-      prompt="$(teams_get_a3_task_prompt "$task_id")"
+      prompt="$(teams_get_a3_task_prompt "$task_id")" || true
+
+      if [[ -z "$prompt" ]]; then
+        teams_log "ERROR: teams_get_a3_task_prompt returned empty for task $task_id"
+        pool_fail_task "$task_id" "prompt generation failed" 2>/dev/null || true
+        cb_record_failure 2>/dev/null || true
+        exit 0
+      fi
+
       teams_log "Dispatching A3 worker task ${task_id} to idle teammate"
       teams_assign_idle_teammate "$prompt"
       exit 2
@@ -287,9 +306,16 @@ dispatch_a3_quality() {
     mv "${lock_marker}/marker" "$dispatched_marker"
     rm -rf "$lock_marker" 2>/dev/null || true
 
-    # Build quality agent prompt
+    # Build quality agent prompt -- validate non-empty before dispatch
     local prompt
-    prompt="$(build_a3_quality_prompt "$agent")"
+    prompt="$(build_a3_quality_prompt "$agent")" || true
+
+    if [[ -z "$prompt" ]]; then
+      teams_log "ERROR: build_a3_quality_prompt returned empty for agent $agent"
+      rm -f "$dispatched_marker" 2>/dev/null || true
+      exit 0
+    fi
+
     teams_log "Dispatching A3 quality agent ${agent} to idle teammate"
     teams_assign_idle_teammate "$prompt"
     exit 2
@@ -317,20 +343,53 @@ dispatch_a3_quality() {
     exit 0
   fi
 
-  # Dispatch arbiter
-  if mkdir "${marker_dir}/.arbiter.dispatch-lock" 2>/dev/null; then
-    touch "$arbiter_dispatched"
-    rm -rf "${marker_dir}/.arbiter.dispatch-lock" 2>/dev/null || true
-
-    local prompt
-    prompt="$(build_a3_arbiter_prompt)"
-    teams_log "Dispatching A3 review-arbiter to idle teammate"
-    teams_assign_idle_teammate "$prompt"
-    exit 2
+  # Dispatch arbiter with stale lock recovery (matching quality agent pattern)
+  local arbiter_lock="${marker_dir}/.arbiter.dispatch-lock"
+  if ! mkdir "$arbiter_lock" 2>/dev/null; then
+    # Check for stale lock (>120s old)
+    if [[ -d "$arbiter_lock" ]]; then
+      local lock_mtime
+      if lock_mtime=$(lock_dir_mtime_epoch "$arbiter_lock"); then
+        local lock_age
+        lock_age=$(( $(date +%s) - lock_mtime ))
+        if [[ "$lock_age" -gt 120 ]]; then
+          teams_log "WARNING: Removing stale arbiter dispatch-lock (age: ${lock_age}s)"
+          rm -rf "$arbiter_lock"
+          if ! mkdir "$arbiter_lock" 2>/dev/null; then
+            teams_log "A3 arbiter dispatch race after stale lock removal, allowing idle"
+            exit 0
+          fi
+        else
+          teams_log "A3 arbiter dispatch race, allowing idle"
+          exit 0
+        fi
+      else
+        teams_log "A3 arbiter dispatch race, allowing idle"
+        exit 0
+      fi
+    else
+      teams_log "A3 arbiter dispatch race, allowing idle"
+      exit 0
+    fi
   fi
 
-  teams_log "A3 arbiter dispatch race, allowing idle"
-  exit 0
+  # Create dispatched marker atomically (write inside lock, mv, rm)
+  touch "${arbiter_lock}/marker"
+  mv "${arbiter_lock}/marker" "$arbiter_dispatched"
+  rm -rf "$arbiter_lock" 2>/dev/null || true
+
+  local prompt
+  prompt="$(build_a3_arbiter_prompt)" || true
+
+  if [[ -z "$prompt" ]]; then
+    teams_log "ERROR: build_a3_arbiter_prompt returned empty"
+    rm -f "$arbiter_dispatched" 2>/dev/null || true
+    exit 0
+  fi
+
+  teams_log "Dispatching A3 review-arbiter to idle teammate"
+  teams_assign_idle_teammate "$prompt"
+  exit 2
 }
 
 # ===========================================================================
@@ -362,6 +421,17 @@ build_a3_quality_prompt() {
       agent_desc="Apply targeted code cleanup to worker outputs -- dead code removal, complexity reduction, over-engineering cleanup without behavioral changes." ;;
   esac
 
+  # Determine the specific output filename for this agent
+  local output_file=""
+  case "$agent" in
+    sentinel-correctness) output_file="A3-review.sentinel-correctness.json" ;;
+    sentinel-security)    output_file="A3-review.sentinel-security.json" ;;
+    sentinel-perf)        output_file="A3-review.sentinel-perf.json" ;;
+    sentinel-style)       output_file="A3-review.sentinel-style.json" ;;
+    guardian)             output_file="A3-guardian.json" ;;
+    simplifier)           output_file="" ;; # simplifier uses Edit, no file output needed
+  esac
+
   cat <<__ANTS_PROMPT_EOF__
 ## Ants Colony -- Phase A3 Quality Track -- Loop ${loop}
 
@@ -376,13 +446,15 @@ ${agent_desc}
 Input files:
 - .agents/tmp/phases/loop-${loop}/A1-plan.md (implementation plan)
 - .agents/tmp/phases/loop-${loop}/A1-tasks.json (task descriptors)
+- .agents/tmp/phases/loop-${loop}/A3-build.json (list of files changed by workers)
 
 Output directory: ${phases_dir}
-Create the directory first: mkdir -p ${phases_dir}
+${output_file:+Output: ${phases_dir}/${output_file}
+}Create the directory first: mkdir -p ${phases_dir}
 
 ## File-Based Output
 
-Write your results to the output file path. Other agents read your
+Write your results to the output file path above. Other agents read your
 output files directly via task dependency chains (blockedBy). No
 SendMessage coordination is needed.
 __ANTS_PROMPT_EOF__
@@ -458,12 +530,33 @@ dispatch_sswarm_a1() {
       continue
     fi
 
-    # Atomic claim
+    # Atomic claim with stale lock recovery (>120s)
     local lock_marker="${marker_dir}/.architect.${slot}.dispatch-lock"
     if ! mkdir "$lock_marker" 2>/dev/null; then
-      continue
+      if [[ -d "$lock_marker" ]]; then
+        local lm_mtime
+        if lm_mtime=$(lock_dir_mtime_epoch "$lock_marker"); then
+          local lm_age
+          lm_age=$(( $(date +%s) - lm_mtime ))
+          if [[ "$lm_age" -gt 120 ]]; then
+            teams_log "WARNING: Removing stale architect.${slot} dispatch-lock (age: ${lm_age}s)"
+            rm -rf "$lock_marker"
+            if ! mkdir "$lock_marker" 2>/dev/null; then
+              continue
+            fi
+          else
+            continue
+          fi
+        else
+          continue
+        fi
+      else
+        continue
+      fi
     fi
-    touch "$dispatched_marker"
+    # Create dispatched marker atomically (write inside lock, mv, rm)
+    touch "${lock_marker}/marker"
+    mv "${lock_marker}/marker" "$dispatched_marker"
     rm -rf "$lock_marker" 2>/dev/null || true
 
     local task_ctx
@@ -478,7 +571,12 @@ dispatch_sswarm_a1() {
       }')
 
     local prompt
-    prompt="$(teams_build_teammate_prompt "A1" "$task_ctx")"
+    prompt="$(teams_build_teammate_prompt "A1" "$task_ctx")" || true
+    if [[ -z "$prompt" ]]; then
+      teams_log "ERROR: teams_build_teammate_prompt returned empty for sswarm A1 architect ${slot}"
+      rm -f "$dispatched_marker" 2>/dev/null || true
+      exit 0
+    fi
     teams_log "Dispatching sswarm A1 architect ${slot} to idle teammate"
     teams_assign_idle_teammate "$prompt"
     exit 2
@@ -518,7 +616,12 @@ dispatch_sswarm_a1() {
       '{"inputFiles": ($in1 + "\n" + $in2 + "\n" + $in3)}')
 
     local prompt
-    prompt="$(teams_build_teammate_prompt "A1" "$task_ctx")"
+    prompt="$(teams_build_teammate_prompt "A1" "$task_ctx")" || true
+    if [[ -z "$prompt" ]]; then
+      teams_log "ERROR: teams_build_teammate_prompt returned empty for sswarm A1 plan-arbiter"
+      rm -f "$arbiter_dispatched" 2>/dev/null || true
+      exit 0
+    fi
     teams_log "Dispatching sswarm A1 plan-arbiter to idle teammate"
     teams_assign_idle_teammate "$prompt"
     exit 2
@@ -562,12 +665,33 @@ dispatch_sswarm_a2() {
       continue
     fi
 
-    # Atomic claim
+    # Atomic claim with stale lock recovery (>120s)
     local lock_marker="${marker_dir}/.reviewer.${slot}.dispatch-lock"
     if ! mkdir "$lock_marker" 2>/dev/null; then
-      continue
+      if [[ -d "$lock_marker" ]]; then
+        local lm_mtime
+        if lm_mtime=$(lock_dir_mtime_epoch "$lock_marker"); then
+          local lm_age
+          lm_age=$(( $(date +%s) - lm_mtime ))
+          if [[ "$lm_age" -gt 120 ]]; then
+            teams_log "WARNING: Removing stale reviewer.${slot} dispatch-lock (age: ${lm_age}s)"
+            rm -rf "$lock_marker"
+            if ! mkdir "$lock_marker" 2>/dev/null; then
+              continue
+            fi
+          else
+            continue
+          fi
+        else
+          continue
+        fi
+      else
+        continue
+      fi
     fi
-    touch "$dispatched_marker"
+    # Create dispatched marker atomically (write inside lock, mv, rm)
+    touch "${lock_marker}/marker"
+    mv "${lock_marker}/marker" "$dispatched_marker"
     rm -rf "$lock_marker" 2>/dev/null || true
 
     local task_ctx
@@ -582,7 +706,12 @@ dispatch_sswarm_a2() {
       }')
 
     local prompt
-    prompt="$(teams_build_teammate_prompt "A2" "$task_ctx")"
+    prompt="$(teams_build_teammate_prompt "A2" "$task_ctx")" || true
+    if [[ -z "$prompt" ]]; then
+      teams_log "ERROR: teams_build_teammate_prompt returned empty for sswarm A2 reviewer ${slot}"
+      rm -f "$dispatched_marker" 2>/dev/null || true
+      exit 0
+    fi
     teams_log "Dispatching sswarm A2 reviewer ${slot} to idle teammate"
     teams_assign_idle_teammate "$prompt"
     exit 2
@@ -622,7 +751,12 @@ dispatch_sswarm_a2() {
       '{"inputFiles": ($in1 + "\n" + $in2 + "\n" + $in3)}')
 
     local prompt
-    prompt="$(teams_build_teammate_prompt "A2" "$task_ctx")"
+    prompt="$(teams_build_teammate_prompt "A2" "$task_ctx")" || true
+    if [[ -z "$prompt" ]]; then
+      teams_log "ERROR: teams_build_teammate_prompt returned empty for sswarm A2 review-lead"
+      rm -f "$lead_dispatched" 2>/dev/null || true
+      exit 0
+    fi
     teams_log "Dispatching sswarm A2 review-lead to idle teammate"
     teams_assign_idle_teammate "$prompt"
     exit 2

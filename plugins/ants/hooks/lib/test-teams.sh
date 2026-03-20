@@ -61,32 +61,6 @@ output=$(teams_log "test message" 2>&1)
 assert_eq "log has TEAMS prefix" "[TEAMS] test message" "$output"
 
 # =========================================================================
-echo "=== teams_get_next_ready_task ==="
-
-setup
-result=$(teams_get_next_ready_task)
-# v0.6: returns phaseId\ttaskType (tab-separated)
-result_phase=$(printf '%s' "$result" | cut -f1)
-result_type=$(printf '%s' "$result" | cut -f2)
-assert_eq "returns current phase when pending" "A0" "$result_phase"
-assert_eq "returns task type 'phase' for sequential phases" "phase" "$result_type"
-
-setup
-jq '.status = "complete" | .currentPhase = "DONE"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-assert_eq "returns empty when complete" "" "$result"
-
-setup
-jq '.status = "blocked" | .currentPhase = "A3"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-assert_eq "returns empty when blocked" "" "$result"
-
-setup
-jq '.currentPhase = "STOPPED"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-assert_eq "returns empty when STOPPED" "" "$result"
-
-# =========================================================================
 echo "=== teams_create_phase_tasks ==="
 
 setup
@@ -344,49 +318,6 @@ if echo "$prompt" | grep -q "Create auth"; then
 else
   FAIL=$((FAIL + 1)); echo "  FAIL: task prompt missing description"
 fi
-
-# =========================================================================
-echo "=== teams_get_next_ready_task A3 routing ==="
-
-# A3 with uncompleted pool tasks -> worker
-setup
-jq '.currentPhase = "A3" | .phases.A3 = {"status": "in_progress"} | .taskPool = [
-  {"id": "T1", "status": "ready", "claimed_by": null}
-]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-result_type=$(printf '%s' "$result" | cut -f2)
-assert_eq "A3 with ready pool tasks returns worker" "worker" "$result_type"
-
-# A3 with buildTrackComplete=true, sentinelsDone=false -> sentinel
-setup
-jq '.currentPhase = "A3" | .phases.A3 = {"status": "in_progress", "buildTrackComplete": true} | .taskPool = []' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-result_type=$(printf '%s' "$result" | cut -f2)
-assert_eq "A3 build complete, sentinels not done returns sentinel" "sentinel" "$result_type"
-
-# A3 with all quality done but arbiterDone=false -> arbiter
-setup
-jq '.currentPhase = "A3" | .phases.A3 = {"status": "in_progress", "buildTrackComplete": true, "sentinelsDone": true, "guardianDone": true, "simplifierDone": true} | .taskPool = []' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-result_type=$(printf '%s' "$result" | cut -f2)
-assert_eq "A3 all quality done except arbiter returns arbiter" "arbiter" "$result_type"
-
-# =========================================================================
-echo "=== teams_get_next_ready_task A5 routing ==="
-
-# A5 with nurseDone=false -> nurse
-setup
-jq '.currentPhase = "A5" | .phases.A5 = {"status": "in_progress"}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-result_type=$(printf '%s' "$result" | cut -f2)
-assert_eq "A5 with nurseDone=false returns nurse" "nurse" "$result_type"
-
-# A5 with nurseDone=true -> drone
-setup
-jq '.currentPhase = "A5" | .phases.A5 = {"status": "in_progress", "nurseDone": true}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-result=$(teams_get_next_ready_task)
-result_type=$(printf '%s' "$result" | cut -f2)
-assert_eq "A5 with nurseDone=true returns drone" "drone" "$result_type"
 
 # =========================================================================
 echo "=== bash -n syntax check on modified scripts ==="
