@@ -12,7 +12,8 @@
 #     "dependencies": [],
 #     "files_owned": ["src/foo.ts"],
 #     "status": "ready",       // pending | ready | claimed | complete | failed
-#     "claimed_by": null
+#     "claimed_by": null,
+#     "claimed_at": null       // epoch seconds when claimed (for orphan recovery)
 #   }
 #
 # Status lifecycle: pending -> ready -> claimed -> complete | failed
@@ -32,7 +33,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Lock directory for task claims (mkdir-based atomic lock)
 # ---------------------------------------------------------------------------
-_POOL_LOCK_STALE_SECONDS=30
+_POOL_LOCK_STALE_SECONDS=120
+_POOL_CLAIMED_STALE_SECONDS=300
 
 # Resolve lock dir at call time (not source time) so tests can override STATE_FILE.
 _pool_lock_dir() {
@@ -114,7 +116,8 @@ pool_init() {
     dependencies: (.dependencies // []),
     files_owned: (.files_owned // []),
     status: (if (.dependencies // []) | length == 0 then "ready" else "pending" end),
-    claimed_by: null
+    claimed_by: null,
+    claimed_at: null
   }]' "$tasks_file")
 
   # Validate we got a non-empty array
@@ -145,12 +148,76 @@ pool_init() {
     return 1
   fi
 
+  # --- Cycle detection (Kahn's algorithm) ---
+  local has_cycle
+  has_cycle=$(printf '%s' "$pool_json" | jq '
+    {remaining: ., removed: []} |
+    until(
+      (.remaining | length) == 0 or .cycle == true;
+      .remaining as $rem | .removed as $done |
+      ([$rem[] | select(
+        (.dependencies | all(. as $d | $done | index($d) | . != null))
+      )] | map(.id)) as $ready |
+      if ($ready | length) == 0 then
+        . + {cycle: true}
+      else
+        {
+          removed: ($done + $ready),
+          remaining: [$rem[] | select(.id as $id | $ready | index($id) | not)]
+        }
+      end
+    ) | .cycle // false
+  ')
+
+  if [[ "$has_cycle" == "true" ]]; then
+    echo "ERROR: Circular dependency detected in task graph in $tasks_file" >&2
+    return 1
+  fi
+
   if ! update_state --argjson pool "$pool_json" '.taskPool = $pool'; then
     echo "ERROR: Failed to write taskPool to state" >&2
     return 1
   fi
 
   echo "Initialized task pool with $count tasks" >&2
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# pool_recover_orphans — Detect tasks stuck in "claimed" status beyond the
+# stale threshold and reset them to "ready" with claimed_by cleared.
+# Called by pool_claim_task() before claiming a new task.
+#
+# Usage: pool_recover_orphans
+# Returns: 0 always (recovery is best-effort)
+# ---------------------------------------------------------------------------
+pool_recover_orphans() {
+  local now
+  now=$(date +%s)
+
+  local claimed_count
+  claimed_count=$(jq '[.taskPool[]? | select(.status == "claimed")] | length' "$STATE_FILE" 2>/dev/null || echo "0")
+  if [[ "$claimed_count" == "0" ]]; then
+    return 0
+  fi
+
+  _pool_lock || return 0
+
+  if ! update_state --argjson threshold "$_POOL_CLAIMED_STALE_SECONDS" --argjson now "$now" '
+    .taskPool |= map(
+      if .status == "claimed" and
+         ((.claimed_at // 0) > 0) and
+         (($now - (.claimed_at // 0)) > $threshold)
+      then
+        .status = "ready" | .claimed_by = null | .claimed_at = null |
+        .recovery_count = ((.recovery_count // 0) + 1)
+      else . end
+    )
+  '; then
+    echo "WARNING: Failed to recover orphaned tasks" >&2
+  fi
+
+  _pool_unlock
   return 0
 }
 
@@ -167,6 +234,8 @@ pool_init() {
 pool_claim_task() {
   local claimer="${1:?pool_claim_task requires a claimer identifier}"
 
+  pool_recover_orphans
+
   _pool_lock || return 1
 
   # Find first ready, unclaimed task
@@ -182,22 +251,18 @@ pool_claim_task() {
   fi
 
   # Claim it
-  local claim_ok=true
-  if ! update_state --arg tid "$task_id" --arg cl "$claimer" '
+  if ! update_state --arg tid "$task_id" --arg cl "$claimer" --argjson claimTs "$(date +%s)" '
     .taskPool |= map(
-      if .id == $tid then .status = "claimed" | .claimed_by = $cl
+      if .id == $tid then .status = "claimed" | .claimed_by = $cl | .claimed_at = $claimTs
       else . end
     )
   '; then
-    claim_ok=false
-  fi
-
-  _pool_unlock
-
-  if [[ "$claim_ok" != "true" ]]; then
+    _pool_unlock
     echo "ERROR: Failed to claim task $task_id" >&2
     return 1
   fi
+
+  _pool_unlock
 
   echo "$task_id"
   return 0
@@ -220,23 +285,16 @@ pool_complete_task() {
     if (.taskPool | map(select(.id == $tid)) | length) == 0 then
       error("Task \($tid) not found in pool")
     else
-      # Step 1: Mark task complete
+      # Step 1: Mark task complete (idempotent — no-op if already complete)
       .taskPool |= map(
-        if .id == $tid then
-          if .status == "claimed" then .status = "complete"
-          elif .status == "complete" then .  # idempotent
-          else .status = "complete"
-          end
+        if .id == $tid then .status = "complete"
         else . end
       )
       # Step 2: Recompute ready set in same transaction
       | (.taskPool | map(select(.status == "complete")) | map(.id)) as $done
       | .taskPool |= map(
           if .status == "pending" and
-             (.dependencies | length > 0) and
              (.dependencies | all(. as $d | $done | index($d) | . != null))
-          then .status = "ready"
-          elif .status == "pending" and (.dependencies | length == 0)
           then .status = "ready"
           else . end
         )
@@ -298,10 +356,7 @@ pool_recompute_ready() {
     (.taskPool | map(select(.status == "complete")) | map(.id)) as $done |
     .taskPool |= map(
       if .status == "pending" and
-         (.dependencies | length > 0) and
          (.dependencies | all(. as $d | $done | index($d) | . != null))
-      then .status = "ready"
-      elif .status == "pending" and (.dependencies | length == 0)
       then .status = "ready"
       else . end
     )

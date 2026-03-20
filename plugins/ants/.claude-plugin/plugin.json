@@ -1,6 +1,6 @@
 {
   "name": "ants",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode featuring team creation with shared task lists, TeammateIdle task assignment, TaskCompleted quality gates and state advancement, social swarm (sswarm) with competing parallel agents coordinated via task dependency chains, persistent pswarm mode with signal-flag-driven task graph recreation, dual-track build, adversarial review (4 specialist sentinels: correctness, security, perf, style), inline A4 verdict evaluation, post-build simplifier, A0 explore-aggregator, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
   "author": {
     "name": "Kennard Ng",

@@ -105,8 +105,10 @@ parse_queen_verdict() {
     fi
   fi
 
-  total_issues=$(jq -r '(.total_issues // (if .unresolvedIssues | type == "array" then .unresolvedIssues | length else 0 end) // 0) | floor | tostring' "$verdict_file") || {
-    echo "WARNING: Failed to parse total_issues/unresolvedIssues from $verdict_file, defaulting to 0" >&2
+  # .total_issues is the canonical field — written by the inline A4 evaluator
+  # in on-task-completed.sh handle_a3_arbiter(). No fallback to legacy field names.
+  total_issues=$(jq -r '(.total_issues // 0) | floor | tostring' "$verdict_file") || {
+    echo "WARNING: Failed to parse .total_issues from $verdict_file, defaulting to 0" >&2
     total_issues="0"
   }
 

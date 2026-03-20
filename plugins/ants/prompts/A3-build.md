@@ -203,6 +203,12 @@ Produce unified verdict.
 Write to: .agents/tmp/phases/loop-{{LOOP}}/A3-quality.json
 ```
 
+IMPORTANT: Your A3-quality.json output MUST include a properly structured "issues"
+array with severity fields ("critical", "warning", "info"). The inline A4 verdict
+evaluator counts issues by severity from the issues array to determine ship vs
+loop-back. Including a "total_issues" number field in the summary is recommended
+for human readability. Use the schema documented in the review-arbiter agent definition.
+
 ### 5. Guardian (Test Writing — parallel with sentinels and simplifier)
 
 Guardian writes and runs tests alongside the review. Dispatch after workers complete.

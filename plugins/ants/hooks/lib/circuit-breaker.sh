@@ -111,20 +111,18 @@ cb_get_fix_attempts() {
 cb_increment_fix_attempts() {
   local phase="${1:?cb_increment_fix_attempts requires a phase ID}"
 
-  if ! update_state --arg phase "$phase" \
-    '.circuitBreaker.fixAttempts[$phase] = ((.circuitBreaker.fixAttempts[$phase] // 0) + 1)'; then
-    echo "ERROR: Failed to increment fix attempts in circuit breaker" >&2
-    return 1
-  fi
-
-  local new_count
-  new_count=$(cb_get_fix_attempts "$phase")
-
   local max_attempts
   max_attempts=$(state_get ".circuitBreaker.maxFixAttempts // $CB_MAX_FIX_ATTEMPTS")
   max_attempts=$(require_int "$max_attempts" "circuitBreaker.maxFixAttempts")
 
-  if [[ "$new_count" -gt "$max_attempts" ]]; then
+  # Atomic check-then-increment: if current count >= max, jq error() fires,
+  # update_state returns non-zero, and we return 1 (budget exhausted).
+  if ! update_state --arg phase "$phase" --argjson max "$max_attempts" \
+    'if (.circuitBreaker.fixAttempts[$phase] // 0) >= $max then
+       error("fix attempt budget exhausted for phase " + $phase)
+     else
+       .circuitBreaker.fixAttempts[$phase] = ((.circuitBreaker.fixAttempts[$phase] // 0) + 1)
+     end'; then
     return 1
   fi
   return 0
@@ -146,20 +144,18 @@ cb_get_stage_restarts() {
 # Increment stage restarts. Returns 1 if max exceeded after increment.
 # Usage: if ! cb_increment_stage_restarts; then echo "MAX RESTARTS"; fi
 cb_increment_stage_restarts() {
-  if ! update_state \
-    '.circuitBreaker.stageRestarts = ((.circuitBreaker.stageRestarts // 0) + 1)'; then
-    echo "ERROR: Failed to increment stage restarts in circuit breaker" >&2
-    return 1
-  fi
-
-  local new_count
-  new_count=$(cb_get_stage_restarts)
-
   local max_restarts
   max_restarts=$(state_get ".circuitBreaker.maxStageRestarts // $CB_MAX_STAGE_RESTARTS")
   max_restarts=$(require_int "$max_restarts" "circuitBreaker.maxStageRestarts")
 
-  if [[ "$new_count" -gt "$max_restarts" ]]; then
+  # Atomic check-then-increment: if current count >= max, jq error() fires,
+  # update_state returns non-zero, and we return 1 (max restarts exceeded).
+  if ! update_state --argjson max "$max_restarts" \
+    'if (.circuitBreaker.stageRestarts // 0) >= $max then
+       error("stage restart budget exhausted")
+     else
+       .circuitBreaker.stageRestarts = ((.circuitBreaker.stageRestarts // 0) + 1)
+     end'; then
     return 1
   fi
   return 0

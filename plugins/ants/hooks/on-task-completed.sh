@@ -96,10 +96,12 @@ handle_a1() {
       if pool_init; then
         teams_log "Task pool initialized from A1-tasks.json"
       else
-        teams_log "WARNING: pool_init failed — A3 task pool will not be available"
+        teams_reject_completion "pool_init failed -- A1-tasks.json has invalid task definitions (check for circular dependencies, duplicate IDs, or missing dependency references). Fix the plan and retry."
+        exit 2
       fi
     else
-      teams_log "WARNING: A1-tasks.json exists but is invalid JSON — A3 task pool will not be available"
+      teams_reject_completion "A1-tasks.json exists but is invalid JSON. Architect must produce valid JSON task descriptors."
+      exit 2
     fi
   fi
 
@@ -136,7 +138,7 @@ handle_a2() {
 
   # Validate that the review has a status field
   local review_status
-  review_status=$(jq -r '.status // empty' "${phases_dir}/A2-review.json" 2>/dev/null || echo "")
+  review_status=$(jq -r '(.status // empty) | ascii_downcase' "${phases_dir}/A2-review.json" 2>/dev/null || echo "")
   if [[ -z "$review_status" ]]; then
     teams_reject_completion "A2-review.json missing .status field. Review must produce a verdict."
     exit 2
@@ -148,7 +150,7 @@ handle_a2() {
   if [[ "$review_status" == "needs_revision" ]]; then
     # Count HIGH severity issues
     local high_count
-    high_count=$(jq '[.issues[]? | select(.severity == "HIGH" or .severity == "high" or .severity == "critical")] | length' "${phases_dir}/A2-review.json" 2>/dev/null || echo "0")
+    high_count=$(jq '[.issues[]? | select((.severity | ascii_downcase) == "high" or (.severity | ascii_downcase) == "critical")] | length' "${phases_dir}/A2-review.json" 2>/dev/null || echo "0")
     [[ "${high_count:-0}" =~ ^[0-9]+$ ]] || high_count="0"
 
     if [[ "$high_count" -gt 0 ]]; then
@@ -263,11 +265,10 @@ handle_a3_worker() {
       fi
     fi
 
-    if [[ -n "$task_id" ]]; then
-      if ! [[ "$task_id" =~ ^[A-Za-z0-9_-]+$ ]]; then
-        teams_log "WARNING: Invalid task_id extracted: '${task_id}', skipping pool_complete_task"
-        task_id=""
-      fi
+    # Validate task_id format (defensive against unexpected jq output)
+    if [[ -n "$task_id" ]] && ! [[ "$task_id" =~ ^[A-Za-z0-9_-]+$ ]]; then
+      teams_log "WARNING: Invalid task_id extracted: '${task_id}', skipping pool_complete_task"
+      task_id=""
     fi
 
     if [[ -n "$task_id" ]]; then
@@ -408,8 +409,8 @@ handle_a3_arbiter() {
   # Batch-read critical and warning counts in a single jq pass
   local quality_meta
   if ! quality_meta=$(jq -r '{
-    critical_count: ([.issues[]? | select(.severity == "critical" or .severity == "HIGH" or .severity == "high")] | length),
-    warning_count: ([.issues[]? | select(.severity == "warning" or .severity == "WARNING")] | length),
+    critical_count: ([.issues[]? | select((.severity | ascii_downcase) == "critical" or (.severity | ascii_downcase) == "high")] | length),
+    warning_count: ([.issues[]? | select((.severity | ascii_downcase) == "warning")] | length),
     all_issues: ([.issues[]?] | length)
   } | "\(.critical_count)\t\(.warning_count)\t\(.all_issues)"' "${phases_dir}/A3-quality.json" 2>/dev/null); then
     teams_reject_completion "Failed to parse issue counts from A3-quality.json"
