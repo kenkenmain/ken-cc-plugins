@@ -115,13 +115,15 @@ VERDICT=""
 parse_queen_verdict "$TEST_DIR/verdict-contradiction.json" 2>/dev/null
 assert_eq "contradicted clean forced to issues_found" "issues_found" "$VERDICT"
 
-# unresolvedIssues array instead of total_issues
+# unresolvedIssues array instead of total_issues -- v0.6 dropped unresolvedIssues
+# support (total_issues is the canonical field). With no total_issues present,
+# the fallback is 0, so clean verdict stays clean.
 cat > "$TEST_DIR/verdict-unresolved.json" <<'JSON'
 {"verdict": "clean", "unresolvedIssues": [{"id": 1}, {"id": 2}]}
 JSON
 VERDICT=""
 parse_queen_verdict "$TEST_DIR/verdict-unresolved.json" 2>/dev/null
-assert_eq "unresolvedIssues array forces issues_found" "issues_found" "$VERDICT"
+assert_eq "unresolvedIssues without total_issues stays clean (legacy field dropped)" "clean" "$VERDICT"
 
 # Clean with unresolvedIssues empty array
 cat > "$TEST_DIR/verdict-clean-empty.json" <<'JSON'

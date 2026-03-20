@@ -272,6 +272,8 @@ The circuit breaker prevents infinite failure loops by tracking:
 
 When the circuit breaker trips, the workflow halts with status `blocked` and requires user intervention. Success resets the consecutive failure counter.
 
+Fix attempts and stage restarts use atomic check-then-increment (single jq transaction within update_state file lock) to prevent budget overruns from concurrent hook execution.
+
 Library: `hooks/lib/circuit-breaker.sh`
 
 ## Agent Teams Helpers
@@ -283,7 +285,6 @@ The `hooks/lib/teams.sh` library provides task graph generation, teammate prompt
 - `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes sentinel-style; arbiter blockedBy includes all 4 sentinels + guardian + simplifier)
 - `teams_create_verdict_tasks()` -- Generates A5 tasks (nurse + drone) after clean A4 verdict
 - `teams_create_pswarm_run_tasks()` -- Wrapper that generates fresh task graph for pswarm run boundary
-- `teams_get_next_ready_task()` -- Reads state.json, returns next dispatchable phase/task
 - `teams_get_a3_task_prompt()` -- Generates task-specific prompt for A3 worker task assignment
 - `teams_build_teammate_prompt()` -- Generates phase-specific execution prompts for teammates
 - `teams_assign_idle_teammate()` -- Builds exit-2 output for TeammateIdle hook
@@ -310,8 +311,8 @@ Eight hooks drive the Agent Teams delegate mode workflow. TeammateIdle is the fu
 - Validates output file exists and is valid JSON
 - Phase-specific quality gates with state advancement:
   - A0: A0-explore.md exists → advance currentPhase to A1
-  - A1: A1-plan.md exists → init task pool, advance to A2, set `needsA3Tasks` signal flag
-  - A2: Review verdict — needs_revision with HIGH → loop to A1 (circuit breaker); else → A3. `.status` is the sole canonical verdict field in A2-review.json.
+  - A1: A1-plan.md exists → init task pool (rejects with exit 2 if pool_init fails, e.g., circular dependencies), advance to A2, set `needsA3Tasks` signal flag
+  - A2: Review verdict — needs_revision (case-insensitive) with HIGH → loop to A1 (circuit breaker); else → A3. `.status` is the sole canonical verdict field in A2-review.json.
   - A3 Worker: Updates task pool, checks build track completion
   - A3 Sentinel/Guardian/Simplifier: Marks agent complete, checks all quality agents done
   - A3 Arbiter: Consolidates quality verdict, evaluates **A4 verdict inline** -- reads A3-quality.json, determines clean/issues_found. Clean → sets `needsA5Tasks` flag, advances to A5. Issues found → sets `needsLoopReset` flag, resets to A1.
@@ -413,10 +414,11 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 - `cb_reset_for_run()` -- reset all circuit breaker counters at pswarm run boundary
 
 ### task-pool.sh (A3 task dispatch)
-- `pool_init()` -- initialize pool from architect's A1-tasks.json
+- `pool_init()` -- initialize pool from architect's A1-tasks.json; includes topological sort cycle detection (Kahn's algorithm) — rejects plans with circular task dependencies
 - `pool_claim_task()` -- atomically claim next available task (mkdir lock)
 - `pool_complete_task()` / `pool_fail_task()` -- update task status
 - `pool_recompute_ready()` -- promote pending tasks whose deps are complete
+- `pool_recover_orphans()` -- recovers tasks stuck in "claimed" status >300s back to "ready"
 - `pool_get_file_owner()` -- file ownership enforcement for edit gate
 
 ### teams.sh (Agent Teams dispatch)
@@ -425,7 +427,6 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 - `teams_add_a3_subtasks()` -- dynamically adds worker/sentinel/arbiter tasks after A1
 - `teams_create_verdict_tasks()` -- generates A5 tasks (nurse + drone) after clean verdict
 - `teams_create_pswarm_run_tasks()` -- wrapper for fresh task graph at pswarm run boundary
-- `teams_get_next_ready_task()` -- finds next dispatchable phase/task from state
 - `teams_get_a3_task_prompt()` -- generates task-specific prompt for A3 worker task assignment
 - `teams_build_teammate_prompt()` -- generates phase-specific execution prompts for teammates
 - `teams_assign_idle_teammate()` / `teams_reject_completion()` -- exit-2 handlers
@@ -583,6 +584,8 @@ When `.planApproved` is `false` (default), the TaskCompleted hook holds the work
 ## Teammate Messaging (v0.4)
 
 Cross-phase communication via the `messages` array in state.json. Agents can send messages to other agents using `add_message "from" "to" "content"` and retrieve them with `get_messages_for "recipient"`. Messages are tagged with the current loop number and timestamp. This enables feedback loops without re-planning (e.g., passing targeted notes to the architect for the next loop). Note: this uses the state.json messages array, not SendMessage.
+
+Messages are truncated to 2000 characters (increased from 500) when injected into teammate prompts to preserve context for error stacktraces and code snippets.
 
 ## Communication
 

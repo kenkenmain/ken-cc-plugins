@@ -51,10 +51,10 @@ Dispatch: Agent Teams delegate mode (TaskCreate + TeammateIdle routing)
 ### 0a. Load deferred tools
 
 ```
-ToolSearch("select:TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop")
+ToolSearch("select:TeamCreate,TeamDelete,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop,SendMessage")
 ```
 
-These tools are used to create and manage tasks in the Agent Teams task graph.
+These tools are required for creating and managing the Agent Teams team and task graph. `TeamCreate` creates the team. `TaskCreate` populates the task list. `SendMessage` enables graceful shutdown of teammates.
 
 ### 0b. Verify Agent Teams experimental flag
 
@@ -209,27 +209,68 @@ Circuit breaker: 5 consecutive failures -> halt
 
 ### 3a. Create initial task graph
 
-Generate the initial A0-A5 task graph. Build 6 task entries with dependency chains:
+Generate the initial task graph with multi-agent A0 exploration + A1-A5 dependency chain.
+
+**A0 — parallel exploration (foragers + cartographer + aggregator):**
+
+```
+# Forager 1 — file structure
+TaskCreate(subject: "A0 Forager 1: File Structure", description: "Explore file structure, directories, entry points for: <task>. Write to .agents/tmp/phases/A0-explore.forager.1.tmp")
+→ FORAGER_1_ID
+
+# Forager 2 — code patterns
+TaskCreate(subject: "A0 Forager 2: Code Patterns", description: "Explore coding patterns, conventions, related implementations for: <task>. Write to .agents/tmp/phases/A0-explore.forager.2.tmp")
+→ FORAGER_2_ID
+
+# Cartographer — architecture
+TaskCreate(subject: "A0 Cartographer: Architecture", description: "Trace architecture, dependencies, execution paths for: <task>. Write to .agents/tmp/phases/A0-explore.cartographer.tmp")
+→ CARTOGRAPHER_ID
+
+# Aggregator — synthesize
+TaskCreate(subject: "A0: Colony Exploration", description: "Synthesize exploration from foragers and cartographer into unified report. Read A0-explore.*.tmp files. Write to .agents/tmp/phases/A0-explore.md", blockedBy: [FORAGER_1_ID, FORAGER_2_ID, CARTOGRAPHER_ID])
+→ A0_TASK_ID
+```
+
+**A1-A5 linear chain:**
 
 | Task ID | Subject | blockedBy |
 |---------|---------|-----------|
-| A0 | `A0: Colony Exploration` | [] |
-| A1 | `A1: Architect Plan` | [A0] |
+| A1 | `A1: Architect Plan` | [A0_TASK_ID] |
 | A2 | `A2: Blueprint Review` | [A1] |
 | A3 | `A3: Dual-Track Build` | [A2] |
 | A4 | `A4: Verdict Sync` | [A3] |
 | A5 | `A5: Documentation + Ship` | [A4] |
 
-For each task entry, call **TaskCreate** with:
-- `subject`: The subject from the table above
-- `description`: Phase-specific description including the task description from $ARGUMENTS
-- `blockedBy`: The dependency array from the table above
+For each task entry, call **TaskCreate** with the subject, a description including `<task description>`, and the blockedBy chain. Store returned task IDs.
 
-Store the returned task IDs in your working context for reference.
+### 3b. Create team and spawn teammates
 
-### 3b. Spawn teammates
+**Step 1 — Create the team:**
 
-Spawn **3 teammates** for the team. These teammates will be routed work by the TeammateIdle hook as tasks become ready.
+```
+TeamCreate(
+  team_name: "<teamName from state.json>",
+  description: "Ants pswarm workflow for: <task description>"
+)
+```
+
+**Step 2 — Spawn 3 teammates:**
+
+Spawn 3 teammates using the `Agent` tool. Each MUST have `team_name` set.
+
+```
+Agent(
+  prompt: "You are a teammate in the ants pswarm workflow. Check TaskList for available tasks, claim unassigned tasks via TaskUpdate(owner), and work on them. When done, mark tasks as completed via TaskUpdate(status: completed). Check TaskList again for more work.",
+  team_name: "<teamName from state.json>",
+  name: "teammate-1",
+  run_in_background: true,
+  description: "Ants teammate 1"
+)
+```
+
+Repeat for `teammate-2` and `teammate-3`. All run in background.
+
+**IMPORTANT:** All `Agent` calls must include `team_name` matching the TeamCreate team_name. Without this, teammates won't join the team and TeammateIdle hooks won't fire.
 
 ### 3c. Update state
 

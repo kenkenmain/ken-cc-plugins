@@ -53,7 +53,10 @@ if [[ "$pipeline" == "pswarm" && "$shutdown_flag" != "true" ]]; then
 fi
 
 # Workflow is in_progress — set shutdown flag
-update_state '.shutdown = true | .updatedAt = $ts'
+if ! update_state '.shutdown = true | .updatedAt = $ts'; then
+  echo "ERROR: Failed to persist shutdown flag to state.json" >&2
+  exit 2
+fi
 
 # Signal Claude to stop gracefully
 continue_false_exit "Ants workflow shutdown initiated. Teammates will complete current tasks."

@@ -26,8 +26,8 @@ if ! lint_check_enabled; then
   exit 0
 fi
 
-# Read input
-input=$(cat)
+# Read input (1MB cap for consistency with other hooks)
+input=$(head -c 1048576)
 file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null || echo "")
 if [[ -z "$file_path" ]]; then
   exit 0

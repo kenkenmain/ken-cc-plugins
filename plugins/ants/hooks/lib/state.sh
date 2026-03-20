@@ -422,8 +422,11 @@ add_message() {
   local from="${1:?add_message requires from}"
   local to="${2:?add_message requires to}"
   local content="${3:?add_message requires content}"
-  update_state --arg from "$from" --arg to "$to" --arg content "$content" \
-    '.messages += [{"from": $from, "to": $to, "content": $content, "loop": (.loop // 1), "addedAt": $ts}]'
+  if ! update_state --arg from "$from" --arg to "$to" --arg content "$content" \
+    '.messages += [{"from": $from, "to": $to, "content": $content, "loop": (.loop // 1), "addedAt": $ts}]'; then
+    echo "WARNING: Failed to persist message from $from to $to" >&2
+    return 1
+  fi
 }
 
 # Get messages targeted at a specific recipient from state.json.

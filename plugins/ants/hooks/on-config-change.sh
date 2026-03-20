@@ -16,8 +16,8 @@ source "$SCRIPT_DIR/lib/state.sh"
 
 check_ants_workflow
 
-# Read stdin defensively
-input=$(cat 2>/dev/null || echo "")
+# Read stdin defensively (1MB cap for consistency with other hooks)
+input=$(head -c 1048576 2>/dev/null || echo "")
 if [[ -z "$input" ]] || ! printf '%s' "$input" | jq empty 2>/dev/null; then
   echo "INFO: ConfigChange hook received empty or invalid stdin. Ignoring." >&2
   exit 0

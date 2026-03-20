@@ -61,10 +61,10 @@ fi
 ### 0b. Load deferred tools
 
 ```
-ToolSearch("select:TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop")
+ToolSearch("select:TeamCreate,TeamDelete,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop,SendMessage")
 ```
 
-These tools are used to create the task graph and monitor progress.
+These tools are required for creating and managing the Agent Teams team and task graph. `TeamCreate` creates the team. `TaskCreate` populates the task list. `SendMessage` enables graceful shutdown of teammates.
 
 ## Step 1: Initialize State
 
@@ -255,9 +255,34 @@ Create the loop directory first:
 mkdir -p .agents/tmp/phases/loop-1
 ```
 
-### 3c. Spawn 5 teammates
+### 3c. Create team and spawn 5 teammates
 
-Spawn **5 teammates** for higher concurrency (sswarm needs more parallelism than swarm because A1 has 3 competing architects and A2 has 3 competing reviewers running simultaneously).
+**Step 1 — Create the team:**
+
+```
+TeamCreate(
+  team_name: "<teamName from state.json>",
+  description: "Ants sswarm workflow for: <task description>"
+)
+```
+
+**Step 2 — Spawn 5 teammates:**
+
+Spawn 5 teammates using the `Agent` tool. Each MUST have `team_name` set. sswarm needs 5 for higher concurrency (A1 has 3 competing architects, A2 has 3 competing reviewers).
+
+```
+Agent(
+  prompt: "You are a teammate in the ants sswarm workflow. Check TaskList for available tasks, claim unassigned tasks via TaskUpdate(owner), and work on them. When done, mark tasks as completed via TaskUpdate(status: completed). Check TaskList again for more work.",
+  team_name: "<teamName from state.json>",
+  name: "teammate-1",
+  run_in_background: true,
+  description: "Ants teammate 1"
+)
+```
+
+Repeat for `teammate-2` through `teammate-5`. All run in background.
+
+**IMPORTANT:** All `Agent` calls must include `team_name` matching the TeamCreate team_name. Without this, teammates won't join the team and TeammateIdle hooks won't fire.
 
 ### 3d. Update state
 

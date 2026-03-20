@@ -25,7 +25,6 @@
 #   teams_create_verdict_tasks()     — Creates A5 nurse + drone tasks
 #   teams_create_pswarm_run_tasks()  — Wrapper for pswarm run-boundary task graphs
 #   teams_get_a3_task_prompt()       — Worker-specific prompt from task pool
-#   teams_get_next_ready_task()      — Finds next dispatchable phase + task type
 #   teams_build_teammate_prompt()    — Generates execution prompt for a teammate
 #   teams_assign_idle_teammate()     — Builds exit-2 JSON for TeammateIdle
 #   teams_reject_completion()        — Builds exit-2 JSON for TaskCompleted rejection
@@ -575,140 +574,6 @@ teams_get_a3_task_prompt() {
 }
 
 # ---------------------------------------------------------------------------
-# teams_get_next_ready_task
-# ---------------------------------------------------------------------------
-# Reads state.json to find the next phase that should be dispatched.
-# Returns a tab-separated string: phaseId\ttaskType
-#
-# taskType is one of: phase|worker|sentinel|guardian|simplifier|arbiter|nurse|drone
-#
-# Logic:
-#   - If status is terminal (complete/blocked/stopped) -> return empty
-#   - If currentPhase is terminal (DONE/STOPPED/BLOCKED) -> return empty
-#   - For A3: check task pool for ready/unclaimed tasks
-#   - For other phases: check if phase is ready to execute
-#
-# Usage:
-#   local next
-#   next="$(teams_get_next_ready_task)"
-#   if [[ -n "$next" ]]; then
-#     local phase_id task_type
-#     IFS=$'\t' read -r phase_id task_type <<< "$next"
-#   fi
-# ---------------------------------------------------------------------------
-teams_get_next_ready_task() {
-  local current_phase
-  current_phase="$(state_get '.currentPhase' --required)"
-
-  local status
-  status="$(state_get '.status' --required)"
-
-  # Terminal status -> no work
-  case "$status" in
-    complete|blocked|stopped)
-      echo ""
-      return 0
-      ;;
-  esac
-
-  # Terminal phase -> no work
-  case "$current_phase" in
-    DONE|STOPPED|BLOCKED)
-      echo ""
-      return 0
-      ;;
-  esac
-
-  # For A3: check task pool for granular routing
-  if [[ "$current_phase" == "A3" ]]; then
-    # Check if build track is complete
-    local build_complete
-    build_complete=$(jq -r '.phases.A3.buildTrackComplete // false' "$STATE_FILE" 2>/dev/null || echo "false")
-
-    if [[ "$build_complete" != "true" ]]; then
-      # Check for available worker tasks in the pool
-      local available
-      available=$(jq '[.taskPool // [] | .[] | select(.status == "ready" and .claimed_by == null)] | length' "$STATE_FILE" 2>/dev/null || echo "0")
-      if [[ "$available" -gt 0 ]]; then
-        printf '%s\t%s\n' "A3" "worker"
-        return 0
-      fi
-      # No workers available but build not complete -> waiting
-      echo ""
-      return 0
-    fi
-
-    # Build track complete -> check quality track agents
-    # Check phase status for quality sub-phases
-    local phase_data
-    phase_data=$(jq -r '[
-      (.phases.A3.sentinelsDone // false | tostring),
-      (.phases.A3.guardianDone // false | tostring),
-      (.phases.A3.simplifierDone // false | tostring),
-      (.phases.A3.arbiterDone // false | tostring)
-    ] | join("\t")' "$STATE_FILE" 2>/dev/null || echo "false	false	false	false")
-
-    local sentinels_done guardian_done simplifier_done arbiter_done
-    IFS=$'\t' read -r sentinels_done guardian_done simplifier_done arbiter_done <<< "$phase_data"
-
-    # Dispatch quality agents if not done
-    if [[ "$sentinels_done" != "true" ]]; then
-      printf '%s\t%s\n' "A3" "sentinel"
-      return 0
-    fi
-    if [[ "$guardian_done" != "true" ]]; then
-      printf '%s\t%s\n' "A3" "guardian"
-      return 0
-    fi
-    if [[ "$simplifier_done" != "true" ]]; then
-      printf '%s\t%s\n' "A3" "simplifier"
-      return 0
-    fi
-
-    # All quality agents done -> dispatch arbiter
-    if [[ "$arbiter_done" != "true" ]]; then
-      printf '%s\t%s\n' "A3" "arbiter"
-      return 0
-    fi
-
-    # Everything done
-    echo ""
-    return 0
-  fi
-
-  # For A5: determine nurse vs drone
-  if [[ "$current_phase" == "A5" ]]; then
-    local nurse_done
-    nurse_done=$(jq -r '.phases.A5.nurseDone // false' "$STATE_FILE" 2>/dev/null || echo "false")
-    if [[ "$nurse_done" != "true" ]]; then
-      printf '%s\t%s\n' "A5" "nurse"
-      return 0
-    fi
-    printf '%s\t%s\n' "A5" "drone"
-    return 0
-  fi
-
-  # Sequential phases (A0, A1, A2) -- A4 exits early in route_idle_teammate
-  local phase_status
-  phase_status=$(jq -r --arg p "$current_phase" '.phases[$p].status // "pending"' "$STATE_FILE" 2>/dev/null || echo "pending")
-
-  case "$phase_status" in
-    pending|in_progress)
-      printf '%s\t%s\n' "$current_phase" "phase"
-      return 0
-      ;;
-    complete)
-      # Phase complete but still currentPhase -> stale state, no work
-      echo ""
-      return 0
-      ;;
-  esac
-
-  echo ""
-  return 0
-}
-
-# ---------------------------------------------------------------------------
 # teams_build_teammate_prompt
 # ---------------------------------------------------------------------------
 # Generates a direct execution prompt for a teammate. Produces a prompt for
@@ -746,6 +611,8 @@ teams_build_teammate_prompt() {
   fi
   loop=$(require_int "$loop" "loop")
 
+  # A0 output is top-level (not loop-scoped) so exploration persists across loops.
+  # All other phases write to the loop-scoped directory.
   local phases_dir
   if [[ "$phase" == "A0" ]]; then
     phases_dir=".agents/tmp/phases"
@@ -787,7 +654,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
       local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","drone","explore-aggregator","fix-worker","forager","guardian","nurse","plan-arbiter","queen","review-arbiter","review-fixer","review-lead","sentinel-correctness","sentinel-perf","sentinel-security","sentinel-style","simplifier","solution-aggregator","solution-proposer","worker"]'
-      formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:500])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed -- check .agents/tmp/state.json .messages array directly)"; })"
+      formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:2000])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed -- check .agents/tmp/state.json .messages array directly)"; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases
 ${formatted_messages}"
@@ -871,6 +738,8 @@ Input files: ${comp_input_files}"
     fi
   fi
 
+  # Note: Unquoted heredoc is safe for ${task} because bash variable expansion
+  # does NOT re-evaluate the expanded value for command substitution.
   cat <<PROMPT
 ## Ants Colony -- Phase ${phase} -- Loop ${loop}
 
@@ -890,8 +759,8 @@ ${competitor_context}
 }
 Input files:
 ${input_files}
-
-Output: ${phases_dir}/${output_file}
+$(if [[ -z "$worker_context" ]]; then echo "
+Output: ${phases_dir}/${output_file}"; fi)
 
 Create the directory first: mkdir -p ${phases_dir}
 
@@ -956,8 +825,7 @@ Build the implementation, write tests, then write output JSON:
   "all_complete": true
 }
 
-After implementation, review the code for correctness, security, and performance.
-Write quality review to: ${phases_dir}/A3-quality.json
+After implementation, self-review the code for correctness, security, and performance.
 RULES
       ;;
     A4)
