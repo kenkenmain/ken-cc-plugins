@@ -51,10 +51,10 @@ Dispatch: Agent Teams delegate mode (TaskCreate + TeammateIdle routing)
 ### 0a. Load deferred tools
 
 ```
-ToolSearch("select:TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop")
+ToolSearch("select:TeamCreate,TeamDelete,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop,SendMessage")
 ```
 
-These tools are used to create and manage tasks in the Agent Teams task graph.
+These tools are required for creating and managing the Agent Teams team and task graph. `TeamCreate` creates the team. `TaskCreate` populates the task list. `SendMessage` enables graceful shutdown of teammates.
 
 ### 0b. Verify Agent Teams experimental flag
 
@@ -227,9 +227,34 @@ For each task entry, call **TaskCreate** with:
 
 Store the returned task IDs in your working context for reference.
 
-### 3b. Spawn teammates
+### 3b. Create team and spawn teammates
 
-Spawn **3 teammates** for the team. These teammates will be routed work by the TeammateIdle hook as tasks become ready.
+**Step 1 — Create the team:**
+
+```
+TeamCreate(
+  team_name: "<teamName from state.json>",
+  description: "Ants pswarm workflow for: <task description>"
+)
+```
+
+**Step 2 — Spawn 3 teammates:**
+
+Spawn 3 teammates using the `Agent` tool. Each MUST have `team_name` set.
+
+```
+Agent(
+  prompt: "You are a teammate in the ants pswarm workflow. Check TaskList for available tasks, claim unassigned tasks via TaskUpdate(owner), and work on them. When done, mark tasks as completed via TaskUpdate(status: completed). Check TaskList again for more work.",
+  team_name: "<teamName from state.json>",
+  name: "teammate-1",
+  run_in_background: true,
+  description: "Ants teammate 1"
+)
+```
+
+Repeat for `teammate-2` and `teammate-3`. All run in background.
+
+**IMPORTANT:** All `Agent` calls must include `team_name` matching the TeamCreate team_name. Without this, teammates won't join the team and TeammateIdle hooks won't fire.
 
 ### 3c. Update state
 

@@ -41,7 +41,6 @@ cat > /dev/null
 # Batch-read all needed state fields in a single jq call
 # v5/v6 compat: teamCreated falls back to queenDispatched for v5 state files
 # ---------------------------------------------------------------------------
-local jq_err_output
 if ! local_fields=$(jq -r '[
   (.shutdown // false | tostring),
   (.status // "unknown"),
