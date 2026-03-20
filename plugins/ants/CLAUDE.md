@@ -94,16 +94,16 @@ Commands check this env var as Step 0 and abort with a clear error message if it
 | 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | Yes |
 | 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | Yes |
 | 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Bash, Write | Yes |
-| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write | Yes |
+| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write | Yes (permissionMode: plan) |
 | 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | Yes |
 | 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | Yes |
 | 9 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch | Yes |
 | 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep | Yes |
-| 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep | Yes |
+| 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep | Yes (permissionMode: plan) |
 | 12 | queen | A4 verdict evaluator / team lead initializer | sonnet | Read, Glob, Grep, Write | Yes |
-| 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write | Yes |
+| 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write | Yes (permissionMode: plan) |
 | 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Edit, Write, Glob, Grep | Yes |
-| 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep | Yes |
+| 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep | Yes (permissionMode: plan) |
 | 16 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | Yes |
 | 17 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write | Yes |
 | 18 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write | Yes |
@@ -312,13 +312,14 @@ Eight hooks drive the Agent Teams delegate mode workflow. TeammateIdle is the fu
 - Phase-specific quality gates with state advancement:
   - A0: A0-explore.md exists → advance currentPhase to A1
   - A1: A1-plan.md exists → init task pool (rejects with exit 2 if pool_init fails, e.g., circular dependencies), advance to A2, set `needsA3Tasks` signal flag
-  - A2: Review verdict — needs_revision (case-insensitive) with HIGH → loop to A1 (circuit breaker); else → A3. `.status` is the sole canonical verdict field in A2-review.json.
+  - A2: Review verdict — `.status` is the sole canonical verdict field in A2-review.json. Value is normalized (hyphen→underscore, lowercased) before comparison; `needs_revision` with HIGH → loop to A1 (circuit breaker); only the explicit allowlist `{"needs_revision","approved","approved_with_notes"}` triggers advancement; anything else is rejected.
   - A3 Worker: Updates task pool, checks build track completion
   - A3 Sentinel/Guardian/Simplifier: Marks agent complete, checks all quality agents done
-  - A3 Arbiter: Consolidates quality verdict, evaluates **A4 verdict inline** -- reads A3-quality.json, determines clean/issues_found. Clean → sets `needsA5Tasks` flag, advances to A5. Issues found → sets `needsLoopReset` flag, resets to A1.
+  - A3 Arbiter: Idempotency guard checks both `arbiterDone` flag AND verdict file existence before processing (prevents duplicate state writes on replay). Consolidates quality verdict, evaluates **A4 verdict inline** -- reads A3-quality.json, determines clean/issues_found. Clean → sets `needsA5Tasks` flag, advances to A5. Issues found → sets `needsLoopReset` flag, resets to A1.
   - A4: Legacy compatibility shim (verdict now evaluated inline by A3 arbiter handler)
   - A5: A5-ship.json with commit_sha → workflow DONE (swarm/sswarm) or sets `needsPswarmReset` flag (pswarm)
-- Updates circuit breaker on success/failure
+- Updates circuit breaker on success/failure (nurse handler has idempotency guard: skips processing if `nurseDone` flag already set)
+- Uses `_acquire_dispatch_lock()` helper (extracted from 4 formerly identical inline blocks) for all dispatch lock acquisitions
 - Sets signal flags for command's monitoring loop (hooks cannot call TaskCreate directly)
 - Exit 0 = accept | Exit 2 = reject with feedback
 
@@ -392,14 +393,15 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 
 ### state.sh (core)
 - `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v6
-- `state_get()` -- read fields with optional required validation
+- `state_get()` -- read fields with optional required validation; filter expression is validated against an allowlist before passing to jq (injection protection)
 - `update_state()` -- atomic state update with file locking (flock with mkdir fallback on macOS)
 - `validate_json_file()` -- check file exists and contains valid JSON
 - `require_int()` -- validate integer fields
 - `continue_false_exit()` -- emit `{"continue": false, "stopReason": ...}` JSON and exit 0
 - `shutdown_check()` -- check shutdown flag and halt gracefully if set
-- `add_message()` -- add cross-phase message to state.json messages array
+- `add_message()` -- add cross-phase message to state.json messages array; heredoc delimiter sanitized to prevent injection
 - `get_messages_for()` -- retrieve messages targeted at a specific recipient
+- Sentinel name arguments validated against a case-allowlist before use in file paths
 
 ### dag.sh (phase tracking)
 - `reset_phases_for_loop()` -- reset A1-A4 to pending for loop-back
@@ -407,7 +409,7 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 
 ### circuit-breaker.sh (failure tracking)
 - `cb_init()` -- initialize circuit breaker fields
-- `cb_record_failure()` / `cb_record_success()` -- track consecutive outcomes
+- `cb_record_failure()` / `cb_record_success()` -- track consecutive outcomes; `cb_record_success()` only fires on approved/clean task completion paths (not on all exits) to prevent masking genuine failures
 - `cb_is_tripped()` -- check if breaker is tripped
 - `cb_increment_fix_attempts()` -- per-phase fix budget
 - `cb_increment_stage_restarts()` -- loop-back budget

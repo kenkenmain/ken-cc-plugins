@@ -24,6 +24,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
+# Use mktemp for jq stderr capture to avoid predictable temp file path (TOCTOU).
+# Must be after state.sh which defines STATE_FILE.
+_IDLE_ERR_FILE="$(mktemp "${STATE_FILE}.idle-err.XXXXXX")"
+trap 'rm -f "$_IDLE_ERR_FILE" 2>/dev/null' EXIT
+
 source "$SCRIPT_DIR/lib/circuit-breaker.sh"
 source "$SCRIPT_DIR/lib/teams.sh"
 source "$SCRIPT_DIR/lib/swarm.sh"
@@ -50,13 +55,13 @@ if ! local_fields=$(jq -r '[
   (.pipeline // "swarm"),
   ((.teamCreated // .queenDispatched // false) | tostring),
   ((.maxLoops // 5) | tostring)
-] | join("\t")' "$STATE_FILE" 2>"${STATE_FILE}.idle-err"); then
-  jq_err_output=$(cat "${STATE_FILE}.idle-err" 2>/dev/null || echo "unknown error")
-  rm -f "${STATE_FILE}.idle-err"
+] | join("\t")' "$STATE_FILE" 2>"$_IDLE_ERR_FILE"); then
+  jq_err_output=$(cat "$_IDLE_ERR_FILE" 2>/dev/null || echo "unknown error")
+  rm -f "$_IDLE_ERR_FILE"
   echo "[TEAMS] ERROR: Failed to read state.json (${jq_err_output}), allowing idle" >&2
   exit 0
 fi
-rm -f "${STATE_FILE}.idle-err" 2>/dev/null
+rm -f "$_IDLE_ERR_FILE" 2>/dev/null
 IFS=$'\t' read -r shutdown_flag status current_phase task loop pipeline team_created max_loops <<< "$local_fields"
 
 # ===========================================================================
@@ -121,13 +126,56 @@ fi
 # Note: ${task} in unquoted heredocs is safe because bash variable expansion
 # does NOT re-evaluate the expanded value for command substitution. A task
 # containing '$(cmd)' or backticks expands to the literal string, not executed.
+# Strip control chars, cap length, and remove heredoc delimiter string to prevent
+# premature heredoc termination if the task description contains __ANTS_PROMPT_EOF__.
 task="$(printf '%s' "$task" | head -c 2000 | tr -d '\000-\031')"
+task="${task//__ANTS_PROMPT_EOF__/}"
 
 # Validate loop
 loop=$(require_int "$loop" "loop")
 
 # Resolve phases directory
 phases_dir=".agents/tmp/phases/loop-${loop}"
+
+# ===========================================================================
+# Helper: _acquire_dispatch_lock -- mkdir-based lock with stale recovery
+# ===========================================================================
+# Tries to acquire a dispatch lock directory. On failure checks for stale
+# locks (>120s old) and recovers them once.
+#
+# Arguments:
+#   $1 -- lock directory path
+#   $2 -- human-readable label for WARNING messages (e.g. "architect.1")
+#
+# Returns:
+#   0 -- lock acquired (caller owns the lock dir and must rm -rf it)
+#   1 -- lock not acquired (caller should continue/skip)
+_acquire_dispatch_lock() {
+  local lock_dir="$1"
+  local label="$2"
+
+  if mkdir "$lock_dir" 2>/dev/null; then
+    return 0
+  fi
+
+  # Lock exists -- check if it is stale
+  if [[ -d "$lock_dir" ]]; then
+    local lock_mtime
+    if lock_mtime=$(lock_dir_mtime_epoch "$lock_dir"); then
+      local lock_age
+      lock_age=$(( $(date +%s) - lock_mtime ))
+      if [[ "$lock_age" -gt 120 ]]; then
+        teams_log "WARNING: Removing stale dispatch-lock for ${label} (age: ${lock_age}s)"
+        rm -rf "$lock_dir"
+        if mkdir "$lock_dir" 2>/dev/null; then
+          return 0
+        fi
+      fi
+    fi
+  fi
+
+  return 1
+}
 
 # ===========================================================================
 # Helper: dispatch_phase -- atomic claim + prompt for sequential phases
@@ -205,7 +253,7 @@ dispatch_phase() {
 #   Sub-phase 3 (consolidation): dispatch review-arbiter after all quality done
 dispatch_a3_task() {
   local build_complete
-  build_complete=$(jq -r '.phases.A3.buildTrackComplete // false' "$STATE_FILE" 2>/dev/null || {
+  build_complete=$(jq -r '.phases.A3.buildTrackComplete // false | tostring' "$STATE_FILE" 2>/dev/null || {
     teams_log "WARNING: Failed to read A3 buildTrackComplete from state.json, allowing idle"
     exit 0
   })
@@ -273,30 +321,10 @@ dispatch_a3_quality() {
     fi
 
     # Atomic dispatch claim via mkdir (prevents double-dispatch)
+    # If the script crashed between mkdir and rm, the stale lock is recovered after 120s.
     local lock_marker="${marker_dir}/.${agent}.dispatch-lock"
-    if ! mkdir "$lock_marker" 2>/dev/null; then
-      # Check for stale lock (>120s old) -- if the script crashed between mkdir and rm,
-      # the lock persists and the agent can never be dispatched.
-      if [[ -d "$lock_marker" ]]; then
-        local lock_mtime
-        if lock_mtime=$(lock_dir_mtime_epoch "$lock_marker"); then
-          local lock_age
-          lock_age=$(( $(date +%s) - lock_mtime ))
-          if [[ "$lock_age" -gt 120 ]]; then
-            teams_log "WARNING: Removing stale dispatch-lock for ${agent} (age: ${lock_age}s)"
-            rm -rf "$lock_marker"
-            if ! mkdir "$lock_marker" 2>/dev/null; then
-              continue
-            fi
-          else
-            continue
-          fi
-        else
-          continue
-        fi
-      else
-        continue
-      fi
+    if ! _acquire_dispatch_lock "$lock_marker" "$agent"; then
+      continue
     fi
 
     # Create dispatched marker atomically: write a file inside the lock dir,
@@ -345,32 +373,9 @@ dispatch_a3_quality() {
 
   # Dispatch arbiter with stale lock recovery (matching quality agent pattern)
   local arbiter_lock="${marker_dir}/.arbiter.dispatch-lock"
-  if ! mkdir "$arbiter_lock" 2>/dev/null; then
-    # Check for stale lock (>120s old)
-    if [[ -d "$arbiter_lock" ]]; then
-      local lock_mtime
-      if lock_mtime=$(lock_dir_mtime_epoch "$arbiter_lock"); then
-        local lock_age
-        lock_age=$(( $(date +%s) - lock_mtime ))
-        if [[ "$lock_age" -gt 120 ]]; then
-          teams_log "WARNING: Removing stale arbiter dispatch-lock (age: ${lock_age}s)"
-          rm -rf "$arbiter_lock"
-          if ! mkdir "$arbiter_lock" 2>/dev/null; then
-            teams_log "A3 arbiter dispatch race after stale lock removal, allowing idle"
-            exit 0
-          fi
-        else
-          teams_log "A3 arbiter dispatch race, allowing idle"
-          exit 0
-        fi
-      else
-        teams_log "A3 arbiter dispatch race, allowing idle"
-        exit 0
-      fi
-    else
-      teams_log "A3 arbiter dispatch race, allowing idle"
-      exit 0
-    fi
+  if ! _acquire_dispatch_lock "$arbiter_lock" "arbiter"; then
+    teams_log "A3 arbiter dispatch race, allowing idle"
+    exit 0
   fi
 
   # Create dispatched marker atomically (write inside lock, mv, rm)
@@ -532,27 +537,8 @@ dispatch_sswarm_a1() {
 
     # Atomic claim with stale lock recovery (>120s)
     local lock_marker="${marker_dir}/.architect.${slot}.dispatch-lock"
-    if ! mkdir "$lock_marker" 2>/dev/null; then
-      if [[ -d "$lock_marker" ]]; then
-        local lm_mtime
-        if lm_mtime=$(lock_dir_mtime_epoch "$lock_marker"); then
-          local lm_age
-          lm_age=$(( $(date +%s) - lm_mtime ))
-          if [[ "$lm_age" -gt 120 ]]; then
-            teams_log "WARNING: Removing stale architect.${slot} dispatch-lock (age: ${lm_age}s)"
-            rm -rf "$lock_marker"
-            if ! mkdir "$lock_marker" 2>/dev/null; then
-              continue
-            fi
-          else
-            continue
-          fi
-        else
-          continue
-        fi
-      else
-        continue
-      fi
+    if ! _acquire_dispatch_lock "$lock_marker" "architect.${slot}"; then
+      continue
     fi
     # Create dispatched marker atomically (write inside lock, mv, rm)
     touch "${lock_marker}/marker"
@@ -667,27 +653,8 @@ dispatch_sswarm_a2() {
 
     # Atomic claim with stale lock recovery (>120s)
     local lock_marker="${marker_dir}/.reviewer.${slot}.dispatch-lock"
-    if ! mkdir "$lock_marker" 2>/dev/null; then
-      if [[ -d "$lock_marker" ]]; then
-        local lm_mtime
-        if lm_mtime=$(lock_dir_mtime_epoch "$lock_marker"); then
-          local lm_age
-          lm_age=$(( $(date +%s) - lm_mtime ))
-          if [[ "$lm_age" -gt 120 ]]; then
-            teams_log "WARNING: Removing stale reviewer.${slot} dispatch-lock (age: ${lm_age}s)"
-            rm -rf "$lock_marker"
-            if ! mkdir "$lock_marker" 2>/dev/null; then
-              continue
-            fi
-          else
-            continue
-          fi
-        else
-          continue
-        fi
-      else
-        continue
-      fi
+    if ! _acquire_dispatch_lock "$lock_marker" "reviewer.${slot}"; then
+      continue
     fi
     # Create dispatched marker atomically (write inside lock, mv, rm)
     touch "${lock_marker}/marker"

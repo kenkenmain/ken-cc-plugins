@@ -169,6 +169,22 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's A4 verdict, which only blocks on critical and warning issues.
 
+### What's New in v0.6.2
+
+- **A2 review status silent-advance fix** -- The A2 blueprint-review gate now normalizes the `.status` value (hyphen→underscore, lowercased) before comparison, preventing `needs-revision` from silently advancing to A3. An explicit allowlist (`needs_revision`, `approved`, `approved_with_notes`) guards against unexpected values.
+- **Arbiter idempotency guard** -- The A3 arbiter handler now checks both the `arbiterDone` flag and verdict file existence before processing, preventing duplicate state writes if the TaskCompleted hook fires more than once for the same arbiter completion.
+- **Circuit breaker accuracy fix** -- `cb_record_success()` now only fires on approved/clean task completion paths, not on all exits. This prevents genuine failures from being masked by a spurious success record.
+- **Nurse idempotency guard** -- The A5 nurse handler checks the `nurseDone` flag before processing, preventing duplicate documentation writes on hook replay.
+- **`buildTrackComplete` type safety** -- Uses `jq tostring` normalization to handle the completion flag uniformly regardless of whether it is stored as boolean, string, or null.
+- **EXIT trap ordering fix** -- The `.idle-err` cleanup trap is now registered after `state.sh` is sourced, preventing an unbound variable error if the trap fires during early script startup.
+- **`permissionMode: plan` on consolidator agents** -- The `plan-arbiter`, `review-lead`, `review-arbiter`, and `explore-aggregator` agents now run in `plan` permission mode, restricting unintended tool execution during consolidation.
+- **A0-explore.md prompt updated to v0.6** -- The A0 exploration prompt now describes the file-based coordination model (agents write output files; explore-aggregator reads them). Stale SendMessage references removed.
+- **Security hardening** -- `state_get()` validates the jq filter expression against an allowlist before use; sentinel name arguments validated against a case-allowlist before appearing in file paths; heredoc delimiters sanitized against injection; error temp files created via `mktemp` instead of predictable paths.
+- **`_acquire_dispatch_lock()` helper** -- Extracted from 4 formerly identical 20-line inline blocks in `on-task-completed.sh`. No behavior change.
+- **Dead code removal** -- Removed unreachable branches from `handle_a3_simplifier()` and `handle_a3_arbiter()`.
+- **v0.6 A3 sub-field schema documented** -- `state.sh` header now documents the `phases.A3.*` sub-fields used by the arbiter/nurse idempotency guards.
+- **18 new tests** (270 total passing) -- 11 in `test-on-task-completed.sh` covering the A2 gate, arbiter guard, and cb_record_success path; 7 in `test-hardening.sh` covering the security guards.
+
 ### What's New in v0.6.0
 
 - **Agent Teams delegate mode** -- Commands now create Agent Teams with task dependency chains (blockedBy) and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook is the full task router; TaskCompleted hook validates output, advances state, and evaluates A4 verdict inline.

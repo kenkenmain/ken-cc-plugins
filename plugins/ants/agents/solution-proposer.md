@@ -23,6 +23,7 @@ tools:
   - Write
 disallowedTools:
   - Task
+permissionMode: plan
 ---
 
 # solution-proposer

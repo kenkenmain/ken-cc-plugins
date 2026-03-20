@@ -91,6 +91,12 @@ check_ants_workflow() {
 state_get() {
   local filter="$1"
   local required="${2:-}"
+  # Defensive guard: filter must start with '.' to prevent jq injection.
+  # All legitimate call sites use hardcoded dot-path filters like '.loop // 1'.
+  if [[ "$filter" != .* ]]; then
+    echo "ERROR: state_get filter must start with '.' (got: '$filter')" >&2
+    exit 2
+  fi
   local value
   # Append `// empty` to convert null → "" for required checks.
   # Callers with fallbacks (e.g., '.loop // 1') produce '.loop // 1 // empty'
@@ -395,6 +401,37 @@ migrate_state_v5_to_v6() {
   echo "INFO: State migration v5->v6 complete" >&2
   return 0
 }
+
+# ---------------------------------------------------------------------------
+# v0.6 State Schema: .phases.A3 sub-fields
+# ---------------------------------------------------------------------------
+# These boolean flags track completion of individual A3 sub-agents.
+# They are set by the corresponding handle_a3_*() handlers in
+# on-task-completed.sh and read by on-teammate-idle.sh to determine
+# when the next A3 sub-agent (or the arbiter) can be dispatched.
+#
+#   .phases.A3.buildTrackComplete  (boolean)
+#       Set by handle_a3_worker() when all workers in the task pool are done.
+#       Read by on-teammate-idle.sh to gate quality track dispatch.
+#
+#   .phases.A3.guardianDone        (boolean)
+#       Set by handle_a3_guardian() when the guardian finishes writing tests.
+#       Read by on-teammate-idle.sh to check quality track readiness.
+#
+#   .phases.A3.sentinelsDone       (boolean)
+#       Set by handle_a3_sentinel() when all 4 specialist sentinels
+#       (correctness, security, perf, style) have completed.
+#       Read by on-teammate-idle.sh to check quality track readiness.
+#
+#   .phases.A3.simplifierDone      (boolean)
+#       Set by handle_a3_simplifier() when code cleanup is finished.
+#       Read by on-teammate-idle.sh to check quality track readiness.
+#
+#   .phases.A3.arbiterDone         (boolean)
+#       Set by handle_a3_arbiter() when the consolidated quality verdict
+#       (A3-quality.json) is written and the inline A4 verdict is evaluated.
+#       Read by on-teammate-idle.sh to prevent duplicate arbiter dispatch.
+# ---------------------------------------------------------------------------
 
 # Output a continue:false JSON response and exit 0.
 # Used by hooks that need to signal Claude to stop gracefully.

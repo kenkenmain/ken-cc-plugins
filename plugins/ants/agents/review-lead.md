@@ -25,6 +25,7 @@ disallowedTools:
   - Task
   - Edit
   - Bash
+permissionMode: plan
 hooks:
   Stop:
     - hooks:

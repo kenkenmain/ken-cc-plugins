@@ -4,28 +4,38 @@ Dispatch **forager** and **cartographer** agents in parallel to gather codebase 
 
 ## Agents
 
-- **forager** (`ants:forager`) x N — breadth-first codebase scouts, each assigned a focused query
-- **cartographer** (`ants:cartographer`) x 1 — depth-first architecture tracer
-- **explore-aggregator** (`ants:explore-aggregator`) x 1 — synthesizes forager + cartographer results into A0-explore.md
+- **forager** (`ants:forager`) x N -- breadth-first codebase scouts, each assigned a focused query
+- **cartographer** (`ants:cartographer`) x 1 -- depth-first architecture tracer
+- **explore-aggregator** (`ants:explore-aggregator`) x 1 -- synthesizes forager + cartographer results into A0-explore.md
 
-Foragers run on the `haiku` model. Cartographer and explore-aggregator run on `sonnet`. The explore-aggregator receives forager/cartographer results via SendMessage and synthesizes the final report, offloading queen context overhead.
+Foragers run on the `haiku` model. Cartographer and explore-aggregator run on `sonnet`. The explore-aggregator reads forager/cartographer temp files (guaranteed to exist via task dependency chains) and synthesizes the final report, offloading queen context overhead.
+
+## Coordination Model (v0.6 -- File-Based + blockedBy)
+
+A0 uses **file-based coordination** with task dependency chains (blockedBy fields in TaskCreate). No inter-agent messaging is needed.
+
+1. **Foragers** write their results to individual temp files: `.agents/tmp/phases/A0-explore.forager.N.tmp`
+2. **Cartographer** writes its architecture trace to: `.agents/tmp/phases/A0-explore.cartographer.tmp`
+3. **Explore-aggregator** task is created with `blockedBy` referencing all forager task IDs and the cartographer task ID. This ensures the explore-aggregator does not start until all predecessor tasks have completed and their temp files exist.
+4. **Explore-aggregator** reads all temp files (using Glob to discover `.agents/tmp/phases/A0-explore.forager.*.tmp`) and writes the consolidated report to: `.agents/tmp/phases/A0-explore.md`
+5. The **TaskCompleted hook** validates the explore-aggregator's output (A0-explore.md exists) and advances `currentPhase` to A1.
+
+No confirmation messages are needed -- task completion is detected by the TaskCompleted hook, which validates output files and advances workflow state.
 
 ## Dispatch Timing
 
-A0 runs at workflow start, **before** any planning phase. The queen dispatches all foragers, the cartographer, and the explore-aggregator simultaneously. Foragers and cartographer send their results to the explore-aggregator (not the queen). The queen waits only for the explore-aggregator's confirmation.
+A0 runs at workflow start, **before** any planning phase. The command creates all A0 tasks (foragers, cartographer, explore-aggregator) as part of the initial task graph with appropriate blockedBy chains. The TeammateIdle hook assigns ready tasks to idle teammates. The command waits for the TaskCompleted hook to advance the phase to A1.
 
 ## Process
 
 1. **Determine forager queries** based on the task description (typically 2-4 foragers)
-2. **Dispatch all foragers + cartographer + explore-aggregator in parallel:**
-   - Each forager gets a focused query (files, tests, patterns, dependencies, etc.)
-   - Foragers send their results to the explore-aggregator (recipient: "explore-aggregator")
-   - The cartographer gets the full task for deep architecture tracing
-   - Cartographer sends results to the explore-aggregator (recipient: "explore-aggregator")
-   - The explore-aggregator waits for results from all foragers + cartographer
-3. Each explorer reads the codebase through its lens and writes findings to a temp file and sends via SendMessage to explore-aggregator
-4. **Explore-aggregator synthesizes** all results into `.agents/tmp/phases/A0-explore.md`
-5. **Explore-aggregator confirms** to queen via SendMessage (recipient: "queen")
+2. **Create task graph with blockedBy dependencies:**
+   - Each forager task has no A0-internal dependencies (they run in parallel)
+   - The cartographer task has no A0-internal dependencies (runs in parallel with foragers)
+   - The explore-aggregator task is blockedBy all forager tasks + cartographer task
+3. Each explorer reads the codebase through its lens and writes findings to its assigned temp file
+4. **Explore-aggregator reads all temp files** and synthesizes them into `.agents/tmp/phases/A0-explore.md`
+5. **TaskCompleted hook validates** A0-explore.md exists and advances currentPhase to A1
 6. The consolidated report is passed to the next phase as supplementary context
 
 ## Forager Dispatch Template
@@ -44,8 +54,8 @@ Focus only on what a planner would need to know.
 
 Temp output file: .agents/tmp/phases/A0-explore.forager.{{N}}.tmp
 
-After writing the temp file, send your findings to the explore-aggregator via SendMessage
-(recipient: "explore-aggregator") with a summary of your findings.
+Write your structured findings to the temp file. Your work is complete when the temp file
+is written. The TaskCompleted hook validates your output and advances the workflow.
 ```
 
 ### Suggested Forager Queries
@@ -71,28 +81,28 @@ Focus on how components connect and where the task will need to integrate.
 
 Temp output file: .agents/tmp/phases/A0-explore.cartographer.tmp
 
-After writing the temp file, send your architecture trace to the explore-aggregator via SendMessage
-(recipient: "explore-aggregator") with a summary of your findings.
+Write your architecture trace to the temp file. Your work is complete when the temp file
+is written. The TaskCompleted hook validates your output and advances the workflow.
 ```
 
 ## Explore-Aggregator Dispatch Template
 
 ```
-You are the explore-aggregator. Receive findings from all foragers and the cartographer
+You are the explore-aggregator. Read findings from all forager and cartographer temp files
 and synthesize them into the canonical exploration report.
 
 Task: {{TASK}}
 
-Expected sources:
-- forager ×{{N}} — each will send their findings via SendMessage
-- cartographer ×1 — will send their architecture trace via SendMessage
+Input files (guaranteed to exist via task dependency chain):
+- .agents/tmp/phases/A0-explore.forager.*.tmp (use Glob to discover all forager files)
+- .agents/tmp/phases/A0-explore.cartographer.tmp
 
-Wait for all results, then synthesize into a unified report.
+Read all temp files, then synthesize into a unified report.
 
 Output file: .agents/tmp/phases/A0-explore.md
 
-After writing the report, confirm to the queen via SendMessage (recipient: "queen")
-with {status: "complete", outputPath: ".agents/tmp/phases/A0-explore.md", summary: "..."}
+Your work is complete when A0-explore.md is written. The TaskCompleted hook validates
+this file and advances the workflow. No separate confirmation message is needed.
 ```
 
 ## Output Paths
@@ -111,7 +121,7 @@ Final merged report:
 
 ## Gate
 
-No hard gate. Explorer output is **supplementary, not required**. If any forager fails or times out, the workflow continues without that section's intelligence. The next phase proceeds regardless — the colony adapts.
+No hard gate. Explorer output is **supplementary, not required**. If any forager fails or times out, the workflow continues without that section's intelligence. The next phase proceeds regardless -- the colony adapts.
 
 ## Next Phase
 
