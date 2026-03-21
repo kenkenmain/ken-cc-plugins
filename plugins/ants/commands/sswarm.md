@@ -203,11 +203,22 @@ Teammates: 5 (higher concurrency for competing agents)
 Circuit breaker: 5 consecutive failures --> halt
 ```
 
-## Step 3: Create Team + Task Graph + Monitoring Loop
+## Step 3: Create Team + Task Graph + Spawn Teammates + Monitoring Loop
 
-You are the command lead. You create the team, populate the initial task graph, spawn 5 teammates, then enter a monitoring loop. You do NOT dispatch agents directly.
+You are the command lead. First create the team, then populate the task graph, spawn 5 teammates, update state, and enter a monitoring loop. You do NOT dispatch agents directly.
 
-### 3a. Create the sswarm task graph
+### 3a. Create team
+
+```
+TeamCreate(
+  team_name: "<teamName from state.json>",
+  description: "Ants sswarm workflow for: <task description>"
+)
+```
+
+The `team_name` must match the `teamName` field written in state.json.
+
+### 3b. Create the sswarm task graph
 
 Create the initial sswarm task graph with competing agents at A1 and A2. The task graph has these tasks with dependency chains:
 
@@ -240,7 +251,7 @@ Create the initial sswarm task graph with competing agents at A1 and A2. The tas
 **A3-A5 placeholder tasks** (created dynamically later via signal flags):
 - These are NOT created now. A3 worker/sentinel/arbiter tasks are created when `needsA3Tasks` flag is set (after A1 completes). A5 nurse/drone tasks are created when `needsA5Tasks` flag is set (after clean verdict).
 
-### 3b. Call TaskCreate for each task
+### 3c. Call TaskCreate for each task
 
 For each task in the graph above, call **TaskCreate** with:
 - `subject`: The task subject (must start with "A{N} " for routing)
@@ -255,24 +266,23 @@ Create the loop directory first:
 mkdir -p .agents/tmp/phases/loop-1
 ```
 
-### 3c. Create team and spawn 5 teammates
+### 3d. Update state and spawn 5 teammates
 
-**Step 1 — Create the team:**
+**Step 1 — Update state:**
 
-```
-TeamCreate(
-  team_name: "<teamName from state.json>",
-  description: "Ants sswarm workflow for: <task description>"
-)
+```bash
+jq '.teamCreated = true | .teammateCount = 5 | .updatedAt = (now | todate)' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
 ```
 
 **Step 2 — Spawn 5 teammates:**
 
-Spawn 5 teammates using the `Agent` tool. Each MUST have `team_name` set. sswarm needs 5 for higher concurrency (A1 has 3 competing architects, A2 has 3 competing reviewers).
+The TeammateIdle hook routes ready tasks to idle teammates by reading state.json and building execution prompts. Teammates do NOT self-assign from TaskList -- the hook provides specific execution prompts for each task. sswarm needs 5 teammates for higher concurrency (A1 has 3 competing architects, A2 has 3 competing reviewers).
+
+Spawn 5 teammates using the `Agent` tool. Each MUST have `team_name` set.
 
 ```
 Agent(
-  prompt: "You are a teammate in the ants sswarm workflow. Check TaskList for available tasks, claim unassigned tasks via TaskUpdate(owner), and work on them. When done, mark tasks as completed via TaskUpdate(status: completed). Check TaskList again for more work.",
+  prompt: "You are a teammate in the ants sswarm workflow. The TeammateIdle hook will assign you tasks with specific execution prompts -- follow them precisely. When you complete a task, the TaskCompleted hook validates your output. Stay active and ready for the next assignment.",
   team_name: "<teamName from state.json>",
   name: "teammate-1",
   run_in_background: true,
@@ -280,17 +290,15 @@ Agent(
 )
 ```
 
-Repeat for `teammate-2` through `teammate-5`. All run in background.
+Repeat for `teammate-2` through `teammate-5`. All run in background with the same prompt.
 
 **IMPORTANT:** All `Agent` calls must include `team_name` matching the TeamCreate team_name. Without this, teammates won't join the team and TeammateIdle hooks won't fire.
 
-### 3d. Update state
-
-```bash
-jq '.teamCreated = true | .teammateCount = 5 | .updatedAt = (now | todate)' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
-```
-
 ### 3e. Enter monitoring loop
+
+<COMPLETION-GATE>
+Do NOT stop, end your turn, or exit during this monitoring loop. The workflow requires you to keep polling state.json until a terminal condition is met. If the Stop hook blocks you, re-enter the loop immediately.
+</COMPLETION-GATE>
 
 Enter a monitoring loop that reads state.json on each cycle and creates dynamic tasks when hooks set signal flags. The loop runs until the workflow reaches a terminal state.
 
@@ -299,13 +307,16 @@ Enter a monitoring loop that reads state.json on each cycle and creates dynamic 
 **Monitoring loop pseudocode:**
 
 ```
+MONITORING LOOP:
 while true:
-  Read state.json
+  # Read state.json
+  Use the Read tool to read .agents/tmp/state.json. Extract these fields:
+  - status, currentPhase, shutdown
+  - needsA3Tasks, needsA5Tasks, needsLoopReset
+  - loop (current loop number)
 
   # Check terminal conditions
   if status == "complete" or status == "blocked" or status == "stopped":
-    break
-  if currentPhase == "DONE" or currentPhase == "STOPPED" or currentPhase == "BLOCKED":
     break
   if shutdown == true:
     break
@@ -327,15 +338,35 @@ while true:
     # Clear flag: update state needsA5Tasks = false
 
   if needsLoopReset == true:
-    # A4 verdict was "issues_found" -- create fresh A1-A4 tasks for next loop
-    # Re-create sswarm task graph for A1 and A2 (3 architects + arbiter,
-    # 3 reviewers + lead) with updated loop number in file paths
-    # Call TaskCreate for each new task
-    # Clear flag: update state needsLoopReset = false
+    # A4 verdict was "issues_found" -- create fresh A1-A2 sswarm tasks for next loop
+    # The hook has already incremented loop, reset A1-A4 to pending, and set currentPhase = "A1".
+    1. Read the current loop number from state.json (already incremented by hook)
+    2. Create loop directory FIRST (before any tasks reference it):
+       mkdir -p .agents/tmp/phases/loop-{loop}
+    3. Create 3 fresh architect tasks:
+       - TaskCreate(subject: "A1 Architect 1: Competing plan", description: "This is loop {loop}. Read previous loop's quality review at .agents/tmp/phases/loop-{prev}/A3-quality.json and verdict at .agents/tmp/phases/loop-{prev}/A4-queen-verdict.json. Plan targeted fixes, not a full re-plan. Write plan to .agents/tmp/phases/loop-{loop}/A1-plan.architect.1.tmp and tasks to .agents/tmp/phases/loop-{loop}/A1-tasks.architect.1.tmp")
+       - TaskCreate(subject: "A1 Architect 2: Competing plan", description: same but .architect.2.tmp paths)
+       - TaskCreate(subject: "A1 Architect 3: Competing plan", description: same but .architect.3.tmp paths)
+       Store returned task IDs as ARCH_1_ID, ARCH_2_ID, ARCH_3_ID.
+    4. Create plan-arbiter task:
+       - TaskCreate(subject: "A1 Plan Arbiter: Consolidate plans", description: "Read the 3 competing plans and select/merge the best approach. Input files: .agents/tmp/phases/loop-{loop}/A1-plan.architect.{1,2,3}.tmp. Output: .agents/tmp/phases/loop-{loop}/A1-plan.md and .agents/tmp/phases/loop-{loop}/A1-tasks.json", blockedBy: [ARCH_1_ID, ARCH_2_ID, ARCH_3_ID])
+       Store returned task ID as ARBITER_ID.
+    5. Create 3 fresh reviewer tasks:
+       - TaskCreate(subject: "A2 Blueprint Reviewer 1: Competing review", description: "Review the consolidated plan. Input: .agents/tmp/phases/loop-{loop}/A1-plan.md. Write review to .agents/tmp/phases/loop-{loop}/A2-review.reviewer.1.tmp", blockedBy: [ARBITER_ID])
+       - TaskCreate(subject: "A2 Blueprint Reviewer 2: Competing review", description: same but .reviewer.2.tmp, blockedBy: [ARBITER_ID])
+       - TaskCreate(subject: "A2 Blueprint Reviewer 3: Competing review", description: same but .reviewer.3.tmp, blockedBy: [ARBITER_ID])
+       Store returned task IDs as REV_1_ID, REV_2_ID, REV_3_ID.
+    6. Create review-lead task:
+       - TaskCreate(subject: "A2 Review Lead: Consolidate reviews", description: "Read the 3 competing reviews and produce a unified review verdict. Input files: .agents/tmp/phases/loop-{loop}/A2-review.reviewer.{1,2,3}.tmp. Output: .agents/tmp/phases/loop-{loop}/A2-review.json", blockedBy: [REV_1_ID, REV_2_ID, REV_3_ID])
+    7. Clear needsLoopReset flag:
+       jq '.needsLoopReset = false | .taskGraphVersion = (.taskGraphVersion + 1)' state.json
 
-  # Wait before next cycle (avoid busy-spinning)
-  sleep/wait
+  # Wait before next cycle
+  Wait approximately 5-10 seconds, then use the Read tool on .agents/tmp/state.json again.
+  Do NOT use Bash sleep -- simply proceed to the next cycle after a brief pause.
 ```
+
+When the loop exits (terminal condition met), proceed immediately to Step 4: Completion Summary.
 
 **Signal flag details:**
 

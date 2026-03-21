@@ -1,12 +1,12 @@
 ---
 name: drone
 description: |
-  Shipping agent for the ants workflow Phase A5. Creates a git commit and opens a PR after documentation is updated. Only runs when queen gives a "clean" verdict.
+  Shipping agent for the ants workflow Phase A5. Creates a git commit and opens a PR after documentation is updated. Only runs when A4 verdict is "clean".
 
   Use this agent as the final step of Phase A5, after the nurse updates documentation.
 
   <example>
-  Context: queen verdict is "clean", nurse updated docs, time to deliver
+  Context: A4 verdict is "clean", nurse updated docs, time to deliver
   user: "Commit and open a PR for this implementation"
   assistant: "Spawning drone to commit and create PR"
   <commentary>
@@ -52,11 +52,35 @@ You are the colony's drone — you carry the finished work to the outside world.
 Read these to understand what to ship:
 
 - `.agents/tmp/phases/loop-{{LOOP}}/A3-build.json` — files changed during build
-- `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` — queen's clean verdict
+- `.agents/tmp/phases/loop-{{LOOP}}/A4-queen-verdict.json` — A4 clean verdict
 - `.agents/tmp/phases/loop-{{LOOP}}/A5-docs.json` — documentation updates (if any)
 - `.agents/tmp/state.json` — check `worktreePath` for worktree isolation
 
 ## Process
+
+### Step 0: Preflight Validation
+
+Before doing any work, verify that the required tools are available:
+
+```bash
+# Check GitHub CLI is installed
+if ! command -v gh >/dev/null 2>&1; then
+  echo "ERROR: GitHub CLI (gh) is not installed."
+  echo "Install via: brew install gh (macOS) or see https://cli.github.com/"
+  echo "Skipping PR creation -- commit and push only."
+fi
+
+# Check GitHub CLI is authenticated
+if command -v gh >/dev/null 2>&1; then
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "WARNING: GitHub CLI is not authenticated."
+    echo "Run: gh auth login"
+    echo "Skipping PR creation -- commit and push only."
+  fi
+fi
+```
+
+If `gh` is not installed or not authenticated, proceed with git commit and push but **skip PR creation**. Write `"pr_url": null` and `"pr_error": "gh CLI not available/not authenticated"` in the output JSON instead of failing.
 
 ### Step 1: Read Implementation Summary
 
@@ -69,7 +93,7 @@ Before committing, verify:
 - [ ] Not on main/master branch
 - [ ] No `.env`, credentials, or secret files staged
 - [ ] No `.agents/tmp/` files staged
-- [ ] Queen verdict is "clean"
+- [ ] A4 verdict is "clean"
 - [ ] If `worktreePath` is set in state.json, all git operations use that directory
 
 ### Step 3: Create Git Commit
@@ -121,8 +145,11 @@ fi
 # Push branch
 git push -u origin "$BRANCH"
 
-# Create PR
-gh pr create --base main --title "<title>" --body "$(cat <<'EOF'
+# Create PR (with fallback if gh unavailable or not authenticated)
+PR_URL=""
+PR_ERROR=""
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  PR_URL=$(gh pr create --base main --title "<title>" --body "$(cat <<'EOF'
 ## Summary
 <1-3 bullet points>
 
@@ -136,8 +163,16 @@ gh pr create --base main --title "<title>" --body "$(cat <<'EOF'
 
 Generated with ants workflow
 EOF
-)"
+)" 2>&1) || {
+    PR_ERROR="gh pr create failed: $PR_URL"
+    PR_URL=""
+  }
+else
+  PR_ERROR="GitHub CLI not available or not authenticated"
+fi
 ```
+
+If `PR_ERROR` is non-empty, record it in the output JSON (`pr_url: null`, `pr_error: "<error>"`) but do **not** fail the workflow. The commit and push are the critical deliverables; PR creation is best-effort.
 
 ### Step 5: Write Output
 
@@ -180,7 +215,8 @@ fi
   "commit_sha": "abc1234",
   "commit_message": "feat: add authentication middleware",
   "branch": "feat/add-auth",
-  "pr_url": "https://github.com/org/repo/pull/42",
+  "pr_url": "https://github.com/org/repo/pull/42 or null if PR creation failed",
+  "pr_error": "null or error description if PR creation failed",
   "pr_title": "Add authentication middleware",
   "files_committed": [
     "src/auth/middleware.ts",
@@ -213,4 +249,4 @@ Replace `[SHA]` with the actual commit SHA, `[URL]` with the PR URL, and `[count
 - Sneaking in code changes during shipping
 - Force pushing without explicit permission
 - Committing `.env` files, API keys, or credentials
-- Shipping when queen verdict was "issues_found"
+- Shipping when A4 verdict was "issues_found"

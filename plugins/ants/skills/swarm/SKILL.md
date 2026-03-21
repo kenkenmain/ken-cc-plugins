@@ -15,10 +15,10 @@ Ant-colony themed 6-phase development pipeline with Agent Teams delegate mode, d
 - All agents are `ants:*` prefixed -- they exist in the ants plugin
 - **Agent Teams delegate mode** with Command-as-Active-Lead monitoring loop
 - **Dual-channel communication**: files for persistent artifacts (hooks validate these), SendMessage for live coordination overlay
-- Command creates initial tasks (A0-A2) via TaskCreate with blockedBy dependency chains
-- TeammateIdle hook routes idle teammates to next ready phase/task
+- Command creates team first (TeamCreate), then populates task graph (TaskCreate with blockedBy dependency chains)
+- TeammateIdle hook routes idle teammates to next ready phase/task (hook-driven routing, not self-assignment from TaskList)
 - TaskCompleted hook validates output, advances state, and sets signal flags
-- Command monitoring loop reads signal flags and creates dynamic tasks (A3 workers, A5, loop-back)
+- Command monitoring loop reads signal flags and creates dynamic tasks (A3 workers, A5, loop-back). The command MUST NOT stop or exit during the monitoring loop -- a `<COMPLETION-GATE>` enforces polling until a terminal condition is met
 - A4 verdict is evaluated **inline** by `handle_a3_arbiter()` in the TaskCompleted hook -- no separate agent dispatch
 - State schema v6 with `phases`, `circuitBreaker`, `taskPool`, `teamName`, `teamCreated`, `teammateCount`, `taskGraphVersion`, signal flags (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`), `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`, `worktreePath`, and `webSearch` fields
 
@@ -116,9 +116,9 @@ Phase A5  | SHIP      | Documentation + Ship   | nurse + drone
 ### Pipeline Diagram
 
 ```
-Command creates team + initial tasks (TaskCreate with blockedBy chains):
+Command creates team (TeamCreate first), then initial tasks (TaskCreate with blockedBy chains):
   A0-forager-1, A0-forager-2, A0-cartographer -> A0-explore-aggregator -> A1-architect -> A2-blueprint-reviewer
-Command spawns 3 teammates, enters monitoring loop
+Command spawns 3 teammates (hook-driven routing via TeammateIdle), enters monitoring loop
 
          A0 Explore
          foragers + cartographer (parallel, routed by TeammateIdle hook)

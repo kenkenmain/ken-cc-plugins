@@ -202,11 +202,24 @@ Teammates: 3
 Circuit breaker: 5 consecutive failures -> halt
 ```
 
-## Step 3: Create Team + Task Graph + Monitoring Loop
+## Step 3: Create Team + Task Graph + Spawn Teammates + Monitoring Loop
 
-You are the active lead. You do NOT dispatch agents directly. Instead, you create tasks via TaskCreate (which populates the shared task list), spawn teammates, and enter a monitoring loop.
+You are the active lead. First create the team, then populate the task graph via TaskCreate, update state, spawn teammates, and enter a monitoring loop.
 
-### 3a. Create initial task graph (A0 multi-agent + A1 + A2)
+### 3a. Create team
+
+Create the Agent Teams team first, before any TaskCreate calls. Use the exact tool call below:
+
+```
+TeamCreate(
+  team_name: "<teamName from state.json>",
+  description: "Ants swarm workflow for: <task description>"
+)
+```
+
+The `team_name` must match the `teamName` field written in state.json (e.g., `"ants-add-caching-layer"`).
+
+### 3b. Create initial task graph (A0 multi-agent + A1 + A2)
 
 Create tasks with blockedBy dependency chains. Use TaskCreate for each one and store the returned task IDs.
 
@@ -276,34 +289,23 @@ NOTE: A3, A4, and A5 tasks are NOT created now. They are created dynamically lat
 - A5 tasks (nurse, drone) are created when the monitoring loop detects `needsA5Tasks == true` (set by on-task-completed.sh after A4 verdict is clean).
 - Fresh A1-A2 loop-back tasks are created when `needsLoopReset == true`.
 
-### 3b. Update state.json
+### 3c. Update state and spawn teammates
+
+Update state.json and spawn 3 teammates. First update state, then spawn teammates.
+
+**Update state.json:**
 
 ```bash
 jq '.teamCreated = true | .teammateCount = 3' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
 ```
 
-### 3c. Create team and spawn teammates
+**Spawn 3 teammates:**
 
-Create the Agent Teams team, then spawn 3 teammates. Use the exact tool calls below:
-
-**Step 1 — Create the team:**
-
-```
-TeamCreate(
-  team_name: "<teamName from state.json>",
-  description: "Ants swarm workflow for: <task description>"
-)
-```
-
-The `team_name` must match the `teamName` field written in state.json (e.g., `"ants-add-caching-layer"`).
-
-**Step 2 — Spawn 3 teammates:**
-
-Spawn 3 teammates using the `Agent` tool. Each teammate MUST have `team_name` set. The teammates will self-assign work from the shared task list. The TeammateIdle hook routes ready tasks to idle teammates by reading state.json and building execution prompts.
+Spawn 3 teammates using the `Agent` tool. Each teammate MUST have `team_name` set. The TeammateIdle hook routes ready tasks to idle teammates by reading state.json and building execution prompts. Teammates do NOT self-assign from TaskList -- the hook provides specific execution prompts for each task.
 
 ```
 Agent(
-  prompt: "You are a teammate in the ants swarm workflow. Check TaskList for available tasks, claim unassigned tasks via TaskUpdate(owner), and work on them. When done, mark tasks as completed via TaskUpdate(status: completed). Check TaskList again for more work after each task.",
+  prompt: "You are a teammate in the ants swarm workflow. The TeammateIdle hook will assign you tasks with specific execution prompts -- follow them precisely. When you complete a task, the TaskCompleted hook validates your output. Stay active and ready for the next assignment.",
   team_name: "<teamName from state.json>",
   name: "teammate-1",
   run_in_background: true,
@@ -317,6 +319,10 @@ Repeat for `teammate-2` and `teammate-3`. All 3 teammates run in background.
 
 ### 3d. Enter monitoring loop
 
+<COMPLETION-GATE>
+Do NOT stop, end your turn, or exit during this monitoring loop. The workflow requires you to keep polling state.json until a terminal condition is met. If the Stop hook blocks you, re-enter the loop immediately.
+</COMPLETION-GATE>
+
 Enter the monitoring loop. This loop runs until the workflow completes, blocks, or stops. On each cycle, read state.json and check for signal flags set by the TaskCompleted hook.
 
 **IMPORTANT: You do NOT dispatch agents in this loop. You only create tasks via TaskCreate when signal flags are set. The TeammateIdle hook handles all agent routing.**
@@ -327,7 +333,10 @@ Enter the monitoring loop. This loop runs until the workflow completes, blocks, 
 MONITORING LOOP:
 while true:
   # Read state.json
-  Read .agents/tmp/state.json
+  Use the Read tool to read .agents/tmp/state.json. Extract these fields:
+  - status, currentPhase, shutdown
+  - needsA3Tasks, needsA5Tasks, needsLoopReset
+  - loop (current loop number)
 
   # Check terminal conditions
   if status == "complete" or status == "blocked" or status == "stopped":
@@ -390,8 +399,11 @@ while true:
        jq '.needsLoopReset = false | .taskGraphVersion = (.taskGraphVersion + 1)' state.json
 
   # Wait before next cycle (avoid busy-loop)
-  sleep 5 seconds (or wait for state.json file change)
+  Wait approximately 5-10 seconds, then use the Read tool on .agents/tmp/state.json again.
+  Do NOT use Bash sleep -- simply proceed to the next cycle after a brief pause.
 ```
+
+When the loop exits (terminal condition met), proceed immediately to Step 4: Completion Summary.
 
 ### Key Architecture Notes
 

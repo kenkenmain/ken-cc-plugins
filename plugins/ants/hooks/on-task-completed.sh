@@ -768,7 +768,12 @@ main() {
     "A5 Drone"*|"A5 drone"*|"A5-drone"*) phase="A5-drone" ;;
     "A5"*) phase="A5" ;;
     *)
-      # Not an ants phase task, allow completion
+      # Check if this looks like an ants phase task that failed to match any handler
+      if [[ "$TASK_SUBJECT" =~ ^A[0-9] ]]; then
+        teams_reject_completion "Unrecognized ants task subject: '${TASK_SUBJECT}'. Expected subjects starting with 'A0 ', 'A1 ', 'A2 ', 'A3 Worker/Sentinel/Guardian/Simplifier/Arbiter/Fixer', 'A4 ', or 'A5 Nurse/Drone'. Check task creation for subject format errors."
+        exit 2
+      fi
+      # Not an ants phase task -- allow completion without validation
       exit 0
       ;;
   esac
