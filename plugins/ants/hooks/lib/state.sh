@@ -80,6 +80,10 @@ check_ants_workflow() {
     migrate_state_v5_to_v6
     version="6"
   fi
+  if [[ "$version" == "6" ]]; then
+    migrate_state_v6_to_v7
+    version="7"
+  fi
 
   return 0
 }
@@ -393,6 +397,23 @@ migrate_state_v5_to_v6() {
     return 1
   fi
   echo "INFO: State migration v5->v6 complete" >&2
+  return 0
+}
+
+# Migrate state.json from v6 to v7.
+# Adds new agent tracking fields for v0.8.0 agents (strategist, inspector,
+# chronicler, probe, sentinel-reliability, sentinel-api). No new top-level
+# state fields -- new agents use marker files within existing phases.
+# Usage: migrate_state_v6_to_v7
+migrate_state_v6_to_v7() {
+  echo "INFO: Migrating state.json from v6 to v7" >&2
+  if ! update_state '
+    .version = 7
+  '; then
+    echo "ERROR: Failed to migrate state from v6 to v7" >&2
+    return 1
+  fi
+  echo "INFO: State migration v6->v7 complete" >&2
   return 0
 }
 

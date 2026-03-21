@@ -33,7 +33,7 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 Phase A0  | EXPLORE     | Forage              | foragers + cartographer + explore-aggregator
 Phase A1  | PLAN        | Competing Architects| 3 architects ---> plan-arbiter (consolidator)
 Phase A2  | PLAN        | Competing Reviews   | 3 blueprint-reviewers ---> review-lead (consolidator)
-Phase A3  | BUILD+QUAL  | Dual-Track          | workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD+QUAL  | Dual-Track          | workers (task pool) + 6 sentinels + probe + guardian + simplifier
 Phase A4  | SYNC        | Verdict             | TaskCompleted hook evaluates inline (not a separate agent)
 Phase A5  | SHIP        | Ship                | nurse (docs) ---> drone (commit + PR)
 
@@ -108,7 +108,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "plugin": "ants",
   "pipeline": "sswarm",
   "status": "in_progress",
@@ -193,7 +193,7 @@ Ants Social Swarm -- 6-Phase Pipeline (Agent Teams Delegate Mode)
 Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator
 Phase A1  | PLAN    | Competing Architects  | 3 architects ---> plan-arbiter (consolidator)
 Phase A2  | PLAN    | Competing Reviews     | 3 reviewers ---> review-lead (consolidator)
-Phase A3  | BUILD   | Dual-Track Execution  | workers + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD   | Dual-Track Execution  | workers + 6 sentinels + probe + guardian + simplifier
 Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline, no agent)
 Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
 
@@ -352,10 +352,11 @@ Read `.agents/tmp/phases/loop-<LOOP>/A1-tasks.json` for worker task descriptors.
 - All workers blockedBy at minimum [A2-review-lead] (sswarm-specific: review-lead is the A2 consolidator)
 
 After all worker TaskCreates, create quality track tasks:
-- 4 sentinel tasks: blockedBy all worker task IDs
+- 6 sentinel tasks (correctness, security, perf, style, reliability, api): blockedBy all worker task IDs
+- 1 probe task: blockedBy all worker task IDs
 - 1 guardian task: blockedBy all worker task IDs
 - 1 simplifier task: blockedBy all worker task IDs
-- 1 arbiter task: blockedBy all sentinel + guardian + simplifier task IDs
+- 1 arbiter task: blockedBy all sentinel + probe + guardian + simplifier task IDs
 - 1 review-fixer task (optional): blockedBy arbiter
 
 **When creating loop-reset tasks (needsLoopReset handler):**
@@ -439,6 +440,9 @@ Current phase: <.currentPhase>
 | A3 | sentinel-security | `ants:sentinel-security` | Quality |
 | A3 | sentinel-perf | `ants:sentinel-perf` | Quality |
 | A3 | sentinel-style | `ants:sentinel-style` | Quality |
+| A3 | sentinel-reliability | `ants:sentinel-reliability` | Quality |
+| A3 | sentinel-api | `ants:sentinel-api` | Quality |
+| A3 | probe | `ants:probe` | Quality |
 | A3 | simplifier | `ants:simplifier` | Quality |
 | A3 | review-arbiter | `ants:review-arbiter` | Consolidator |
 | A3 | review-fixer | `ants:review-fixer` | Fixer |
@@ -486,13 +490,13 @@ A0-cartographer -------------+
                     |         |         |
                     +---------+---------+
                               |
-          +-------+-------+---+---+-------+-------+
-          |       |       |       |       |       |
-          v       v       v       v       v       v
-    sentinel-  sentinel-  sentinel-  sentinel-  guardian  simplifier
-    correct.   security   perf       style
-          |       |       |       |       |       |
-          +-------+-------+---+---+-------+-------+
+          +-------+-------+---+---+-------+-------+-------+-------+-------+
+          |       |       |       |       |       |       |       |       |
+          v       v       v       v       v       v       v       v       v
+    sentinel-  sentinel-  sentinel-  sentinel-  sentinel-  sentinel-  probe  guardian  simplifier
+    correct.   security   perf       style      reliab.    api
+          |       |       |       |       |       |       |       |       |
+          +-------+-------+---+---+-------+-------+-------+-------+-------+
                               |
                               v
                          A3-arbiter

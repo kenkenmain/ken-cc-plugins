@@ -121,7 +121,26 @@ After writing the output file, send a coordination signal to the review-arbiter 
 
 ## Communication Protocol
 
-**Golden rule:** Write your review JSON file FIRST, then send the message. The review-arbiter reads your JSON file -- the message is a coordination signal, not the data.
+**Golden rule:** Write your review JSON file FIRST, then send messages. The review-arbiter reads your JSON file -- messages are coordination signals, not the data.
+
+### Step 1: Write Output File
+
+Write your JSON review to `.agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-perf.json`.
+
+### Step 2: Directed Worker Feedback
+
+For each critical or warning issue, send a directed message to the worker who owns the file. This gives workers immediate, actionable feedback without waiting for the arbiter's consolidated verdict.
+
+Send to `team` (workers will see messages relevant to their files):
+
+```
+[PERF-001] critical in {file_path}:{line} -- {brief description}. Suggestion: {suggestion}
+[PERF-002] warning in {file_path}:{line} -- {brief description}. Suggestion: {suggestion}
+```
+
+Group multiple issues for the same file into a single message. Skip info-level issues in directed feedback (include them only in the JSON output).
+
+### Step 3: Arbiter Signal
 
 Send to `review-arbiter` with this format:
 

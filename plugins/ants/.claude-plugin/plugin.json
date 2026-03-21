@@ -1,7 +1,7 @@
 {
   "name": "ants",
-  "version": "0.7.0",
-  "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode featuring team creation with shared task lists, TeammateIdle task assignment, TaskCompleted quality gates and state advancement, dual-channel communication (file-based artifacts as source of truth plus SendMessage live coordination overlay for 16 agents), social swarm (sswarm) with competing parallel agents coordinated via task dependency chains, persistent pswarm mode with signal-flag-driven task graph recreation, dual-track build, adversarial review (4 specialist sentinels: correctness, security, perf, style), inline A4 verdict evaluation, post-build simplifier, A0 explore-aggregator, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
+  "version": "0.8.0",
+  "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode featuring team creation with shared task lists, TeammateIdle task assignment, TaskCompleted quality gates and state advancement, dual-channel communication (file-based artifacts as source of truth plus SendMessage live coordination overlay for 22 agents), social swarm (sswarm) with competing parallel agents coordinated via task dependency chains, persistent pswarm mode with signal-flag-driven task graph recreation, dual-track build, adversarial review (6 specialist sentinels: correctness, security, perf, style, reliability, api plus runtime probe), sub-phase agents (strategist for approach evaluation, inspector for plan triage, chronicler for workflow retrospective), inline A4 verdict evaluation, post-build simplifier, A0 explore-aggregator, debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
   "author": {
     "name": "Kennard Ng",
     "email": "kennard.ng.pool.hua@gmail.com"
@@ -9,5 +9,5 @@
   "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
   "repository": "https://github.com/kenkenmain/ken-cc-plugins",
   "license": "MIT",
-  "keywords": ["ants", "swarm", "sswarm", "pswarm", "improve", "self-improvement", "workflow", "agents", "dual-track", "colony", "agent-teams", "delegate-mode", "teammate-idle", "task-completed", "competing-agents", "lead-consolidators", "team-plugin"]
+  "keywords": ["ants", "swarm", "sswarm", "pswarm", "improve", "self-improvement", "workflow", "agents", "dual-track", "colony", "agent-teams", "delegate-mode", "teammate-idle", "task-completed", "competing-agents", "lead-consolidators", "team-plugin", "sub-phases", "sentinel-reliability", "sentinel-api", "probe", "strategist", "inspector", "chronicler"]
 }

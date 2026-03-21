@@ -331,9 +331,9 @@ handle_a3_sentinel() {
   # Subjects use spaces ("A3 Sentinel Correctness: Review") so match both
   # space and hyphen between "sentinel" and the specialization, then normalize.
   local sentinel_name
-  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel[- ](correctness|security|perf|style)' | head -1 | tr '[:upper:]' '[:lower:]' | tr ' ' '-' || echo "")
+  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel[- ](correctness|security|perf|style|reliability|api)' | head -1 | tr '[:upper:]' '[:lower:]' | tr ' ' '-' || echo "")
   if [[ -z "$sentinel_name" ]]; then
-    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, or sentinel-style (hyphenated or space-separated)."
+    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style, sentinel-reliability, or sentinel-api (hyphenated or space-separated)."
     exit 2
   fi
 
@@ -342,11 +342,13 @@ handle_a3_sentinel() {
   touch "$marker_file"
   teams_log "${sentinel_name} completed, marker written to ${marker_file}"
 
-  # Check if all four sentinels are done
+  # Check if all six sentinels are done
   if [[ -f "${phases_dir}/.sentinel-correctness.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-security.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-perf.done" ]] \
-     && [[ -f "${phases_dir}/.sentinel-style.done" ]]; then
+     && [[ -f "${phases_dir}/.sentinel-style.done" ]] \
+     && [[ -f "${phases_dir}/.sentinel-reliability.done" ]] \
+     && [[ -f "${phases_dir}/.sentinel-api.done" ]]; then
     if ! update_state '.updatedAt = $ts | .phases.A3.sentinelsDone = true'; then
       teams_reject_completion "All sentinels done but failed to update state. Retry."
       exit 2
@@ -370,14 +372,44 @@ handle_a3_simplifier() {
 
   teams_log "A3 simplifier completed"
 
-  # Check if all quality agents are done (sentinels + guardian + simplifier)
+  # Check if all quality agents are done (sentinels + guardian + simplifier + probe)
   local sentinels_done
   sentinels_done=$(state_get '.phases.A3.sentinelsDone // false')
   local guardian_done
   guardian_done=$(state_get '.phases.A3.guardianDone // false')
+  local probe_done
+  probe_done=$(state_get '.phases.A3.probeDone // false')
 
-  if [[ "$sentinels_done" == "true" && "$guardian_done" == "true" ]]; then
-    teams_log "All quality agents complete (sentinels + guardian + simplifier), arbiter can proceed"
+  if [[ "$sentinels_done" == "true" && "$guardian_done" == "true" && "$probe_done" == "true" ]]; then
+    teams_log "All quality agents complete (sentinels + guardian + simplifier + probe), arbiter can proceed"
+  fi
+}
+
+handle_a3_probe() {
+  local phases_dir="$1"
+
+  # Mark probe complete in state -- reject if update fails to keep state/markers in sync
+  if ! update_state '.updatedAt = $ts | .phases.A3.probeDone = true'; then
+    teams_reject_completion "Failed to mark probe as done in state. Retry."
+    exit 2
+  fi
+
+  local marker_file
+  marker_file="${phases_dir}/.probe.done"
+  touch "$marker_file"
+
+  teams_log "A3 probe completed"
+
+  # Check if all quality agents are done (sentinels + guardian + simplifier + probe)
+  local sentinels_done
+  sentinels_done=$(state_get '.phases.A3.sentinelsDone // false')
+  local guardian_done
+  guardian_done=$(state_get '.phases.A3.guardianDone // false')
+  local simplifier_done
+  simplifier_done=$(state_get '.phases.A3.simplifierDone // false')
+
+  if [[ "$sentinels_done" == "true" && "$guardian_done" == "true" && "$simplifier_done" == "true" ]]; then
+    teams_log "All quality agents complete (sentinels + guardian + simplifier + probe), arbiter can proceed"
   fi
 }
 
@@ -748,6 +780,8 @@ main() {
       phase="A3-worker" ;;
     "A3 Sentinel"*|"A3 sentinel"*|"A3-sentinel"*)
       phase="A3-sentinel" ;;
+    "A3 Probe"*|"A3 probe"*|"A3-probe"*)
+      phase="A3-probe" ;;
     "A3 Simplifier"*|"A3 simplifier"*|"A3-simplifier"*)
       phase="A3-simplifier" ;;
     "A3 Review Arbiter"*|"A3 Arbiter"*|"A3 arbiter"*|"A3-arbiter"*)
@@ -818,6 +852,7 @@ main() {
     A3-worker)     handle_a3_worker "$INPUT" "$TASK_SUBJECT" ;;
     A3-guardian)   handle_a3_guardian "$phases_dir" ;;
     A3-sentinel)   handle_a3_sentinel "$phases_dir" "$TASK_SUBJECT" ;;
+    A3-probe)      handle_a3_probe "$phases_dir" ;;
     A3-simplifier) handle_a3_simplifier "$phases_dir" ;;
     A3-arbiter)    handle_a3_arbiter "$phases_dir" ;;
     A3-fixer)      handle_a3_fixer "$phases_dir" ;;

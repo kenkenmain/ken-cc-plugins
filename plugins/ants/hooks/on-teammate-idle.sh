@@ -251,7 +251,7 @@ dispatch_a3_quality() {
   mkdir -p "$marker_dir"
 
   # Quality agents to dispatch (parallel)
-  local quality_agents=("sentinel-correctness" "sentinel-security" "sentinel-perf" "sentinel-style" "guardian" "simplifier")
+  local quality_agents=("sentinel-correctness" "sentinel-security" "sentinel-perf" "sentinel-style" "sentinel-reliability" "sentinel-api" "probe" "guardian" "simplifier")
 
   # Track completion
   local all_quality_done=true
@@ -413,6 +413,15 @@ build_a3_quality_prompt() {
     sentinel-style)
       subject="A3 Sentinel Style: Review"
       agent_desc="Review the implementation for code style, readability, maintainability, excessive nesting, magic numbers, and dead code." ;;
+    sentinel-reliability)
+      subject="A3 Sentinel Reliability: Review"
+      agent_desc="Review the implementation for error recovery, retry logic, graceful degradation, resource cleanup, timeout handling, and failure mode analysis." ;;
+    sentinel-api)
+      subject="A3 Sentinel API: Review"
+      agent_desc="Review the implementation for API contract consistency, interface compatibility, versioning, backward compatibility, and public surface area." ;;
+    probe)
+      subject="A3 Probe: Runtime Verification"
+      agent_desc="Execute runtime verification: syntax checking (bash -n, jq empty, py_compile), file integrity validation, frontmatter parsing, and cross-file reference checks." ;;
     guardian)
       subject="A3 Guardian: Write tests"
       agent_desc="Write tests for the implemented code. Cover happy path, edge cases, and error paths." ;;
@@ -428,6 +437,9 @@ build_a3_quality_prompt() {
     sentinel-security)    output_file="A3-review.sentinel-security.json" ;;
     sentinel-perf)        output_file="A3-review.sentinel-perf.json" ;;
     sentinel-style)       output_file="A3-review.sentinel-style.json" ;;
+    sentinel-reliability) output_file="A3-review.sentinel-reliability.json" ;;
+    sentinel-api)         output_file="A3-review.sentinel-api.json" ;;
+    probe)                output_file="A3-review.probe.json" ;;
     guardian)             output_file="A3-guardian.json" ;;
     simplifier)           output_file="" ;; # simplifier uses Edit, no file output needed
   esac
@@ -478,11 +490,14 @@ Task: ${task}
 
 Cross-reference and deduplicate sentinel findings into a unified quality verdict.
 
-Input files:
+Input files (use Glob to discover all available review files):
 - ${phases_dir}/A3-review.sentinel-correctness.json
 - ${phases_dir}/A3-review.sentinel-security.json
 - ${phases_dir}/A3-review.sentinel-perf.json
 - ${phases_dir}/A3-review.sentinel-style.json
+- ${phases_dir}/A3-review.sentinel-reliability.json (v0.8+)
+- ${phases_dir}/A3-review.sentinel-api.json (v0.8+)
+- ${phases_dir}/A3-review.probe.json (v0.8+)
 
 Output: ${phases_dir}/A3-quality.json
 

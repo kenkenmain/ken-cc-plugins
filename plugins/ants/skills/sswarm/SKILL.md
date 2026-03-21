@@ -17,7 +17,7 @@ Agent Teams delegate mode 6-phase development pipeline with **competing parallel
 - Competing agents (3 architects, 3 reviewers) have **no dependencies on each other** -- they run in parallel
 - Consolidator tasks (plan-arbiter, review-lead) are **blockedBy all competitors** -- they run after all competitors complete
 - A4 verdict is evaluated **inline** by `handle_a3_arbiter()` in the TaskCompleted hook -- no separate agent dispatch
-- State schema v6 with additional `phaseLeads` map
+- State schema v7 with additional `phaseLeads` map
 - All existing hooks are compatible -- TeammateIdle routes by currentPhase, TaskCompleted validates and advances
 
 ## Key Differences from Swarm
@@ -29,9 +29,9 @@ Agent Teams delegate mode 6-phase development pipeline with **competing parallel
 | Lead agents | None | plan-arbiter (A1), review-lead (A2) -- read competitor output files directly |
 | Competitor coordination | N/A | blockedBy task dependencies + SendMessage live overlay |
 | Teammate count | 3 | 5 (more parallelism for competing agents) |
-| Agent count per run | ~15 agents | ~21 agents (6 more for competing + leads) |
+| Agent count per run | ~18 agents | ~24 agents (6 more for competing + leads) |
 | A0, A3, A4, A5 | Identical | Identical |
-| State schema | v6 | v6 + `phaseLeads` map |
+| State schema | v7 | v7 + `phaseLeads` map |
 | Hooks | All hooks | Same hooks, unchanged |
 
 ## 6-Phase Pipeline
@@ -40,7 +40,7 @@ Agent Teams delegate mode 6-phase development pipeline with **competing parallel
 Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator (lead)
 Phase A1  | PLAN    | Competing Architects  | 3 architects (parallel, no deps on each other) → plan-arbiter (blockedBy all 3)
 Phase A2  | PLAN    | Competing Reviews     | 3 blueprint-reviewers (parallel) → review-lead (blockedBy all 3)
-Phase A3  | BUILD   | Dual-Track Execution  | workers (task pool) + 4 sentinels + guardian + simplifier + arbiter
+Phase A3  | BUILD   | Dual-Track Execution  | workers (task pool) + 6 sentinels + probe + guardian + simplifier + arbiter
 Phase A4  | SYNC    | Verdict               | TaskCompleted hook evaluates inline (handle_a3_arbiter)
 Phase A5  | SHIP    | Documentation + Ship  | nurse + drone
 ```
@@ -81,10 +81,13 @@ Command creates team + initial sswarm task graph (12 tasks):
                     | (task pool)      |
                     |  workers         | sentinel-correctness  \
                     |  claimed from    | sentinel-security      \
-                    |  pool by         | sentinel-perf           } parallel
-                    |  TeammateIdle    | sentinel-style         /
-                    |       |          | guardian              /
-                    |  build results   | simplifier           /
+                    |  pool by         | sentinel-perf           \
+                    |  TeammateIdle    | sentinel-style           } parallel
+                    |       |          | sentinel-reliability    /
+                    |  build results   | sentinel-api           /
+                    |                  | probe                 /
+                    |                  | guardian              /
+                    |                  | simplifier           /
                     |                  |       |
                     |                  | review-arbiter consolidates
                     +────────────────+────────────────+
@@ -146,7 +149,7 @@ Output: `.agents/tmp/phases/loop-{LOOP}/A2-review.json` with `.status: "approved
 
 ### Phase A3: Dual-Track Build
 
-Same as swarm — self-organizing task pool + adversarial review team.
+Same as swarm — self-organizing task pool + adversarial review team (6 sentinels: correctness, security, perf, style, reliability, api + probe + guardian + simplifier).
 
 ### Phase A4: Verdict
 
@@ -168,6 +171,7 @@ All dispatch coordination uses **blockedBy task dependency chains** and **file-b
 | blueprint-reviewer {N} | review-lead | `A2-review.reviewer.{N}.tmp` | blockedBy task dependency | A2 |
 | worker | review-arbiter | worker output files | blockedBy (quality track after build complete) | A3 |
 | sentinel-* | review-arbiter | `A3-review.sentinel-*.json` | blockedBy task dependency | A3 |
+| probe | review-arbiter | `A3-review.probe.json` | blockedBy task dependency | A3 |
 | guardian | review-arbiter | guardian output | blockedBy task dependency | A3 |
 | simplifier | review-arbiter | simplifier output | blockedBy task dependency | A3 |
 | nurse | drone | `A5-docs.json` | blockedBy task dependency (A5-drone blockedBy A5-nurse) | A5 |
@@ -188,9 +192,12 @@ All dispatch coordination uses **blockedBy task dependency chains** and **file-b
 | A3 | BUILD | sentinel-security x1 | No | OWASP, injection |
 | A3 | BUILD | sentinel-perf x1 | No | Performance issues |
 | A3 | BUILD | sentinel-style x1 | No | Style, readability |
+| A3 | BUILD | sentinel-reliability x1 | No | Error recovery, retry logic, graceful degradation |
+| A3 | BUILD | sentinel-api x1 | No | API contracts, interface compatibility |
+| A3 | BUILD | probe x1 | No | Runtime verification (syntax, integrity, cross-file refs) |
 | A3 | BUILD | guardian x1 | No | Test writer |
 | A3 | BUILD | simplifier x1 | No | Code cleanup |
-| A3 | BUILD | review-arbiter x1 | Yes | Consolidates sentinel findings (blockedBy all quality agents) |
+| A3 | BUILD | review-arbiter x1 | Yes | Consolidates sentinel + probe findings (blockedBy all quality agents) |
 | A3 | BUILD | review-fixer x0-1 | No | Targeted repairs |
 | A4 | SYNC | TaskCompleted hook (inline) | -- | Evaluated inline by handle_a3_arbiter(); no separate agent |
 | A5 | SHIP | nurse x1 | No | Documentation updates |
@@ -198,7 +205,7 @@ All dispatch coordination uses **blockedBy task dependency chains** and **file-b
 
 ## State Schema Additions
 
-sswarm uses the standard v6 schema with these additions:
+sswarm uses the standard v7 schema with these additions:
 
 ```json
 {

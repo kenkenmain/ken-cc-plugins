@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# teams.sh — Agent Teams dispatch layer for ants v0.6 hooks.
+# teams.sh — Agent Teams dispatch layer for ants v0.8 hooks.
 # Source this from hook scripts after state.sh, swarm.sh, and task-pool.sh:
 #   source "$SCRIPT_DIR/lib/state.sh"
 #   source "$SCRIPT_DIR/lib/swarm.sh"
@@ -156,7 +156,7 @@ teams_add_a3_subtasks() {
   subtasks_output=$(jq '
     # Collect all worker task IDs
     [.[].id] as $worker_ids |
-    ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style"] as $sentinel_names |
+    ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style", "sentinel-reliability", "sentinel-api"] as $sentinel_names |
 
     # Worker tasks -- each depends on its declared dependencies (prefixed with A3-worker-)
     [.[] | {
@@ -174,11 +174,15 @@ teams_add_a3_subtasks() {
       subject: ("A3 Sentinel " + (if $name == "sentinel-correctness" then "Correctness"
         elif $name == "sentinel-security" then "Security"
         elif $name == "sentinel-perf" then "Perf"
-        else "Style" end) + ": Review"),
+        elif $name == "sentinel-style" then "Style"
+        elif $name == "sentinel-reliability" then "Reliability"
+        else "Api" end) + ": Review"),
       description: ("Review implementation for " + (if $name == "sentinel-correctness" then "bugs, logic errors, and error handling"
         elif $name == "sentinel-security" then "OWASP top 10, injection, secrets, access control"
         elif $name == "sentinel-perf" then "N+1 queries, blocking I/O, complexity"
-        else "code style, readability, maintainability" end)),
+        elif $name == "sentinel-style" then "code style, readability, maintainability"
+        elif $name == "sentinel-reliability" then "error handling, retry logic, graceful degradation, observability"
+        else "API design, type contracts, interface quality" end)),
       activeForm: ("Reviewing " + $name),
       agentType: ("ants:" + $name),
       blockedBy: [$worker_ids[] | "A3-worker-" + .]
@@ -204,14 +208,24 @@ teams_add_a3_subtasks() {
       blockedBy: [$worker_ids[] | "A3-worker-" + .]
     }] +
 
-    # Review-arbiter task -- depends on ALL sentinels + guardian + simplifier
+    # Probe task -- depends on ALL worker tasks (parallel with sentinels)
+    [{
+      phaseId: "A3-probe",
+      subject: "A3 Probe: Runtime verification",
+      description: "Execute built code, run integration checks, verify endpoints respond correctly.",
+      activeForm: "Running runtime verification",
+      agentType: "ants:probe",
+      blockedBy: [$worker_ids[] | "A3-worker-" + .]
+    }] +
+
+    # Review-arbiter task -- depends on ALL sentinels + guardian + simplifier + probe
     [{
       phaseId: "A3-arbiter",
       subject: "A3 Arbiter: Consolidate reviews",
       description: "Cross-reference and deduplicate sentinel findings into unified A3-quality.json",
       activeForm: "Consolidating reviews",
       agentType: "ants:review-arbiter",
-      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-guardian", "A3-simplifier"]
+      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-sentinel-reliability", "A3-sentinel-api", "A3-guardian", "A3-simplifier", "A3-probe"]
     }] +
 
     # Review-fixer task -- depends on arbiter (optional, dispatched if arbiter finds critical issues)
@@ -653,7 +667,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     messages_json="$(get_messages_for "$phase_agent")"
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
-      local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","drone","explore-aggregator","fix-worker","forager","guardian","nurse","plan-arbiter","queen","review-arbiter","review-fixer","review-lead","sentinel-correctness","sentinel-perf","sentinel-security","sentinel-style","simplifier","solution-aggregator","solution-proposer","worker"]'
+      local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","chronicler","drone","explore-aggregator","fix-worker","forager","guardian","inspector","nurse","plan-arbiter","probe","queen","review-arbiter","review-fixer","review-lead","sentinel-api","sentinel-correctness","sentinel-perf","sentinel-reliability","sentinel-security","sentinel-style","simplifier","solution-aggregator","solution-proposer","strategist","worker"]'
       formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:2000])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed -- check .agents/tmp/state.json .messages array directly)"; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases

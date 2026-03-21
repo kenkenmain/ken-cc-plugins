@@ -7,27 +7,34 @@ Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Acti
 ```
 plugins/ants/
 ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-├── agents/                        # Agent definitions (24 agents)
+├── agents/                        # Agent definitions (30 agents)
 │   ├── architect.md               # Plan writer with task assignments
 │   ├── blueprint-reviewer.md      # Plan validator
 │   ├── bug-scout.md               # Parallel bug investigator (debug D0)
 │   ├── cartographer.md            # Deep architecture tracer
+│   ├── chronicler.md              # Post-ship workflow retrospective (A5 sub-phase)
 │   ├── drone.md                   # Commit + PR shipper
 │   ├── fix-worker.md              # Implements debug fix with tests (debug D3)
 │   ├── forager.md                 # Breadth-first codebase scout
 │   ├── guardian.md                # Test writer for quality track
+│   ├── inspector.md               # Automated plan triage (A1 sub-phase)
 │   ├── nurse.md                   # Documentation updater
 │   ├── plan-arbiter.md            # A1 lead: evaluates competing architect plans (sswarm)
+│   ├── probe.md                   # Runtime verification (A3 quality track)
 │   ├── review-lead.md             # A2 lead: consolidates competing blueprint reviews (sswarm)
 │   ├── queen.md                   # A4 verdict evaluator / team lead initializer
 │   ├── review-arbiter.md          # Consolidates adversarial sentinel findings
 │   ├── review-fixer.md            # Targeted repair agent for review-fix cycles
 │   ├── sentinel.md                # (deprecated) Generic sentinel reviewer -- use specialist sentinels
+│   ├── sentinel-api.md            # Specialist: API design, type contracts, interface quality
 │   ├── sentinel-correctness.md    # Specialist: bugs, logic errors, error handling
 │   ├── sentinel-perf.md           # Specialist: N+1 queries, blocking I/O, complexity
+│   ├── sentinel-reliability.md    # Specialist: error handling, retry logic, graceful degradation
 │   ├── sentinel-security.md       # Specialist: OWASP, injection, secrets, access control
+│   ├── sentinel-style.md          # Specialist: code style, readability, maintainability
 │   ├── solution-aggregator.md     # Ranks and selects best fix (debug D2)
 │   ├── solution-proposer.md       # Proposes one specific fix approach (debug D1)
+│   ├── strategist.md              # Pre-plan approach evaluator (A0 sub-phase)
 │   └── worker.md                  # Task implementer (one per task)
 ├── commands/                      # Slash commands (5 commands: swarm, sswarm, pswarm, debug, improve)
 │   ├── debug.md                   # /ants:debug <bug description>
@@ -60,10 +67,13 @@ plugins/ants/
 │       └── lint.sh                # Language-aware lint runner abstraction
 ├── prompts/                       # Phase prompt templates
 │   ├── A0-explore.md              # Colony exploration dispatch
+│   ├── A0-strategy.md             # Strategist sub-phase dispatch
+│   ├── A1-inspect.md              # Inspector sub-phase dispatch
 │   ├── A1-plan.md                 # Architect plan dispatch
 │   ├── A2-review.md               # Blueprint review dispatch
 │   ├── A3-build.md                # Dual-track build dispatch
 │   ├── A4-sync.md                 # Queen synchronization dispatch
+│   ├── A5-chronicle.md            # Chronicler sub-phase dispatch
 │   └── A5-ship.md                 # Documentation + ship dispatch
 ├── skills/                        # Workflow documentation
 │   ├── debug/SKILL.md             # Debug pipeline reference
@@ -93,37 +103,43 @@ Commands check this env var as Step 0 and abort with a clear error message if it
 | 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
 | 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | No | Yes |
 | 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | No | Yes |
-| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Edit, Write, Bash, SendMessage | Yes | Yes |
-| 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write, Glob, SendMessage | Yes | Yes |
-| 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | No | Yes |
-| 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | No | Yes |
-| 9 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch, SendMessage | Yes | Yes |
-| 10 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep, SendMessage | Yes | Yes |
-| 11 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
-| 12 | queen | A4 verdict evaluator / team lead initializer | sonnet | Read, Glob, Grep, Write | No | Yes |
-| 13 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
-| 14 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
-| 15 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
-| 16 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | No | Yes |
-| 17 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
-| 18 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
-| 19 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
-| 20 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
-| 21 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash, SendMessage | Yes | Yes |
-| 22 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | No | Yes |
-| 23 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | No | Yes |
-| 24 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
-| 25 | (orchestrator) | Agent Teams delegate mode with Command-as-Active-Lead (hooks, not an agent file) | -- | -- | -- | -- |
+| 5 | chronicler | Post-ship workflow retrospective (A5 sub-phase) | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
+| 6 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 7 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write, Glob, SendMessage | Yes | Yes |
+| 8 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | No | Yes |
+| 9 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | No | Yes |
+| 10 | guardian | Test writer and runner for quality track | sonnet | Read, Write, Edit, Bash, Glob, Grep, WebSearch, SendMessage | Yes | Yes |
+| 11 | inspector | Automated plan triage (A1 sub-phase) | haiku | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
+| 12 | nurse | Updates documentation after implementation | sonnet | Read, Write, Edit, Glob, Grep, SendMessage | Yes | Yes |
+| 13 | plan-arbiter | A1 lead: evaluates competing architect plans, selects/merges best (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
+| 14 | probe | Runtime verification (A3 quality track) | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 15 | queen | A4 verdict evaluator / team lead initializer | sonnet | Read, Glob, Grep, Write | No | Yes |
+| 16 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
+| 17 | review-fixer | Targeted repair for review-fix cycles | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 18 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | Read, Write, Glob, Grep, SendMessage | Yes | Yes |
+| 19 | sentinel | (deprecated) Generic sentinel reviewer | sonnet | Read, Glob, Grep, Bash | No | Yes |
+| 20 | sentinel-api | Specialist: API design, type contracts, interface quality | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 21 | sentinel-correctness | Specialist: bugs, logic errors, error handling | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 22 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 23 | sentinel-reliability | Specialist: error handling, retry logic, graceful degradation | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 24 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 25 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 26 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash, SendMessage | Yes | Yes |
+| 27 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | No | Yes |
+| 28 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | No | Yes |
+| 29 | strategist | Pre-plan approach evaluator (A0 sub-phase) | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
+| 30 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 31 | (orchestrator) | Agent Teams delegate mode with Command-as-Active-Lead (hooks, not an agent file) | -- | -- | -- | -- |
 
 All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. Commands create Agent Teams and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook routes tasks to idle teammates. TaskCompleted hook validates output and advances state. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks (hooks are shell scripts and cannot call Claude tools). SendMessage is a live coordination overlay -- agents write files first (source of truth for hooks), then SendMessage summaries to the team or relevant agents.
 
-**Sentinel tool design:** Specialist sentinels (rows 17-20) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
+**Sentinel tool design:** Specialist sentinels (rows 20-25) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
 
-**Simplifier tool design:** The simplifier (row 21) has `Edit` to apply code cleanup but excludes `Write` via `disallowedTools` — it makes surgical edits to existing files, never full rewrites.
+**Simplifier tool design:** The simplifier (row 26) has `Edit` to apply code cleanup but excludes `Write` via `disallowedTools` — it makes surgical edits to existing files, never full rewrites.
 
 ### Deprecated Agents
 
-- **sentinel** -- Replaced by specialist sentinels (sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style) in v0.2/v0.5.4. The generic sentinel is retained for backward compatibility with v0.1 state files but should not be dispatched in new workflows.
+- **sentinel** -- Replaced by specialist sentinels (sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style, sentinel-reliability, sentinel-api) in v0.2/v0.5.4 (4 sentinels) and v0.8 (expanded to 6). The generic sentinel is retained for backward compatibility with v0.1 state files but should not be dispatched in new workflows.
 
 ### WebSearch Strategy
 
@@ -160,12 +176,12 @@ Three pipeline variants are supported, selected by the `pipeline` field in state
 
 | Phase | Stage | Agent(s) | Description |
 |-------|-------|----------|-------------|
-| A0 | EXPLORE | forager x2-4, cartographer x1, explore-aggregator x1 | Parallel codebase exploration (explore-aggregator synthesizes results) |
-| A1 | PLAN | architect x1 | Structured plan with task assignments |
+| A0 | EXPLORE | forager x2-4, cartographer x1, explore-aggregator x1, strategist x1 (sub-phase) | Parallel codebase exploration + strategy evaluation |
+| A1 | PLAN | architect x1, inspector x1 (sub-phase) | Structured plan with task assignments + automated triage |
 | A2 | PLAN | blueprint-reviewer x1 | Plan validation |
-| A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style (adversarial review), simplifier x1, review-arbiter x1, guardian x1 | Self-organizing task pool with adversarial review and cleanup tracks |
+| A3 | BUILD | worker xN (task pool), 6 sentinels (correctness + security + perf + style + reliability + api), guardian x1, simplifier x1, probe x1, review-arbiter x1 | Self-organizing task pool with adversarial review and cleanup tracks |
 | A4 | SYNC | TaskCompleted hook (inline) | Evaluated inline by TaskCompleted hook when A3 arbiter completes; reads A3-quality.json, renders ship/loop verdict (circuit breaker aware), sets signal flags |
-| A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
+| A5 | SHIP | nurse x1, drone x1, chronicler x1 (sub-phase) | Documentation update + commit/PR + workflow retrospective |
 
 ## Debug Pipeline (D0-D5)
 
@@ -227,16 +243,16 @@ The sswarm (social swarm) pipeline extends swarm with **competing parallel agent
 
 | Phase | swarm | sswarm |
 |-------|-------|--------|
-| A0 | foragers + cartographer + aggregator | Same |
+| A0 | foragers + cartographer + aggregator + strategist | Same |
 | A1 | 1 architect | 3 competing architects + plan-arbiter (blockedBy all 3) |
 | A2 | 1 blueprint-reviewer | 3 competing reviewers + review-lead (blockedBy all 3) |
-| A3 | workers + sentinels + guardian + simplifier | Same |
+| A3 | workers + 6 sentinels + guardian + simplifier + probe | Same |
 | A4 | TaskCompleted hook (inline verdict) | Same |
-| A5 | nurse + drone | Same |
+| A5 | nurse + drone + chronicler | Same |
 
 **Task dependency dispatch:** Competing agents at A1 and A2 are created as independent tasks (no deps on each other) all blockedBy the previous phase. The consolidator task (plan-arbiter / review-lead) is blockedBy all competing tasks. Task dependencies handle dispatch ordering; SendMessage provides a live coordination overlay for status broadcasts and handoff signals (dual-channel model -- see Communication section).
 
-**Lead agents:** plan-arbiter (row 11) and review-lead (row 15) read competing output files at known paths (set by dispatch prompt). Both follow the review-arbiter consolidation pattern with cross-reference elevation and deduplication.
+**Lead agents:** plan-arbiter (row 13) and review-lead (row 18) read competing output files at known paths (set by dispatch prompt). Both follow the review-arbiter consolidation pattern with cross-reference elevation and deduplication.
 
 **State additions:** `pipeline: "sswarm"`, `phaseLeads` map, `teamName: "ants-sswarm-<slug>"`.
 
@@ -248,15 +264,18 @@ Phase A3 is the core innovation. Two tracks run in coordinated execution:
 
 **Build Track:** Workers claim tasks from a self-organizing task pool. Tasks with no dependencies start as "ready"; as tasks complete, dependent tasks become ready automatically. This replaces the rigid wave-based dispatch from v0.1.
 
-**Quality Track (Adversarial Review + Cleanup):** After all workers complete (pool drained), six agents run in parallel:
+**Quality Track (Adversarial Review + Cleanup):** After all workers complete (pool drained), nine agents run in parallel:
 - **sentinel-correctness** -- bugs, logic errors, missing error handling, race conditions
 - **sentinel-security** -- OWASP top 10, injection, authentication, secrets exposure
 - **sentinel-perf** -- N+1 queries, blocking I/O, unnecessary allocations, algorithmic complexity
 - **sentinel-style** -- code style, readability, maintainability (excessive nesting, magic numbers, dead code)
+- **sentinel-reliability** -- error handling, retry logic, graceful degradation, observability
+- **sentinel-api** -- API design, type contracts, interface quality
 - **guardian** -- writes and runs tests for the implemented code
 - **simplifier** -- applies targeted code cleanup without behavioral changes (dead code removal, complexity reduction)
+- **probe** -- runtime verification: executes built code, runs integration checks, verifies endpoints respond correctly
 
-After all six complete, the **review-arbiter** cross-references sentinel findings, deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json). If the review-arbiter identifies critical issues, a **review-fixer** is dispatched to apply targeted repairs before the quality verdict is finalized.
+After all nine complete, the **review-arbiter** cross-references sentinel findings (6 sentinels + guardian + simplifier + probe), deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json). If the review-arbiter identifies critical issues, a **review-fixer** is dispatched to apply targeted repairs before the quality verdict is finalized.
 
 **Task Pool Synchronization:** Workers in the pool run in parallel when their dependencies are satisfied. After all workers complete (pool drained), the adversarial review team runs. This replaces the wave barrier model with dependency-driven dispatch.
 
@@ -282,8 +301,8 @@ The `hooks/lib/teams.sh` library provides task graph generation, teammate prompt
 
 - `teams_create_phase_tasks()` -- Creates TaskCreate entries for full A0→A5 linear dependency chain
 - `teams_create_sswarm_tasks()` -- Creates sswarm-specific task graph with competing agents at A1/A2 (3 architects + plan-arbiter, 3 reviewers + review-lead)
-- `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes sentinel-style; arbiter blockedBy includes all 4 sentinels + guardian + simplifier)
-- `teams_create_verdict_tasks()` -- Generates A5 tasks (nurse + drone) after clean A4 verdict
+- `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/probe/arbiter tasks after A1 (sentinel_names array includes 6 sentinels: correctness, security, perf, style, reliability, api; arbiter blockedBy includes all 6 sentinels + guardian + simplifier + probe)
+- `teams_create_verdict_tasks()` -- Generates A5 tasks (nurse + drone + chronicler) after clean A4 verdict
 - `teams_create_pswarm_run_tasks()` -- Wrapper that generates fresh task graph for pswarm run boundary
 - `teams_get_a3_task_prompt()` -- Generates task-specific prompt for A3 worker task assignment
 - `teams_build_teammate_prompt()` -- Generates phase-specific execution prompts for teammates
@@ -391,7 +410,7 @@ Eight hooks drive the Agent Teams delegate mode workflow. TeammateIdle is the fu
 State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 
 ### state.sh (core)
-- `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v6
+- `check_ants_workflow()` -- plugin guard, session scoping, status check, auto-migration v1->v7
 - `state_get()` -- read fields with optional required validation
 - `update_state()` -- atomic state update with file locking (flock with mkdir fallback on macOS)
 - `validate_json_file()` -- check file exists and contains valid JSON
@@ -425,7 +444,7 @@ State tracked in `.agents/tmp/state.json`. Shared libraries in `hooks/lib/`:
 - `teams_create_phase_tasks()` -- creates TaskCreate entries for full A0→A5 linear dependency chain
 - `teams_create_sswarm_tasks()` -- creates sswarm-specific task graph with competing agents at A1/A2
 - `teams_add_a3_subtasks()` -- dynamically adds worker/sentinel/arbiter tasks after A1
-- `teams_create_verdict_tasks()` -- generates A5 tasks (nurse + drone) after clean verdict
+- `teams_create_verdict_tasks()` -- generates A5 tasks (nurse + drone + chronicler) after clean verdict
 - `teams_create_pswarm_run_tasks()` -- wrapper for fresh task graph at pswarm run boundary
 - `teams_get_a3_task_prompt()` -- generates task-specific prompt for A3 worker task assignment
 - `teams_build_teammate_prompt()` -- generates phase-specific execution prompts for teammates
@@ -447,23 +466,29 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 
 ```
 .agents/tmp/
-├── state.json                           # Workflow state (v6)
+├── state.json                           # Workflow state (v7)
 ├── phases/
 │   ├── A0-explore.forager.1.tmp         # Forager results
 │   ├── A0-explore.forager.2.tmp
 │   ├── A0-explore.cartographer.tmp      # Cartographer results
 │   ├── A0-explore.md                    # Aggregated exploration
+│   ├── A0-strategy.md                   # Strategist approach evaluation (optional)
+│   ├── A5-chronicle.md                  # Chronicler workflow retrospective (optional, top-level)
 │   ├── loop-1/
 │   │   ├── A1-plan.architect.{1,2,3}.tmp        # Individual architect plans (sswarm only)
 │   │   ├── A1-tasks.architect.{1,2,3}.tmp        # Individual task descriptors (sswarm only)
 │   │   ├── A1-plan.md                   # Canonical architect plan (plan-arbiter in sswarm, architect in swarm)
 │   │   ├── A1-tasks.json                # Task descriptors for task pool
+│   │   ├── A1-inspection.json           # Inspector plan triage result (optional)
 │   │   ├── A2-review.json              # Blueprint review (review-lead in sswarm, blueprint-reviewer in swarm)
 │   │   ├── A3-build.json              # Worker results
 │   │   ├── A3-review.sentinel-correctness.json  # Correctness review
 │   │   ├── A3-review.sentinel-security.json     # Security review
 │   │   ├── A3-review.sentinel-perf.json         # Performance review
 │   │   ├── A3-review.sentinel-style.json        # Style review
+│   │   ├── A3-review.sentinel-reliability.json  # Reliability review
+│   │   ├── A3-review.sentinel-api.json          # API design review
+│   │   ├── A3-review.probe.json                 # Runtime verification
 │   │   ├── A3-quality.json            # Arbiter consolidated verdict
 │   │   ├── A4-queen-verdict.json     # Verdict (written by TaskCompleted hook inline A4 evaluation)
 │   │   ├── A5-docs.json              # Nurse documentation summary
@@ -472,11 +497,11 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 │   │   └── ...
 ```
 
-## State Schema (v6)
+## State Schema (v7)
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "plugin": "ants",
   "pipeline": "swarm|sswarm|pswarm",
   "status": "in_progress|blocked|complete",
@@ -541,7 +566,7 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 | `teammateCount` | number | 0 | Number of teammates spawned (3 for swarm/pswarm, 5 for sswarm). |
 | `taskGraphVersion` | number | 1 | Incremented on loop-back (`reset_phases_for_loop`) and pswarm run boundary (`reset_phases_for_pswarm`). Commands use this to detect when fresh TaskCreate calls are needed. |
 | `needsA3Tasks` | boolean | false | Signal flag: set by `on-task-completed.sh` when A1 completes. Command creates A3 worker/sentinel/arbiter tasks. |
-| `needsA5Tasks` | boolean | false | Signal flag: set by `on-task-completed.sh` when A4 verdict is clean. Command creates A5 nurse/drone tasks. |
+| `needsA5Tasks` | boolean | false | Signal flag: set by `on-task-completed.sh` when A4 verdict is clean. Command creates A5 nurse/drone/chronicler tasks. |
 | `needsLoopReset` | boolean | false | Signal flag: set by `on-task-completed.sh` when A4 verdict is `issues_found`. Command creates fresh A1-A4 tasks. |
 | `needsPswarmReset` | boolean | false | Signal flag: set by `on-task-completed.sh` when A5 completes in pswarm and `pswarmRun < maxRuns`. Command creates fresh A0-A5 task graph. |
 
@@ -597,7 +622,7 @@ All inter-agent communication uses file-based output. Each agent writes its resu
 
 - **Linear phases (A0, A1, A2, A5)**: task dependencies via blockedBy chains ensure agents read predecessor output files
 - **Competing agents (sswarm A1/A2)**: 3 independent tasks write to competitor-specific temp files; the consolidator task (blockedBy all 3) reads all files
-- **A3 quality track**: sentinels write individual review JSONs; arbiter reads all sentinel + guardian + simplifier output files
+- **A3 quality track**: sentinels write individual review JSONs; probe writes runtime verification JSON; arbiter reads all sentinel + probe + guardian + simplifier output files
 
 ### SendMessage (Dual-Channel Model)
 
@@ -619,18 +644,24 @@ Files are the persistent artifacts validated by hooks (TaskCompleted reads JSON 
 | sentinel-security | review-arbiter | Review-ready signal (arbiter reads JSON file) |
 | sentinel-perf | review-arbiter | Review-ready signal (arbiter reads JSON file) |
 | sentinel-style | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| sentinel-reliability | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| sentinel-api | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| probe | team | Runtime verification results (pass/fail counts) |
 | guardian | team | Test summary (pass/fail counts) |
 | simplifier | team | Cleanup summary (changes applied) |
 | review-arbiter | team | Consolidated quality verdict |
 | review-fixer | team | Fix summary with files repaired |
 | nurse | drone | Documentation update ready signal |
 | drone | team | Ship confirmation with commit SHA and PR URL |
+| strategist | team | Strategy evaluation summary with recommended approach |
+| inspector | team | Plan triage decision (approved/needs_review) |
+| chronicler | team | Chronicle complete with metrics and top learning |
 
 **Agents without SendMessage (8):** bug-scout, cartographer, fix-worker, forager, queen, sentinel (deprecated), solution-aggregator, solution-proposer. These are either stateless pipeline agents (debug/improve) or agents that communicate exclusively through file output.
 
 ### teamCreated State Field
 
-The `teamCreated` field (v6, replaces `queenDispatched` from v5) tracks whether the Agent Team has been created and teammates have been spawned. It is set to `true` after team creation and prevents duplicate team initialization.
+The `teamCreated` field (v6+, replaces `queenDispatched` from v5) tracks whether the Agent Team has been created and teammates have been spawned. It is set to `true` after team creation and prevents duplicate team initialization.
 
 ## Worktree Isolation (v0.4)
 
