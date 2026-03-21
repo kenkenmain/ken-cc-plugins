@@ -1,6 +1,6 @@
 # ants
 
-Ant-colony themed swarm workflow for Claude Code using Agent Teams delegate mode. The command creates a team, populates a shared task list with dependency chains, spawns teammates, and enters a monitoring loop. Teammates self-claim work via the TeammateIdle hook; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the verdict hook decides to ship or loop. Features a social swarm mode with competing architects and reviewers coordinated via task dependencies. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
+Ant-colony themed swarm workflow for Claude Code using Agent Teams delegate mode. The command creates a team, populates a shared task list with dependency chains, spawns teammates, and enters a monitoring loop. Teammates self-claim work via the TeammateIdle hook; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Workers build while six specialist sentinels review from different angles, a probe runs runtime verification, a simplifier cleans up the code, an arbiter consolidates findings, and the verdict hook decides to ship or loop. Sub-phase agents (strategist, inspector, chronicler) enrich exploration, plan triage, and post-ship retrospectives. Features a social swarm mode with competing architects and reviewers coordinated via task dependencies. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
 
 ## Installation
 
@@ -56,8 +56,10 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
 
 ```
   A0 Explore         foragers + cartographer scout the codebase
+       |             strategist evaluates approaches (sub-phase)
        |
   A1 Architect        plans implementation with task assignments
+       |              inspector auto-triages plan (sub-phase)
        |
   A2 Blueprint Review validates the plan before building
        |
@@ -67,6 +69,9 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
        |                 sentinel-security (OWASP, injection)
        |                 sentinel-perf (N+1, blocking I/O)
        |                 sentinel-style (readability, dead code)
+       |                 sentinel-reliability (error handling, retries)
+       |                 sentinel-api (API design, contracts)
+       |               probe runs runtime verification
        |               simplifier applies code cleanup
        |               guardian writes + runs tests
        |               review-arbiter consolidates findings
@@ -76,6 +81,7 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
   ship   loop ------> back to A1 (max 5 loops)
    |
   A5 Ship             update docs, commit, open PR
+       |              chronicler captures workflow metrics (sub-phase)
 ```
 
 ## Social Swarm Pipeline
@@ -101,7 +107,7 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
 | A0 | foragers + cartographer + explore-aggregator | explore-aggregator |
 | A1 | architect x3 | plan-arbiter (blockedBy all 3) |
 | A2 | blueprint-reviewer x3 | review-lead (blockedBy all 3) |
-| A3 | workers + sentinels + guardian + simplifier | review-arbiter |
+| A3 | workers + 6 sentinels + guardian + simplifier + probe | review-arbiter |
 | A4 | TaskCompleted hook (inline) | -- |
 | A5 | nurse + drone | drone |
 
@@ -169,10 +175,19 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 
 **Severity policy:** The improve pipeline fixes ALL issue severities (info, warning, critical). This is intentionally more thorough than the swarm pipeline's A4 verdict, which only blocks on critical and warning issues.
 
+### What's New in v0.8.0
+
+- **6 new agents** -- Strategist (A0 sub-phase: evaluates implementation approaches), inspector (A1 sub-phase: automated plan triage), sentinel-reliability (error handling, retries, graceful degradation), sentinel-api (API design, type contracts, interface quality), probe (A3 runtime verification), chronicler (A5 sub-phase: workflow retrospective with metrics and recommendations).
+- **Sub-phase pattern** -- New agents (strategist, inspector, chronicler) run as sub-steps within existing phases (A0, A1, A5) using marker files for dispatch tracking. They are supplementary, not required -- if they fail or time out, the phase completes normally.
+- **Expanded adversarial review** -- A3 quality track now runs 9 agents in parallel (6 sentinels + guardian + simplifier + probe), up from 6. Review-arbiter consolidates all 9 findings.
+- **Enriched agent messaging** -- All agents with SendMessage now include downstream context, directed feedback patterns, and anti-patterns in their Communication Protocol sections.
+- **30 agents** (up from 24) -- 6 new agents for deeper exploration, automated triage, expanded review coverage, and workflow learning.
+- **State schema v7** -- Auto-migration from v6 handled by state.sh.
+
 ### What's New in v0.7.0
 
 - **Dual-channel communication** -- SendMessage re-added as a live coordination overlay alongside file-based artifacts. Files remain the source of truth (hooks read output files, not messages), while SendMessage provides real-time coordination between teammates during active phases. Golden rule: write files first (source of truth for hooks), then SendMessage for live coordination.
-- **16 agents now include SendMessage** -- Worker, all four specialist sentinels (correctness, security, perf, style), guardian, simplifier, review-arbiter, review-fixer, architect, blueprint-reviewer, plan-arbiter, review-lead, explore-aggregator, nurse, and drone all have SendMessage in their tools lists with Communication Protocol sections in their prompts.
+- **22 agents now include SendMessage** -- All 6 specialist sentinels, probe, guardian, simplifier, review-arbiter, review-fixer, architect, blueprint-reviewer, plan-arbiter, review-lead, explore-aggregator, strategist, inspector, chronicler, nurse, worker, and drone all have SendMessage in their tools lists with Communication Protocol sections in their prompts.
 - **Hook prompt templates updated** -- Phase prompt templates (A0-A5) acknowledge the dual-channel model, instructing agents to write output files first and then use SendMessage for status updates and coordination signals.
 - **Golden rule enforced in agent prompts** -- Every agent with SendMessage includes the protocol: "Write files first (source of truth for hooks), then SendMessage for live coordination. Never rely on SendMessage as a substitute for writing output files."
 
@@ -185,7 +200,7 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 - **Signal flags** -- Four new boolean flags in state.json (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`) enable hooks to request dynamic task creation from the command's monitoring loop, since hooks (shell scripts) cannot call Claude tools like TaskCreate.
 - **State schema v6** -- `queenDispatched` replaced by `teamCreated`, new fields: `teammateCount`, `taskGraphVersion`. Auto-migration from v5 (and earlier) is handled by state.sh.
 - **SendMessage removed** -- SendMessage eliminated from all 18 agent tools lists for dispatch coordination. Retained as optional peer communication channel only.
-  - *Note: v0.7.0 re-added SendMessage to 16 agents as a dual-channel communication overlay (files + SendMessage). See v0.7.0 changelog above.*
+  - *Note: v0.7.0 re-added SendMessage to 16 agents, v0.8.0 expanded to 22 agents. See v0.7.0/v0.8.0 changelogs above.*
 - **pswarm fresh task graphs** -- pswarm run boundaries now create entirely fresh A0-A5 task graphs via the command's monitoring loop, triggered by the `needsPswarmReset` signal flag.
 - **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` required** -- Commands check this env var at startup (Step 0) and abort with a clear error if not set.
 - **Display modes** -- Agent Teams supports both in-process and split-pane display for teammate output.
@@ -284,7 +299,7 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 The key innovation is **Phase A3: Dual-Track Execution with Adversarial Review**. Instead of building everything then reviewing everything (sequential), ants runs two parallel tracks:
 
 - **Build track:** Workers claim tasks from a self-organizing pool -- tasks with satisfied dependencies are dispatched in parallel automatically
-- **Quality track (adversarial):** Four specialist sentinels review from different angles (correctness, security, performance, style), then an arbiter cross-references and deduplicates findings into a single verdict
+- **Quality track (adversarial):** Six specialist sentinels review from different angles (correctness, security, performance, style, reliability, API design), a probe runs runtime verification, then an arbiter cross-references and deduplicates findings into a single verdict
 
 This catches issues from multiple perspectives rather than relying on a single reviewer, and the TaskCompleted hook evaluates the arbiter's consolidated verdict inline before deciding to ship or loop.
 
@@ -295,14 +310,19 @@ This catches issues from multiple perspectives rather than relying on a single r
 | forager | Breadth-first codebase scout (x2-4) | haiku | A0 |
 | cartographer | Deep architecture tracer | sonnet | A0 |
 | explore-aggregator | Synthesizes forager+cartographer results into A0-explore.md | sonnet | A0 |
+| strategist | Pre-plan approach evaluator (sub-phase) | sonnet | A0 |
 | architect | Plans implementation with task assignments | sonnet | A1 |
+| inspector | Automated plan triage (sub-phase) | haiku | A1 |
 | blueprint-reviewer | Validates plan completeness and task logic | sonnet | A2 |
 | worker | Implements a single task (x1 per task) | inherit | A3 build |
 | sentinel-correctness | Bugs, logic errors, error handling | sonnet | A3 quality, I0 |
 | sentinel-security | OWASP, injection, secrets, access control | sonnet | A3 quality, I0 |
 | sentinel-perf | N+1 queries, blocking I/O, complexity | sonnet | A3 quality, I0 |
 | sentinel-style | Code style, readability, maintainability | sonnet | A3 quality |
+| sentinel-reliability | Error handling, retry logic, graceful degradation | sonnet | A3 quality |
+| sentinel-api | API design, type contracts, interface quality | sonnet | A3 quality |
 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | A3 quality |
+| probe | Runtime verification (integration checks, endpoint testing) | sonnet | A3 quality |
 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality, I0 |
 | review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
 | guardian | Test writer and runner for quality track | sonnet | A3 quality |
@@ -311,13 +331,14 @@ This catches issues from multiple perspectives rather than relying on a single r
 | review-lead | A2 lead: consolidates competing blueprint review verdicts (sswarm) | sonnet | A2 |
 | nurse | Updates documentation | sonnet | A5 |
 | drone | Commits and opens PR | inherit | A5 |
+| chronicler | Post-ship workflow retrospective (sub-phase) | sonnet | A5 |
 | bug-scout | Parallel bug investigator (×3) | haiku | D0 |
 | solution-proposer | Proposes one specific fix approach (×3) | sonnet | D1 |
 | solution-aggregator | Ranks and selects best fix | sonnet | D2 |
 | fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 24 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/sswarm/pswarm workflows use Agent Teams delegate mode -- commands create teams with task dependency chains, spawn teammates, and enter a monitoring loop. The TeammateIdle hook routes tasks to idle teammates; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks. The debug and improve pipelines are orchestrated synchronously by their respective commands (no Agent Teams).
+All 30 agent definitions are leaf agents (cannot spawn subagents). The swarm/sswarm/pswarm workflows use Agent Teams delegate mode -- commands create teams with task dependency chains, spawn teammates, and enter a monitoring loop. The TeammateIdle hook routes tasks to idle teammates; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks. The debug and improve pipelines are orchestrated synchronously by their respective commands (no Agent Teams).
 
 ## How It Works
 
@@ -325,7 +346,7 @@ All 24 swarm agent definitions are leaf agents (cannot spawn subagents). The swa
 
 The workflow is driven by Agent Teams with a Command-as-Active-Lead model:
 
-1. The `/ants:swarm` command checks `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` and initializes state.json (v6 schema)
+1. The `/ants:swarm` command checks `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` and initializes state.json (v7 schema)
 2. The command creates task entries with dependency chains (A0 -> A1 -> A2) via TaskCreate
 3. The command spawns 3-5 teammates and enters a **monitoring loop**
 4. The **TeammateIdle hook** routes ready tasks to idle teammates (full task router for all phases)
@@ -343,14 +364,17 @@ Build Track                    Quality Track (Adversarial + Cleanup)
 -----------                    ------------------------------------
 Task pool workers (parallel)
     |
-    pool drained ----------->  sentinel-correctness  \
-                                sentinel-security      \
-                                sentinel-perf           } parallel
-                                sentinel-style         /
-                                guardian              /
-                                simplifier           /
+    pool drained ----------->  sentinel-correctness    \
+                                sentinel-security        \
+                                sentinel-perf             \
+                                sentinel-style             } parallel
+                                sentinel-reliability      /
+                                sentinel-api             /
+                                probe                   /
+                                guardian                /
+                                simplifier            /
                                     |
-                                review-arbiter (consolidate all 6)
+                                review-arbiter (consolidate all 9)
                                     |
                                A3-quality.json
     |                               |
@@ -361,7 +385,7 @@ Task pool workers (parallel)
 
 Workers claim tasks from the pool as dependencies are satisfied. Each worker implements exactly one task, self-verifies (tests, lint, typecheck), and reports results. Workers cannot use git (blocked by hook).
 
-After all workers complete, six agents run in parallel: four specialist sentinels review from different angles (correctness, security, performance, style), the guardian writes and runs tests, and the simplifier applies structural code cleanup without behavioral changes. The review-arbiter then consolidates all sentinel findings into a single A3-quality.json.
+After all workers complete, nine agents run in parallel: six specialist sentinels review from different angles (correctness, security, performance, style, reliability, API design), the probe runs runtime verification, the guardian writes and runs tests, and the simplifier applies structural code cleanup without behavioral changes. The review-arbiter then consolidates all findings into a single A3-quality.json.
 
 ### Circuit Breaker
 
@@ -385,9 +409,9 @@ If the TaskCompleted hook's inline A4 verdict evaluation finds unresolved critic
 |---|-----------|---------------------|
 | Phases | 6 (A0-A5) | 15 (S0-S14) |
 | Build model | Task pool + adversarial review teams | Sequential with review-fix cycles |
-| Review style | 4 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
+| Review style | 6 specialist sentinels + probe + arbiter + simplifier | Single reviewer per phase |
 | Loop type | Inline A4 verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
-| Agents | 24 colony-themed | 26+ generic |
+| Agents | 30 colony-themed | 26+ generic |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Best for | Medium complexity tasks | Complex tasks needing thorough coverage |
 | Theme | Ant colony | Minions |
@@ -398,7 +422,7 @@ If the TaskCompleted hook's inline A4 verdict evaluation finds unresolved critic
 
 ## State and Output
 
-Workflow state lives in `.agents/tmp/state.json` (v6 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
+Workflow state lives in `.agents/tmp/state.json` (v7 schema). Phase outputs are written to `.agents/tmp/phases/`. Loop-specific files are organized under `loop-{N}/` subdirectories.
 
 All state and output files are gitignored. They are temporary artifacts of the workflow execution.
 

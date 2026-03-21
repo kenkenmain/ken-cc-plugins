@@ -3,16 +3,18 @@
 > **Purpose:** Reference document standardizing naming, schemas, and routing patterns across all Agent Teams components. NOT a slash command. All commands, hooks, and agents MUST match these exact names. Mismatch causes routing failures.
 >
 > **v0.7.0 update:** SendMessage re-added to 16 agents as a live coordination overlay. The naming contracts, task IDs, routing patterns, and state schema defined in this document remain unchanged -- SendMessage is an additive communication channel that does not affect hook routing or task dependency chains.
+>
+> **v0.8.0 update:** 6 new agents added (strategist, inspector, chronicler, probe, sentinel-reliability, sentinel-api). State schema bumped to v7 (version number only -- no new top-level fields). New agents operate as sub-steps within existing phases using marker files, not new phase IDs. The A3 quality track now has 6 sentinels + guardian + simplifier + probe.
 
 ---
 
-## 1. State Schema v6
+## 1. State Schema v7
 
-The v6 schema replaces `queenDispatched` with `teamCreated` and adds fields for Agent Teams delegate mode. Migration from v5 is handled by `migrate_state_v5_to_v6()` in `state.sh`.
+The v7 schema bumps the version from v6 for the v0.8.0 agent roster expansion. No new top-level state fields are added -- new agents (strategist, inspector, chronicler, probe, sentinel-reliability, sentinel-api) operate as sub-steps within existing phases using marker files (`.{agent}.dispatched` / `.{agent}.done`). Migration from v6 is handled by `migrate_state_v6_to_v7()` in `state.sh`.
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "plugin": "ants",
   "pipeline": "swarm|sswarm|pswarm",
   "status": "in_progress|blocked|complete",
@@ -72,7 +74,11 @@ The v6 schema replaces `queenDispatched` with `teamCreated` and adds fields for 
 }
 ```
 
-### New v6 Fields
+### v7 Changes
+
+The v7 schema is identical to v6 except for the version number bump. New agents use marker files within existing phases for sub-step tracking, not new state fields. The migration (`migrate_state_v6_to_v7()`) only sets `.version = 7`.
+
+### v6 Fields (unchanged in v7)
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -110,6 +116,21 @@ del(.queenDispatched) |
 .taskGraphVersion //= 1
 ```
 
+### v6-to-v7 Migration
+
+```bash
+if [[ "$version" == "6" ]]; then
+  migrate_state_v6_to_v7
+  version="7"
+fi
+```
+
+Migration jq expression:
+
+```jq
+.version = 7
+```
+
 ---
 
 ## 2. TaskCreate Subject Naming Convention
@@ -123,6 +144,7 @@ Subjects are the primary routing key in `on-task-completed.sh`. Every subject MU
 | `"A0 Forager: Colony exploration {N}"` | `ants:forager` | all |
 | `"A0 Cartographer: Deep architecture trace"` | `ants:cartographer` | all |
 | `"A0 Explore Aggregator: Synthesize findings"` | `ants:explore-aggregator` | all |
+| `"A0 Strategist: Evaluate approaches"` | `ants:strategist` | all |
 
 ### A1 -- PLAN
 
@@ -131,6 +153,7 @@ Subjects are the primary routing key in `on-task-completed.sh`. Every subject MU
 | `"A1 Architect: Implementation plan"` | `ants:architect` | swarm, pswarm |
 | `"A1 Architect {N}: Competing plan"` | `ants:architect` | sswarm |
 | `"A1 Plan Arbiter: Consolidate plans"` | `ants:plan-arbiter` | sswarm |
+| `"A1 Inspector: Plan triage"` | `ants:inspector` | all |
 
 ### A2 -- PLAN (Review)
 
@@ -154,8 +177,11 @@ Subjects are the primary routing key in `on-task-completed.sh`. Every subject MU
 | `"A3 Sentinel Security: Review"` | `ants:sentinel-security` | all |
 | `"A3 Sentinel Perf: Review"` | `ants:sentinel-perf` | all |
 | `"A3 Sentinel Style: Review"` | `ants:sentinel-style` | all |
+| `"A3 Sentinel Reliability: Review"` | `ants:sentinel-reliability` | all |
+| `"A3 Sentinel API: Review"` | `ants:sentinel-api` | all |
 | `"A3 Guardian: Write tests"` | `ants:guardian` | all |
 | `"A3 Simplifier: Code cleanup"` | `ants:simplifier` | all |
+| `"A3 Probe: Runtime verification"` | `ants:probe` | all |
 
 ### A3 -- BUILD (Consolidation)
 
@@ -170,6 +196,7 @@ Subjects are the primary routing key in `on-task-completed.sh`. Every subject MU
 |---------|-------|----------|
 | `"A5 Nurse: Update documentation"` | `ants:nurse` | all |
 | `"A5 Drone: Commit and ship"` | `ants:drone` | all |
+| `"A5 Chronicler: Workflow retrospective"` | `ants:chronicler` | all |
 
 ### Subject Format Rules
 
@@ -200,11 +227,15 @@ case "$TASK_SUBJECT" in
     phase="A3-arbiter" ;;
   "A3 Review Fixer"*|"A3 review fixer"*|"A3-review-fixer"*|"A3 Review-Fixer"*)
     phase="A3-fixer" ;;
+  "A3 Probe"*|"A3 probe"*|"A3-probe"*)
+    phase="A3-probe" ;;
   "A3"*) phase="A3" ;;
   "A0 Forager"*|"A0 Cartographer"*) phase="A0-sub" ;;
+  "A0 Strategist"*|"A0 strategist"*) phase="A0-strategist" ;;
   "A0 Explore Aggregator"*|"A0: Colony Exploration"*|"A0"*) phase="A0" ;;
   "A1 Architect"[[:space:]][0-9]*) phase="A1-sub" ;;
   "A1 Plan Arbiter"*) phase="A1" ;;
+  "A1 Inspector"*|"A1 inspector"*) phase="A1-inspector" ;;
   "A1"*) phase="A1" ;;
   "A2 Blueprint Reviewer"[[:space:]][0-9]*) phase="A2-sub" ;;
   "A2 Review Lead"*) phase="A2" ;;
@@ -212,6 +243,7 @@ case "$TASK_SUBJECT" in
   "A4"*) phase="A4" ;;
   "A5 Nurse"*|"A5 nurse"*|"A5-nurse"*) phase="A5-nurse" ;;
   "A5 Drone"*|"A5 drone"*|"A5-drone"*) phase="A5-drone" ;;
+  "A5 Chronicler"*|"A5 chronicler"*|"A5-chronicler"*) phase="A5-chronicler" ;;
   "A5"*) phase="A5" ;;
   *)
     # Not an ants phase task, allow completion
@@ -225,9 +257,11 @@ esac
 | Pattern | Phase ID | Handler | Description |
 |---------|----------|---------|-------------|
 | `A0 Forager*` or `A0 Cartographer*` | `A0-sub` | (accept, no state change) | Individual A0 sub-task completed, awaiting aggregator |
+| `A0 Strategist*` | `A0-strategist` | `handle_a0_strategist()` | Validates A0-strategy.md, marks strategist done |
 | `A0 Explore Aggregator*` or `A0*` | `A0` | `handle_a0()` | Validates A0-explore.md, advances to A1 |
 | `A1 Architect [0-9]*` | `A1-sub` | (accept, no state change) | Competing architect completed (sswarm), awaiting arbiter |
 | `A1 Plan Arbiter*` or `A1*` | `A1` | `handle_a1()` | Validates A1-plan.md + A1-tasks.json, inits task pool, advances to A2 |
+| `A1 Inspector*` | `A1-inspector` | `handle_a1_inspector()` | Validates inspection JSON, auto-approves or flags for human review |
 | `A2 Blueprint Reviewer [0-9]*` | `A2-sub` | (accept, no state change) | Competing reviewer completed (sswarm), awaiting lead |
 | `A2 Review Lead*` or `A2*` | `A2` | `handle_a2()` | Validates A2-review.json, approved -> A3 or needs_revision -> loop to A1 |
 | `A3 Worker*` | `A3-worker` | `handle_a3_worker()` | Updates task pool, checks build track completion |
@@ -236,10 +270,12 @@ esac
 | `A3 Simplifier*` | `A3-simplifier` | `handle_a3_simplifier()` | Marks simplifier complete, checks all quality agents done |
 | `A3 Review Arbiter*` or `A3 Arbiter*` | `A3-arbiter` | `handle_a3_arbiter()` | Consolidates quality verdict, evaluates A4 inline, sets signal flags |
 | `A3 Review Fixer*` | `A3-fixer` | `handle_a3_fixer()` | Marks fixer complete |
-| `A3*` (catch-all) | `A3` | `handle_a3_aggregate()` | Legacy fallback -- should not fire in v0.6 |
+| `A3 Probe*` | `A3-probe` | `handle_a3_probe()` | Marks probe complete, checks all quality agents done |
+| `A3*` (catch-all) | `A3` | `handle_a3_aggregate()` | Legacy fallback -- should not fire in v0.7 |
 | `A4*` | `A4` | `handle_a4()` | Legacy compatibility shim -- verdict now inline in A3-arbiter |
 | `A5 Nurse*` | `A5-nurse` | `handle_a5_nurse()` | Validates A5-docs.json, marks nurseDone for drone routing |
 | `A5 Drone*` | `A5-drone` | `handle_a5()` | Validates A5-ship.json, marks workflow DONE or sets pswarm reset |
+| `A5 Chronicler*` | `A5-chronicler` | `handle_a5_chronicler()` | Validates chronicle JSON, marks chronicler done |
 | `A5*` (catch-all) | `A5` | `handle_a5()` | Generic A5 fallback |
 
 ### Routing Precedence
@@ -259,14 +295,17 @@ Task IDs are used in `blockedBy` dependency chains and state tracking. They foll
 | `A0-forager-{N}` | A0 | N = 1-based forager index |
 | `A0-cartographer` | A0 | Single deep explorer |
 | `A0-explore-aggregator` | A0 | blockedBy all foragers + cartographer |
+| `A0-strategist` | A0 | blockedBy A0-explore-aggregator |
 | `A1-architect` | A1 | swarm/pswarm only |
 | `A1-architect-{N}` | A1 | sswarm: N = 1,2,3 |
 | `A1-plan-arbiter` | A1 | sswarm: blockedBy all architects |
 | `A2-blueprint-reviewer` | A2 | swarm/pswarm only |
 | `A2-reviewer-{N}` | A2 | sswarm: N = 1,2,3 |
 | `A2-review-lead` | A2 | sswarm: blockedBy all reviewers |
+| `A1-inspector` | A1 | blockedBy A1-architect (or A1-plan-arbiter in sswarm) |
 | `A5-nurse` | A5 | blockedBy A3-arbiter |
 | `A5-drone` | A5 | blockedBy A5-nurse |
+| `A5-chronicler` | A5 | blockedBy A5-drone |
 
 ### A3 Dynamic Tasks (created after A1 completes)
 
@@ -277,9 +316,12 @@ Task IDs are used in `blockedBy` dependency chains and state tracking. They foll
 | `A3-sentinel-security` | `ants:sentinel-security` | blockedBy all workers |
 | `A3-sentinel-perf` | `ants:sentinel-perf` | blockedBy all workers |
 | `A3-sentinel-style` | `ants:sentinel-style` | blockedBy all workers |
+| `A3-sentinel-reliability` | `ants:sentinel-reliability` | blockedBy all workers |
+| `A3-sentinel-api` | `ants:sentinel-api` | blockedBy all workers |
 | `A3-guardian` | `ants:guardian` | blockedBy all workers |
 | `A3-simplifier` | `ants:simplifier` | blockedBy all workers |
-| `A3-arbiter` | `ants:review-arbiter` | blockedBy all sentinels + guardian + simplifier |
+| `A3-probe` | `ants:probe` | blockedBy all workers |
+| `A3-arbiter` | `ants:review-arbiter` | blockedBy all 6 sentinels + guardian + simplifier + probe |
 | `A3-review-fixer` | `ants:review-fixer` | optional: blockedBy A3-arbiter |
 
 ---
@@ -369,7 +411,7 @@ while status != "complete" AND status != "blocked" AND status != "stopped":
 A0-forager-1 ─────────┐
 A0-forager-2 ─────────┤
 A0-cartographer ──────┤
-                       └─► A0-explore-aggregator ─► A1-architect ─► A2-blueprint-reviewer
+                       └─► A0-explore-aggregator ─► A0-strategist ─► A1-architect ─► A1-inspector ─► A2-blueprint-reviewer
                                                                            │
                                     [needsA3Tasks flag triggers TaskCreate] │
                                                                            ▼
@@ -380,24 +422,27 @@ A0-cartographer ──────┤
                                                      └─► A3-sentinel-security ─────┤
                                                      └─► A3-sentinel-perf ─────────┤
                                                      └─► A3-sentinel-style ────────┤
+                                                     └─► A3-sentinel-reliability ──┤
+                                                     └─► A3-sentinel-api ──────────┤
                                                      └─► A3-guardian ──────────────┤
                                                      └─► A3-simplifier ────────────┤
+                                                     └─► A3-probe ────────────────┤
                                                                                     └─► A3-arbiter
                                                                                           │
                                           [A4 verdict evaluated inline by handle_a3_arbiter]
                                                                                           │
                                                           [needsA5Tasks or needsLoopReset]│
                                                                                           ▼
-                                                                                  A5-nurse ─► A5-drone
+                                                                                  A5-nurse ─► A5-drone ─► A5-chronicler
 ```
 
 ### sswarm Task Graph (A1 and A2 differ)
 
 ```
-A0-explore-aggregator ─► A1-architect-1 ──┐
-                         A1-architect-2 ──┤
-                         A1-architect-3 ──┤
-                                           └─► A1-plan-arbiter ─► A2-reviewer-1 ──┐
+A0-explore-aggregator ─► A0-strategist ─► A1-architect-1 ──┐
+                                         A1-architect-2 ──┤
+                                         A1-architect-3 ──┤
+                                                           └─► A1-plan-arbiter ─► A1-inspector ─► A2-reviewer-1 ──┐
                                                                    A2-reviewer-2 ──┤
                                                                    A2-reviewer-3 ──┤
                                                                                     └─► A2-review-lead
@@ -418,6 +463,7 @@ Output files follow a strict naming convention within `.agents/tmp/phases/`.
 | `.agents/tmp/phases/A0-explore.forager.{N}.tmp` | forager |
 | `.agents/tmp/phases/A0-explore.cartographer.tmp` | cartographer |
 | `.agents/tmp/phases/A0-explore.md` | explore-aggregator |
+| `.agents/tmp/phases/A0-strategy.md` | strategist |
 
 ### A1-A5 (loop-scoped: `.agents/tmp/phases/loop-{loop}/`)
 
@@ -434,10 +480,15 @@ Output files follow a strict naming convention within `.agents/tmp/phases/`.
 | `A3-review.sentinel-security.json` | sentinel-security |
 | `A3-review.sentinel-perf.json` | sentinel-perf |
 | `A3-review.sentinel-style.json` | sentinel-style |
+| `A3-review.sentinel-reliability.json` | sentinel-reliability |
+| `A3-review.sentinel-api.json` | sentinel-api |
+| `A3-probe.json` | probe |
 | `A3-quality.json` | review-arbiter |
 | `A4-queen-verdict.json` | handle_a3_arbiter() in on-task-completed.sh |
 | `A5-docs.json` | nurse |
 | `A5-ship.json` | drone |
+| `A1.5-inspection.json` | inspector |
+| `A5.5-chronicle.json` | chronicler |
 
 ---
 

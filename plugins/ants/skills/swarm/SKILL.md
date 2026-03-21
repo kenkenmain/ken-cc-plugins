@@ -20,7 +20,7 @@ Ant-colony themed 6-phase development pipeline with Agent Teams delegate mode, d
 - TaskCompleted hook validates output, advances state, and sets signal flags
 - Command monitoring loop reads signal flags and creates dynamic tasks (A3 workers, A5, loop-back)
 - A4 verdict is evaluated **inline** by `handle_a3_arbiter()` in the TaskCompleted hook -- no separate agent dispatch
-- State schema v6 with `phases`, `circuitBreaker`, `taskPool`, `teamName`, `teamCreated`, `teammateCount`, `taskGraphVersion`, signal flags (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`), `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`, `worktreePath`, and `webSearch` fields
+- State schema v7 with `phases`, `circuitBreaker`, `taskPool`, `teamName`, `teamCreated`, `teammateCount`, `taskGraphVersion`, signal flags (`needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`), `messages`, `planApproved`, `shutdown`, `webhookUrl`, `lintConfig`, `configSnapshot`, `compactMetadata`, `worktreePath`, and `webSearch` fields
 
 ## Dual-Channel Communication Model
 
@@ -50,12 +50,12 @@ SendMessage provides **real-time peer coordination** between teammates within a 
 | **Validation** | Hooks validate existence, format, content | No hook validation -- advisory only |
 | **Latency** | Write + read from disk | Immediate in-session delivery |
 | **Required for phase gates** | Yes -- hooks check files to advance state | No -- phase transitions never depend on messages |
-| **Used by** | All 24 agents (every agent writes output files) | 16 agents (coordination overlay, see table below) |
+| **Used by** | All 30 agents (every agent writes output files) | 22 agents (coordination overlay, see table below) |
 | **Examples** | `A0-explore.md`, `A1-plan.md`, `A3-quality.json` | "Build track complete, starting quality review", "Worker 3 found API conflict in auth module" |
 
 ## Who Messages Whom (SendMessage)
 
-Sixteen agents use SendMessage as a live coordination overlay alongside their file output. Messages are informational -- they accelerate coordination but are never required for phase gates.
+Twenty-two agents use SendMessage as a live coordination overlay alongside their file output. Messages are informational -- they accelerate coordination but are never required for phase gates.
 
 | Phase | Sender | Recipient(s) | Message Content |
 |-------|--------|-------------- |-----------------|
@@ -67,12 +67,16 @@ Sixteen agents use SendMessage as a live coordination overlay alongside their fi
 | A3 | sentinel-security | review-arbiter | Review complete, critical/warning/info issue counts |
 | A3 | sentinel-perf | review-arbiter | Review complete, critical/warning/info issue counts |
 | A3 | sentinel-style | review-arbiter | Review complete, critical/warning/info issue counts |
+| A3 | sentinel-reliability | review-arbiter | Review complete, critical/warning/info issue counts |
+| A3 | sentinel-api | review-arbiter | Review complete, critical/warning/info issue counts |
+| A3 | probe | team | Runtime verification results, pass/fail counts |
 | A3 | guardian | team | Tests written, pass/fail counts |
 | A3 | simplifier | team | Cleanup complete, changes applied summary |
 | A3 | review-arbiter | team | Consolidated quality verdict, critical issue count |
 | A3 | review-fixer | team | Fixes applied, files modified |
 | A5 | nurse | drone | Documentation updated, files modified list |
 | A5 | drone | team | Commit SHA, PR URL, ship status |
+| A5 | chronicler | team | Chronicle complete, loop count, top learning |
 | A1 (sswarm) | plan-arbiter | team | Selected plan, merge strategy used |
 | A2 (sswarm) | review-lead | team | Consolidated review verdict |
 
@@ -105,12 +109,12 @@ Note: forager and cartographer are excluded because they are high-volume, low-la
 ## 6-Phase Pipeline
 
 ```
-Phase A0  | EXPLORE   | Colony Exploration     | foragers + cartographer + explore-aggregator
-Phase A1  | PLAN      | Architect Plan         | architect
+Phase A0  | EXPLORE   | Colony Exploration     | foragers + cartographer + explore-aggregator + strategist (sub-phase)
+Phase A1  | PLAN      | Architect Plan         | architect + inspector (sub-phase, auto-triage)
 Phase A2  | PLAN      | Blueprint Review       | blueprint-reviewer
-Phase A3  | BUILD     | Dual-Track Execution   | workers (task pool) + 4 sentinels + guardian + simplifier + arbiter
+Phase A3  | BUILD     | Dual-Track Execution   | workers (task pool) + 6 sentinels + guardian + simplifier + probe + arbiter
 Phase A4  | SYNC      | Verdict                | TaskCompleted hook evaluates inline (handle_a3_arbiter)
-Phase A5  | SHIP      | Documentation + Ship   | nurse + drone
+Phase A5  | SHIP      | Documentation + Ship   | nurse + drone + chronicler (sub-phase)
 ```
 
 ### Pipeline Diagram
@@ -124,11 +128,13 @@ Command spawns 3 teammates, enters monitoring loop
          foragers + cartographer (parallel, routed by TeammateIdle hook)
          explore-aggregator synthesizes -> A0-explore.md
          explore-aggregator SendMessage -> lead: "synthesis complete"
+         [sub-phase] strategist evaluates approaches -> A0-strategy.md (optional)
          TaskCompleted hook advances state to A1
              |
          A1 Architect
          architect writes plan + task descriptors (assigned by TeammateIdle hook)
          architect SendMessage -> lead: "plan ready, N tasks"
+         [sub-phase] inspector triages plan -> A1-inspection.json (auto-approve or flag)
          TaskCompleted hook advances state to A2, sets needsA3Tasks flag
          Command monitoring loop creates A3 worker/sentinel/arbiter tasks
              |
@@ -143,14 +149,17 @@ Command spawns 3 teammates, enters monitoring loop
     |                  |
     | Build Track      | Quality Track (Adversarial)
     | (task pool)      |
-    |  workers         | sentinel-correctness  \
-    |  claimed from    | sentinel-security      } parallel
-    |  pool by         | sentinel-perf         /
-    |  TeammateIdle    | sentinel-style       /
-    |       |          | guardian (tests)
-    |  workers SM ->   | simplifier (cleanup)
-    |   arbiter        |       |
-    |  build results   | sentinels+guardian+simplifier SM -> arbiter
+    |  workers         | sentinel-correctness    \
+    |  claimed from    | sentinel-security        \
+    |  pool by         | sentinel-perf             } parallel
+    |  TeammateIdle    | sentinel-style            /
+    |       |          | sentinel-reliability     /
+    |  workers SM ->   | sentinel-api            /
+    |   arbiter        | guardian (tests)
+    |  build results   | simplifier (cleanup)
+    |                  | probe (runtime verification)
+    |                  |       |
+    |                  | all 9 agents SM -> arbiter
     |                  | review-arbiter consolidates
     +--------+--------+
              |
@@ -161,6 +170,7 @@ Command spawns 3 teammates, enters monitoring loop
    A5 Ship      A1 (needsLoopReset flag -> command creates fresh A1-A4 tasks)
    nurse SM -> drone
    drone SM -> lead: "shipped"
+   [sub-phase] chronicler captures workflow metrics -> A5-chronicle.md (optional)
    (needsA5Tasks flag -> command creates A5 nurse/drone tasks)
 ```
 
@@ -175,8 +185,11 @@ TeammateIdle hook assigns **forager**, **cartographer**, and **explore-aggregato
 - **Foragers** (haiku, x2-3): Breadth-first scouts, each assigned a focused query (file structure, tests, patterns, related code). Write findings to `.agents/tmp/phases/A0-explore.forager.N.tmp`.
 - **Cartographer** (sonnet, x1): Depth-first architecture tracer -- maps execution paths, dependency graphs, layered structure. Writes findings to `.agents/tmp/phases/A0-explore.cartographer.tmp`.
 - **Explore-aggregator** (sonnet, x1): Synthesizes all forager and cartographer findings into a unified report. blockedBy all foragers + cartographer via task dependency chain. After writing the report, sends a SendMessage to the lead with a summary of key findings.
+- **Strategist** (sonnet, x1, sub-phase): Dispatched after explore-aggregator writes `A0-explore.md`. Evaluates 2-3 implementation approaches with trade-off analysis. Writes `A0-strategy.md`. Uses marker files (`.strategist.dispatched` / `.strategist.done`) for dispatch tracking. **Supplementary, not required** — if the strategist fails or times out, A0 completes without a strategy file.
 
-Output: `.agents/tmp/phases/A0-explore.md` (written by explore-aggregator)
+Output:
+- `.agents/tmp/phases/A0-explore.md` (written by explore-aggregator)
+- `.agents/tmp/phases/A0-strategy.md` (written by strategist, optional)
 
 TaskCompleted hook validates output and advances state to A1.
 
@@ -184,13 +197,16 @@ This phase is **supplementary, not required**. If agents fail or time out, the w
 
 ### Phase A1: Architect Plan
 
-TeammateIdle hook assigns `ants:architect` (sonnet) with aggregated A0 context. Architect writes a structured implementation plan with task assignments for the task pool. After writing the plan, sends a SendMessage to the lead with task count and complexity estimate.
+TeammateIdle hook assigns `ants:architect` (sonnet) with aggregated A0 context (including `A0-strategy.md` if present). Architect writes a structured implementation plan with task assignments for the task pool. After writing the plan, sends a SendMessage to the lead with task count and complexity estimate.
 
 On loop 2+, the dispatch prompt includes targeted feedback from the previous A4 verdict, directing the architect to plan fixes rather than re-planning from scratch.
+
+After the architect completes, the **inspector** (haiku, sub-phase) is dispatched to triage the plan. The inspector evaluates complexity and risk (task count, dependency depth, circular deps, high-risk file patterns, overlapping ownership) and writes `A1-inspection.json` with a decision of `"approved"` or `"needs_review"`. If approved, `planApproved` is set to `true` automatically. If flagged, the workflow holds for manual approval. Uses marker files (`.inspector.dispatched` / `.inspector.done`). **Supplementary** — if the inspector fails or times out, the workflow falls back to manual approval (`planApproved = false`).
 
 Output:
 - `.agents/tmp/phases/loop-{LOOP}/A1-plan.md` -- human-readable plan
 - `.agents/tmp/phases/loop-{LOOP}/A1-tasks.json` -- machine-readable task descriptors for task pool
+- `.agents/tmp/phases/loop-{LOOP}/A1-inspection.json` -- inspector triage result (optional)
 
 Must contain:
 - Summary and chosen approach
@@ -233,25 +249,33 @@ Each worker:
 
 #### Quality Track (Adversarial Review + Cleanup)
 
-After all workers complete (build track complete), TeammateIdle hook assigns **6 agents** to idle teammates:
+After all workers complete (build track complete), TeammateIdle hook assigns **9 agents** to idle teammates:
 
 - **sentinel-correctness** -- bugs, logic errors, missing error handling, incorrect API usage, race conditions
 - **sentinel-security** -- OWASP top 10, injection attacks, authentication flaws, secrets exposure, access control
 - **sentinel-perf** -- N+1 queries, unnecessary allocations, blocking I/O, missing caching, algorithmic complexity
 - **sentinel-style** -- code style, readability, maintainability (excessive nesting, magic numbers, dead code)
+- **sentinel-reliability** -- error handling, retry logic, graceful degradation, observability
+- **sentinel-api** -- API design, type contracts, interface quality
 - **guardian** -- writes tests for implemented code
 - **simplifier** -- applies targeted code cleanup without behavioral changes (dead code removal, complexity reduction)
+- **probe** -- runtime verification: executes built code, runs integration checks, verifies endpoints respond correctly
 
-Each quality track agent writes its output file, then sends a SendMessage to the review-arbiter with issue counts and completion status.
+Each quality track agent writes its output file, then sends a SendMessage to the review-arbiter (sentinels) or team (guardian, simplifier, probe) with issue counts and completion status.
 
 Sentinel output files:
 - `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-correctness.json`
 - `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-security.json`
 - `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-perf.json`
 - `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-style.json`
+- `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-reliability.json`
+- `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-api.json`
 
-After all 6 complete, TeammateIdle hook assigns the **review-arbiter**:
-- Reads all four sentinel outputs
+Probe output file:
+- `.agents/tmp/phases/loop-{LOOP}/A3-review.probe.json`
+
+After all 9 complete, TeammateIdle hook assigns the **review-arbiter**:
+- Reads all sentinel outputs (6 sentinels + guardian + simplifier + probe)
 - Cross-references findings across dimensions
 - Deduplicates overlapping issues
 - Resolves conflicts (e.g., security vs performance trade-offs)
@@ -289,13 +313,15 @@ Output: `.agents/tmp/phases/loop-{LOOP}/A4-queen-verdict.json` (written by handl
 
 ### Phase A5: Documentation + Ship
 
-TeammateIdle hook assigns two agents via task dependency chain:
+TeammateIdle hook assigns two agents via task dependency chain, plus an optional chronicler sub-phase:
 
 1. **Nurse** (sonnet): Updates project documentation to reflect implementation changes (README.md, CLAUDE.md, etc.). Created by command when `needsA5Tasks` flag detected. After writing docs, sends a SendMessage to the drone with the list of modified documentation files.
 2. **Drone** (after nurse completes, blockedBy A5-nurse): Commits changes and opens a PR. After shipping, sends a SendMessage to the lead with the commit SHA and PR URL.
+3. **Chronicler** (sonnet, sub-phase): Dispatched after the drone writes `A5-ship.json`. Reads all workflow artifacts across all loops, extracts metrics, identifies patterns, and writes actionable recommendations. Uses marker files (`.chronicler.dispatched` / `.chronicler.done`). **Supplementary, not required** — if the chronicler fails or times out, A5 completes without a chronicle file.
 
 Nurse output: `.agents/tmp/phases/loop-{LOOP}/A5-docs.json`
 Drone output: `.agents/tmp/phases/loop-{LOOP}/A5-ship.json`
+Chronicler output: `.agents/tmp/phases/A5-chronicle.md` (top-level, not loop-scoped)
 
 ## Phase-Agent Mapping
 
@@ -303,17 +329,21 @@ Drone output: `.agents/tmp/phases/loop-{LOOP}/A5-ship.json`
 |-------|-------|----------|-------------|-------------|
 | A0 | EXPLORE | forager x2-3, cartographer x1 | No | Breadth-first + depth-first exploration (file output only) |
 | A0 | EXPLORE | explore-aggregator x1 | Yes -> team | Synthesizes findings, notifies team (assigned by TeammateIdle hook) |
+| A0 | EXPLORE | strategist x1 (sub-phase) | Yes -> team | Evaluates implementation approaches, notifies team with recommendation |
 | A1 | PLAN | architect x1 | Yes -> team | Structured plan with task assignments (assigned by TeammateIdle hook) |
+| A1 | PLAN | inspector x1 (sub-phase) | Yes -> team | Auto-triages plan complexity/risk, notifies team with decision |
 | A2 | PLAN | blueprint-reviewer x1 | Yes -> team | Plan validation (assigned by TeammateIdle hook) |
 | A3 | BUILD | worker xN (task pool) | Yes -> team | Self-organizing task pool, workers notify team on completion |
-| A3 | BUILD | sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style | Yes -> review-arbiter | Adversarial review, sentinels notify review-arbiter with issue counts |
+| A3 | BUILD | sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style, sentinel-reliability, sentinel-api | Yes -> review-arbiter | Adversarial review (6 sentinels), notify review-arbiter with issue counts |
 | A3 | BUILD | guardian x1 | Yes -> team | Test writer, notifies team with test results |
 | A3 | BUILD | simplifier x1 | Yes -> team | Code cleanup, notifies team with changes summary |
-| A3 | BUILD | review-arbiter x1 | Yes -> team | Consolidates findings, notifies team with verdict |
+| A3 | BUILD | probe x1 | Yes -> team | Runtime verification, notifies team with pass/fail results |
+| A3 | BUILD | review-arbiter x1 | Yes -> team | Consolidates findings from all 6 sentinels + guardian + simplifier + probe |
 | A3 | BUILD | review-fixer x0-1 | Yes -> team | Targeted repairs, notifies team after fixes |
 | A4 | SYNC | TaskCompleted hook (inline) | -- | Evaluated inline by handle_a3_arbiter(); no separate agent dispatch |
 | A5 | SHIP | nurse x1 | Yes -> drone | Documentation update, notifies drone with file list |
 | A5 | SHIP | drone x1 | Yes -> team | Commit/PR, notifies team with SHA and PR URL |
+| A5 | SHIP | chronicler x1 (sub-phase) | Yes -> team | Workflow retrospective with metrics and recommendations |
 
 ## Circuit Breaker
 
@@ -360,11 +390,11 @@ On loop 2+:
 - Architect plans **targeted fixes**, not full re-plans
 - Previous loop's files are preserved in `loop-{N}/` directories
 
-## State Schema (v6)
+## State Schema (v7)
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "plugin": "ants",
   "pipeline": "swarm",
   "status": "in_progress|blocked|complete",
@@ -428,18 +458,24 @@ All outputs live under `.agents/tmp/phases/`:
 | Phase | File | Format | Written By | Description |
 |-------|------|--------|------------|-------------|
 | A0 | `A0-explore.md` | Markdown | Explore-aggregator | Unified exploration report |
+| A0 | `A0-strategy.md` | Markdown | Strategist (sub-phase) | Implementation strategy (optional) |
 | A1 | `loop-{L}/A1-plan.md` | Markdown | Architect | Implementation plan |
 | A1 | `loop-{L}/A1-tasks.json` | JSON | Architect | Task descriptors for task pool |
+| A1 | `loop-{L}/A1-inspection.json` | JSON | Inspector (sub-phase) | Plan triage result (optional) |
 | A2 | `loop-{L}/A2-review.json` | JSON | Blueprint-reviewer | Blueprint review verdict |
 | A3 | `loop-{L}/A3-build.json` | JSON | TaskCompleted hook (aggregated from workers) | Build track worker results |
 | A3 | `loop-{L}/A3-review.sentinel-correctness.json` | JSON | Sentinel-correctness | Correctness findings |
 | A3 | `loop-{L}/A3-review.sentinel-security.json` | JSON | Sentinel-security | Security findings |
 | A3 | `loop-{L}/A3-review.sentinel-perf.json` | JSON | Sentinel-perf | Performance findings |
 | A3 | `loop-{L}/A3-review.sentinel-style.json` | JSON | Sentinel-style | Style findings |
+| A3 | `loop-{L}/A3-review.sentinel-reliability.json` | JSON | Sentinel-reliability | Reliability findings |
+| A3 | `loop-{L}/A3-review.sentinel-api.json` | JSON | Sentinel-api | API design findings |
+| A3 | `loop-{L}/A3-review.probe.json` | JSON | Probe | Runtime verification results |
 | A3 | `loop-{L}/A3-quality.json` | JSON | Review-arbiter | Consolidated quality verdict |
 | A4 | `loop-{L}/A4-queen-verdict.json` | JSON | TaskCompleted hook (handle_a3_arbiter) | Ship/loop verdict with evidence |
 | A5 | `loop-{L}/A5-docs.json` | JSON | Nurse | Documentation update summary |
 | A5 | `loop-{L}/A5-ship.json` | JSON | Drone | Commit/PR output |
+| A5 | `A5-chronicle.md` | Markdown | Chronicler | Workflow retrospective (top-level, not loop-scoped) |
 
 ## Stage Gates
 
@@ -472,9 +508,9 @@ The A2 hook reads `.status` only (the `.verdict` fallback was removed in v0.5.5)
 | Theme | Ant colony (forager, architect, worker, sentinel) | Generic minions |
 | Coordination | Agent Teams delegate mode with Command-as-Active-Lead monitoring loop | Sequential phases with hook-driven transitions |
 | Communication | Dual-channel: files (persistent) + SendMessage (live coordination) | File-based only |
-| Key innovation | Task pool + adversarial review teams (4 sentinels + arbiter) | Sequential phases with review-fix cycles |
+| Key innovation | Task pool + adversarial review teams (6 sentinels + probe + arbiter) + sub-phase agents (strategist, inspector, chronicler) | Sequential phases with review-fix cycles |
 | Loop mechanism | Orchestrator verdict (A4) -> A1 re-plan (max 5, circuit breaker) | Review phases with fix attempts + stage restarts |
-| Agents | 24 specialized colony roles | 38 agents |
+| Agents | 30 specialized colony roles | 38 agents |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Complexity | Streamlined for medium tasks | Thorough for complex tasks |
 

@@ -29,12 +29,12 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 ## Pipeline
 
 ```
-Phase A0  | EXPLORE     | Forage         | foragers + cartographer + explore-aggregator
-Phase A1  | PLAN        | Architect      | single planner -> A1-plan.md + A1-tasks.json
+Phase A0  | EXPLORE     | Forage         | foragers + cartographer + explore-aggregator + strategist
+Phase A1  | PLAN        | Architect      | single planner -> inspector triage -> A1-plan.md + A1-tasks.json
 Phase A2  | PLAN-REVIEW | Blueprint      | reviewer -> A2-review.json
-Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 6 sentinels + guardian + simplifier + probe
 Phase A4  | SYNC        | Verdict        | TaskCompleted hook evaluates inline after A3 arbiter
-Phase A5  | SHIP        | Ship           | nurse (docs) -> drone (commit + PR)
+Phase A5  | SHIP        | Ship           | nurse (docs) -> drone (commit + PR) -> chronicler
 
 Loop: If A4 verdict is "loop" -> back to A1 (max 5 inner loops per run)
 All clean -> A5 ships the work
@@ -112,7 +112,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "plugin": "ants",
   "pipeline": "pswarm",
   "status": "in_progress",
@@ -191,12 +191,12 @@ Print this to the user:
 ```
 Ants pswarm -- Persistent 6-Phase Pipeline (Agent Teams)
 =========================================================
-Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator
-Phase A1  | PLAN    | Architect Plan        | architect
+Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator + strategist
+Phase A1  | PLAN    | Architect Plan        | architect + inspector (auto-triage)
 Phase A2  | PLAN    | Blueprint Review      | blueprint-reviewer
-Phase A3  | BUILD   | Dual-Track Execution  | workers + 4 sentinels + guardian + simplifier
-Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline evaluation)
-Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
+Phase A3  | BUILD   | Dual-Track Execution  | workers + 6 sentinels + guardian + simplifier + probe
+Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline after arbiter)
+Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR) + chronicler
 
 Max runs: <maxRuns> (--max-loops N to change)
 Current run: 1 / <maxRuns>
@@ -296,6 +296,7 @@ Enter a monitoring loop. On each cycle, read state.json and check for signal fla
 
 3. **Check needsPswarmReset flag** -- if `true`:
    - Log: "Starting run {pswarmRun}" (read the NEW pswarmRun value from state, it was already incremented by the hook)
+   - Check for chronicler output from previous run: if `.agents/tmp/phases/loop-{prev_loop}/A5-chronicle.json` exists, include its content in the new A0 aggregator task description as `Previous run context: <chronicle summary>`. This gives the next run's exploration phase awareness of what was built, what issues were found, and what the chronicler recommended.
    - Create fresh A0-A5 task graph: generate 6 new tasks (same structure as Step 3a) and call **TaskCreate** for each
    - Clear the flag: update state.json to set `needsPswarmReset = false`
    - Increment `taskGraphVersion` in state.json
@@ -304,10 +305,11 @@ Enter a monitoring loop. On each cycle, read state.json and check for signal fla
 4. **Check needsA3Tasks flag** -- if `true`:
    - Read `.agents/tmp/phases/loop-{loop}/A1-tasks.json` to get the task list from the architect
    - For each worker task: call **TaskCreate** with subject `"A3 Worker: {task_name}"`, description including task details, and `blockedBy: ["A2"]` plus any inter-task dependencies (prefixed with `A3-worker-`)
-   - Create sentinel tasks: call **TaskCreate** for each of `A3 Sentinel Correctness: Review`, `A3 Sentinel Security: Review`, `A3 Sentinel Perf: Review`, `A3 Sentinel Style: Review` -- each `blockedBy` all worker task IDs
+   - Create sentinel tasks: call **TaskCreate** for each of `A3 Sentinel Correctness: Review`, `A3 Sentinel Security: Review`, `A3 Sentinel Perf: Review`, `A3 Sentinel Style: Review`, `A3 Sentinel Reliability: Review`, `A3 Sentinel API: Review` -- each `blockedBy` all worker task IDs
    - Create guardian task: `A3 Guardian: Write tests` -- `blockedBy` all worker task IDs
    - Create simplifier task: `A3 Simplifier: Code cleanup` -- `blockedBy` all worker task IDs
-   - Create arbiter task: `A3 Arbiter: Consolidate reviews` -- `blockedBy` all sentinel + guardian + simplifier task IDs
+   - Create probe task: `A3 Probe: Runtime verification` -- `blockedBy` all worker task IDs
+   - Create arbiter task: `A3 Arbiter: Consolidate reviews` -- `blockedBy` all 6 sentinel + guardian + simplifier + probe task IDs
    - Create review-fixer task: `A3 Review Fixer: Apply targeted repairs` -- `blockedBy` [arbiter task ID]
    - Clear the flag: update state.json to set `needsA3Tasks = false`
    - Log: "Created {N} A3 subtasks ({worker_count} workers + quality track)"
@@ -315,8 +317,9 @@ Enter a monitoring loop. On each cycle, read state.json and check for signal fla
 5. **Check needsA5Tasks flag** -- if `true`:
    - Call **TaskCreate** for `A5 Nurse: Update documentation` -- `blockedBy: ["A3-arbiter"]`
    - Call **TaskCreate** for `A5 Drone: Commit and ship` -- `blockedBy: ["A5-nurse"]`
+   - Call **TaskCreate** for `A5 Chronicler: Record run outcomes` -- `blockedBy: ["A5-drone"]`
    - Clear the flag: update state.json to set `needsA5Tasks = false`
-   - Log: "Created A5 tasks (nurse + drone)"
+   - Log: "Created A5 tasks (nurse + drone + chronicler)"
 
 6. **Check needsLoopReset flag** -- if `true`:
    - Create fresh A1-A4 tasks (loop-back): call **TaskCreate** for A1, A2, A3 (placeholder), A4 (placeholder) with updated dependency chains
@@ -389,26 +392,32 @@ Run: <.pswarmRun> / <.maxRuns>
 | A0 | forager (batch) | Breadth-first codebase scout |
 | A0 | cartographer | Deep architecture tracer |
 | A0 | explore-aggregator | Synthesizes A0 findings |
+| A0 | strategist | Strategic analysis and risk assessment |
 | A1 | architect | Plans implementation with task assignments |
+| A1 | inspector | Auto-triage of architect plan quality |
 | A2 | blueprint-reviewer | Validates plan completeness |
 | A3 | worker (task pool) | Implements individual tasks |
 | A3 | sentinel-correctness | Reviews for bugs and logic errors |
 | A3 | sentinel-security | Reviews for security vulnerabilities |
 | A3 | sentinel-perf | Reviews for performance issues |
 | A3 | sentinel-style | Reviews for code style |
+| A3 | sentinel-reliability | Reviews for reliability and resilience |
+| A3 | sentinel-api | Reviews for API design and contracts |
 | A3 | simplifier | Post-build code cleanup |
+| A3 | probe | Runtime verification and smoke tests |
 | A3 | review-arbiter | Consolidates adversarial findings |
 | A3 | review-fixer | Targeted repair for critical issues |
 | A3 | guardian | Writes tests for implemented code |
 | A4 | TaskCompleted hook (inline) | Evaluates verdict after A3 arbiter |
 | A5 | nurse | Updates documentation |
 | A5 | drone | Commits and opens PR |
+| A5 | chronicler | Records run outcomes for future context |
 
 ## Signal Flag Reference
 
 | Flag | Set By | When | Your Action |
 |------|--------|------|-------------|
 | `needsA3Tasks` | `handle_a1()` in on-task-completed.sh | A1 plan + A1-tasks.json validated | TaskCreate for A3 worker/sentinel/arbiter tasks |
-| `needsA5Tasks` | `handle_a3_arbiter()` in on-task-completed.sh | A4 verdict is clean (inline) | TaskCreate for A5 nurse + drone |
+| `needsA5Tasks` | `handle_a3_arbiter()` in on-task-completed.sh | A4 verdict is clean (inline) | TaskCreate for A5 nurse + drone + chronicler |
 | `needsLoopReset` | `handle_a3_arbiter()` in on-task-completed.sh | A4 verdict is issues_found | TaskCreate for fresh A1-A4 tasks |
 | `needsPswarmReset` | `handle_a5()` in on-task-completed.sh | A5 complete + pswarmRun < maxRuns | TaskCreate for fresh A0-A5 task graph |

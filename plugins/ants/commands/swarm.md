@@ -26,12 +26,12 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 ## Pipeline
 
 ```
-Phase A0  | EXPLORE     | Forage         | foragers + cartographer + explore-aggregator
-Phase A1  | PLAN        | Architect      | single planner -> A1-plan.md + A1-tasks.json
+Phase A0  | EXPLORE     | Forage         | foragers + cartographer + explore-aggregator + strategist
+Phase A1  | PLAN        | Architect      | single planner -> inspector triage -> A1-plan.md + A1-tasks.json
 Phase A2  | PLAN-REVIEW | Blueprint      | reviewer -> A2-review.json
-Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 6 sentinels + guardian + simplifier + probe
 Phase A4  | SYNC        | Verdict        | TaskCompleted hook evaluates inline after A3 arbiter
-Phase A5  | SHIP        | Ship           | nurse (docs) -> drone (commit + PR)
+Phase A5  | SHIP        | Ship           | nurse (docs) -> drone (commit + PR) -> chronicler
 
 Loop: If A4 verdict is "loop" -> back to A1 (max 5 loops)
 All clean -> A5 ships the work
@@ -115,7 +115,7 @@ Write `.agents/tmp/state.json` using Bash with jq. Replace all `<placeholders>` 
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "plugin": "ants",
   "pipeline": "swarm",
   "status": "in_progress",
@@ -190,12 +190,12 @@ Print this to the user:
 ```
 Ants Swarm -- 6-Phase Pipeline (Agent Teams)
 =============================================
-Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator
-Phase A1  | PLAN    | Architect Plan        | architect
+Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator + strategist
+Phase A1  | PLAN    | Architect Plan        | architect + inspector (auto-triage)
 Phase A2  | PLAN    | Blueprint Review      | blueprint-reviewer
-Phase A3  | BUILD   | Dual-Track Execution  | workers + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD   | Dual-Track Execution  | workers + 6 sentinels + guardian + simplifier + probe
 Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline after arbiter)
-Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
+Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR) + chronicler
 
 Dispatch: Agent Teams delegate mode (TaskCreate + TeammateIdle routing)
 Teammates: 3
@@ -352,13 +352,17 @@ while true:
        - TaskCreate(subject: "A3 Sentinel Security: Review", blockedBy: [all_worker_task_ids])
        - TaskCreate(subject: "A3 Sentinel Perf: Review", blockedBy: [all_worker_task_ids])
        - TaskCreate(subject: "A3 Sentinel Style: Review", blockedBy: [all_worker_task_ids])
+       - TaskCreate(subject: "A3 Sentinel Reliability: Review", blockedBy: [all_worker_task_ids])
+       - TaskCreate(subject: "A3 Sentinel API: Review", blockedBy: [all_worker_task_ids])
     5. Create guardian task:
        - TaskCreate(subject: "A3 Guardian: Write tests", blockedBy: [all_worker_task_ids])
     6. Create simplifier task:
        - TaskCreate(subject: "A3 Simplifier: Code cleanup", blockedBy: [all_worker_task_ids])
-    7. Create arbiter task (blockedBy all sentinels + guardian + simplifier):
-       - TaskCreate(subject: "A3 Arbiter: Consolidate reviews", blockedBy: [sentinel_ids + guardian_id + simplifier_id])
-    8. Clear needsA3Tasks flag:
+    7. Create probe task:
+       - TaskCreate(subject: "A3 Probe: Runtime verification", blockedBy: [all_worker_task_ids])
+    8. Create arbiter task (blockedBy all 6 sentinels + guardian + simplifier + probe):
+       - TaskCreate(subject: "A3 Arbiter: Consolidate reviews", blockedBy: [sentinel_ids + guardian_id + simplifier_id + probe_id])
+    9. Clear needsA3Tasks flag:
        jq '.needsA3Tasks = false | .taskGraphVersion = (.taskGraphVersion + 1)' state.json
 
   # --- Signal: A5 tasks needed ---
@@ -459,16 +463,22 @@ Clean up the team after displaying the summary.
 | A0 | forager (batch) | `ants:forager` |
 | A0 | cartographer | `ants:cartographer` |
 | A0 | explore-aggregator | `ants:explore-aggregator` |
+| A0 | strategist | `ants:strategist` |
 | A1 | architect | `ants:architect` |
+| A1 | inspector | `ants:inspector` |
 | A2 | blueprint-reviewer | `ants:blueprint-reviewer` |
 | A3 | worker (task pool) | `ants:worker` |
 | A3 | sentinel-correctness | `ants:sentinel-correctness` |
 | A3 | sentinel-security | `ants:sentinel-security` |
 | A3 | sentinel-perf | `ants:sentinel-perf` |
 | A3 | sentinel-style | `ants:sentinel-style` |
+| A3 | sentinel-reliability | `ants:sentinel-reliability` |
+| A3 | sentinel-api | `ants:sentinel-api` |
 | A3 | simplifier | `ants:simplifier` |
+| A3 | probe | `ants:probe` |
 | A3 | review-arbiter | `ants:review-arbiter` |
 | A3 | review-fixer | `ants:review-fixer` |
 | A3 | guardian | `ants:guardian` |
 | A5 | nurse | `ants:nurse` |
 | A5 | drone | `ants:drone` |
+| A5 | chronicler | `ants:chronicler` |
