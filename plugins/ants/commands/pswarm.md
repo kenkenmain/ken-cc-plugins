@@ -205,9 +205,22 @@ Teammates: 3
 Circuit breaker: 5 consecutive failures -> halt
 ```
 
-## Step 3: Create Team + Task Graph + Monitoring Loop
+## Step 3: Create Team + Task Graph + Spawn Teammates + Monitoring Loop
 
-### 3a. Create initial task graph
+You are the active lead. First create the team, then populate the task graph via TaskCreate, update state, spawn teammates, and enter a monitoring loop.
+
+### 3a. Create team
+
+Create the Agent Team first, before populating any tasks. The `team_name` must match the `teamName` field written in state.json.
+
+```
+TeamCreate(
+  team_name: "<teamName from state.json>",
+  description: "Ants pswarm workflow for: <task description>"
+)
+```
+
+### 3b. Create initial task graph
 
 Generate the initial task graph with multi-agent A0 exploration + A1-A5 dependency chain.
 
@@ -243,36 +256,7 @@ TaskCreate(subject: "A0: Colony Exploration", description: "Synthesize explorati
 
 For each task entry, call **TaskCreate** with the subject, a description including `<task description>`, and the blockedBy chain. Store returned task IDs.
 
-### 3b. Create team and spawn teammates
-
-**Step 1 — Create the team:**
-
-```
-TeamCreate(
-  team_name: "<teamName from state.json>",
-  description: "Ants pswarm workflow for: <task description>"
-)
-```
-
-**Step 2 — Spawn 3 teammates:**
-
-Spawn 3 teammates using the `Agent` tool. Each MUST have `team_name` set.
-
-```
-Agent(
-  prompt: "You are a teammate in the ants pswarm workflow. Check TaskList for available tasks, claim unassigned tasks via TaskUpdate(owner), and work on them. When done, mark tasks as completed via TaskUpdate(status: completed). Check TaskList again for more work.",
-  team_name: "<teamName from state.json>",
-  name: "teammate-1",
-  run_in_background: true,
-  description: "Ants teammate 1"
-)
-```
-
-Repeat for `teammate-2` and `teammate-3`. All run in background.
-
-**IMPORTANT:** All `Agent` calls must include `team_name` matching the TeamCreate team_name. Without this, teammates won't join the team and TeammateIdle hooks won't fire.
-
-### 3c. Update state
+### 3c. Update state and spawn 3 teammates
 
 Update state.json to record team creation:
 
@@ -280,13 +264,37 @@ Update state.json to record team creation:
 jq '.teamCreated = true | .teammateCount = 3 | .taskGraphVersion = 1 | .updatedAt = (now | todate)' .agents/tmp/state.json > .agents/tmp/state.json.tmp && mv .agents/tmp/state.json.tmp .agents/tmp/state.json
 ```
 
+The TeammateIdle hook routes ready tasks to idle teammates by reading state.json and building execution prompts. Teammates do NOT self-assign from TaskList -- the hook provides specific execution prompts for each task. Spawn 3 teammates using the `Agent` tool. Each MUST have `team_name` set.
+
+```
+Agent(
+  prompt: "You are a teammate in the ants pswarm workflow. The TeammateIdle hook will assign you tasks with specific execution prompts -- follow them precisely. When you complete a task, the TaskCompleted hook validates your output. Stay active and ready for the next assignment.",
+  team_name: "<teamName from state.json>",
+  name: "teammate-1",
+  run_in_background: true,
+  description: "Ants teammate 1"
+)
+```
+
+Repeat for `teammate-2` and `teammate-3` with the same prompt. All run in background.
+
+**IMPORTANT:** All `Agent` calls must include `team_name` matching the TeamCreate team_name. Without this, teammates won't join the team and TeammateIdle hooks won't fire.
+
 ### 3d. Monitoring loop
+
+<COMPLETION-GATE>
+Do NOT stop, end your turn, or exit during this monitoring loop. The workflow requires you to keep polling state.json until a terminal condition is met. If the Stop hook blocks you, re-enter the loop immediately.
+</COMPLETION-GATE>
 
 Enter a monitoring loop. On each cycle, read state.json and check for signal flags and terminal conditions. The loop drives all dynamic task creation -- hooks set flags, you respond.
 
 **Loop logic (execute on every cycle):**
 
-1. **Read state.json** -- read `status`, `currentPhase`, `shutdown`, `needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`, `pswarmRun`, `maxRuns`, `loop`.
+1. **Read state.json** -- Use the Read tool to read `.agents/tmp/state.json`. Extract these fields:
+   - `status`, `currentPhase`, `shutdown`
+   - `needsA3Tasks`, `needsA5Tasks`, `needsLoopReset`, `needsPswarmReset`
+   - `pswarmRun`, `maxRuns`
+   - `loop` (current loop number)
 
 2. **Check terminal conditions** -- exit the loop if ANY of these are true:
    - `status == "complete"`
@@ -296,7 +304,7 @@ Enter a monitoring loop. On each cycle, read state.json and check for signal fla
 
 3. **Check needsPswarmReset flag** -- if `true`:
    - Log: "Starting run {pswarmRun}" (read the NEW pswarmRun value from state, it was already incremented by the hook)
-   - Create fresh A0-A5 task graph: generate 6 new tasks (same structure as Step 3a) and call **TaskCreate** for each
+   - Create fresh A0-A5 task graph: generate 6 new tasks (same structure as Step 3b) and call **TaskCreate** for each
    - Clear the flag: update state.json to set `needsPswarmReset = false`
    - Increment `taskGraphVersion` in state.json
    - Log: "Created fresh task graph for run {pswarmRun} (taskGraphVersion: {version})"
@@ -323,13 +331,15 @@ Enter a monitoring loop. On each cycle, read state.json and check for signal fla
    - Clear the flag: update state.json to set `needsLoopReset = false`
    - Log: "Created fresh A1-A4 tasks for loop {loop}"
 
-7. **Wait** -- pause briefly before the next cycle to avoid busy-waiting on state.json reads.
+7. **Wait** -- Wait approximately 5-10 seconds, then use the Read tool on `.agents/tmp/state.json` again. Do NOT use Bash sleep -- simply proceed to the next cycle after a brief pause.
 
 **Important constraints:**
 - Do NOT dispatch agents directly via the Agent tool. All agent work is routed by the TeammateIdle hook.
 - Do NOT evaluate A4 verdicts. The TaskCompleted hook evaluates verdicts inline when the A3 arbiter completes.
 - Do NOT manage pswarm run boundaries directly. The TaskCompleted hook's `handle_a5()` increments `pswarmRun`, resets phases, and sets `needsPswarmReset`. You just detect the flag and create new tasks.
 - Do NOT exit the monitoring loop until a terminal condition is met.
+
+When the loop exits (terminal condition met), proceed immediately to Step 4: Completion Summary.
 
 ## Step 4: Completion Summary
 

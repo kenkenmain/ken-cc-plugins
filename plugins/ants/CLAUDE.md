@@ -93,7 +93,7 @@ Commands check this env var as Step 0 and abort with a clear error message if it
 | 2 | blueprint-reviewer | Validates plan completeness and task correctness | sonnet | Read, Glob, Grep, Write, SendMessage | Yes | Yes |
 | 3 | bug-scout | Parallel bug investigator (debug D0) | haiku | Read, Glob, Grep, Write, Bash | No | Yes |
 | 4 | cartographer | Deep architecture tracer | sonnet | Read, Glob, Grep, Write | No | Yes |
-| 5 | drone | Commits changes and opens PR | inherit | Read, Glob, Grep, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 5 | drone | Commits changes and opens PR (preflight validates gh CLI availability and authentication before shipping) | inherit | Read, Glob, Grep, Edit, Write, Bash, SendMessage | Yes | Yes |
 | 6 | explore-aggregator | Synthesizes A0 forager+cartographer results into A0-explore.md | sonnet | Read, Write, Glob, SendMessage | Yes | Yes |
 | 7 | fix-worker | Implements debug fix with tests (debug D3) | inherit | Read, Grep, Glob, Edit, Write, Bash | No | Yes |
 | 8 | forager | Breadth-first codebase scout | haiku | Read, Glob, Grep, Write, WebSearch | No | Yes |
@@ -292,6 +292,10 @@ The `hooks/lib/teams.sh` library provides task graph generation, teammate prompt
 
 Commands use TaskCreate, TaskGet, TaskList, TaskUpdate, and TaskStop tools to manage the team. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks.
 
+**Ordering requirement:** Commands MUST call TeamCreate before any TaskCreate calls. The team must exist before tasks can be created in it. All three command files (swarm.md, sswarm.md, pswarm.md) follow the sequence: TeamCreate -> TaskCreate -> state update -> teammate spawn -> monitoring loop.
+
+**Teammate routing:** Teammates are routed by the TeammateIdle hook, which reads state.json and builds execution prompts for each task. Teammates do NOT self-assign from TaskList -- the hook provides specific execution prompts. The Agent() spawn prompt tells teammates to follow hook-assigned prompts precisely.
+
 ## Hook Architecture
 
 Eight hooks drive the Agent Teams delegate mode workflow. TeammateIdle is the full task router (assigns next ready phase/task to idle teammates). TaskCompleted validates output, advances state, evaluates A4 verdict inline, and sets signal flags for the command's monitoring loop. Additional hooks provide edit control, lint-on-save, config snapshots, and compaction support:
@@ -321,6 +325,7 @@ Eight hooks drive the Agent Teams delegate mode workflow. TeammateIdle is the fu
 - Updates circuit breaker on success/failure
 - Sets signal flags for command's monitoring loop (hooks cannot call TaskCreate directly)
 - Exit 0 = accept | Exit 2 = reject with feedback
+- Catch-all: Unrecognized subjects starting with `A[0-9]` are rejected with exit 2 to surface routing errors. Non-ants subjects are allowed through (exit 0).
 
 ### on-stop.sh (Stop event)
 

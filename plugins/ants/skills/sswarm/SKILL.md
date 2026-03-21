@@ -13,12 +13,14 @@ Agent Teams delegate mode 6-phase development pipeline with **competing parallel
 - `plugin: "ants"` -- so ants hooks fire
 - All agents are `ants:*` prefixed -- they exist in the ants plugin
 - **Agent Teams delegate mode** with Command-as-Active-Lead monitoring loop
-- Command creates initial tasks via TaskCreate with **blockedBy dependency chains**
+- Command creates team first (TeamCreate), then populates task graph via TaskCreate with **blockedBy dependency chains**
 - Competing agents (3 architects, 3 reviewers) have **no dependencies on each other** -- they run in parallel
 - Consolidator tasks (plan-arbiter, review-lead) are **blockedBy all competitors** -- they run after all competitors complete
 - A4 verdict is evaluated **inline** by `handle_a3_arbiter()` in the TaskCompleted hook -- no separate agent dispatch
 - State schema v6 with additional `phaseLeads` map
 - All existing hooks are compatible -- TeammateIdle routes by currentPhase, TaskCompleted validates and advances
+- Teammates are routed by the TeammateIdle hook (hook-driven routing, not self-assignment from TaskList)
+- Command monitoring loop MUST NOT stop or exit until a terminal condition is met (`<COMPLETION-GATE>` enforcement)
 
 ## Key Differences from Swarm
 
@@ -48,7 +50,7 @@ Phase A5  | SHIP    | Documentation + Ship  | nurse + drone
 ### Pipeline Diagram
 
 ```
-Command creates team + initial sswarm task graph (12 tasks):
+Command creates team (TeamCreate first), then initial sswarm task graph (12 tasks):
 
   A0-forager-1 ────────┐
   A0-forager-2 ────────┤
@@ -95,7 +97,7 @@ Command creates team + initial sswarm task graph (12 tasks):
                   |              |
                A5 Ship      A1 (needsLoopReset → command creates fresh competing task graph)
 
-Command spawns 5 teammates, enters monitoring loop
+Command spawns 5 teammates (hook-driven routing via TeammateIdle), enters monitoring loop
 ```
 
 ### sswarm Task Graph Structure

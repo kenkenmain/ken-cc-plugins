@@ -22,8 +22,23 @@
       "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
-      "keywords": ["iteration", "workflow", "superpowers", "codex", "code-simplifier", "tdd"],
-      "tags": ["iterative-development", "9-phase-pipeline", "configurable-models", "code-review", "plan-and-implement", "lite-mode", "codex-integration"],
+      "keywords": [
+        "iteration",
+        "workflow",
+        "superpowers",
+        "codex",
+        "code-simplifier",
+        "tdd"
+      ],
+      "tags": [
+        "iterative-development",
+        "9-phase-pipeline",
+        "configurable-models",
+        "code-review",
+        "plan-and-implement",
+        "lite-mode",
+        "codex-integration"
+      ],
       "category": "workflow"
     },
     {
@@ -38,8 +53,22 @@
       "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
-      "keywords": ["iteration", "workflow", "plan", "implement", "test", "codex"],
-      "tags": ["4-stage-pipeline", "iterative-development", "quality-gates", "plan-implement-test", "codex-integration", "lightweight-workflow"],
+      "keywords": [
+        "iteration",
+        "workflow",
+        "plan",
+        "implement",
+        "test",
+        "codex"
+      ],
+      "tags": [
+        "4-stage-pipeline",
+        "iterative-development",
+        "quality-gates",
+        "plan-implement-test",
+        "codex-integration",
+        "lightweight-workflow"
+      ],
       "category": "workflow"
     },
     {
@@ -54,8 +83,24 @@
       "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
-      "keywords": ["minions", "workflow", "personality-agents", "loop-back", "review", "cursor", "judge"],
-      "tags": ["personality-agents", "multi-pipeline", "loop-back", "judge-review", "claude-only", "cursor-inspired", "15-phase-pipeline"],
+      "keywords": [
+        "minions",
+        "workflow",
+        "personality-agents",
+        "loop-back",
+        "review",
+        "cursor",
+        "judge"
+      ],
+      "tags": [
+        "personality-agents",
+        "multi-pipeline",
+        "loop-back",
+        "judge-review",
+        "claude-only",
+        "cursor-inspired",
+        "15-phase-pipeline"
+      ],
       "category": "workflow"
     },
     {
@@ -70,15 +115,29 @@
       "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
-      "keywords": ["subagents", "hooks", "auto-chaining", "context-isolation", "gate-enforcement"],
-      "tags": ["hook-driven", "auto-chaining", "context-isolation", "gate-enforcement", "multi-phase", "worktree-support", "parallel-execution"],
+      "keywords": [
+        "subagents",
+        "hooks",
+        "auto-chaining",
+        "context-isolation",
+        "gate-enforcement"
+      ],
+      "tags": [
+        "hook-driven",
+        "auto-chaining",
+        "context-isolation",
+        "gate-enforcement",
+        "multi-phase",
+        "worktree-support",
+        "parallel-execution"
+      ],
       "category": "workflow"
     },
     {
       "name": "ants",
       "source": "./plugins/ants",
-      "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Active-Lead), dual-channel communication (file-based artifacts + SendMessage live coordination), dual-track build, adversarial review (4 sentinels + arbiter), debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
-      "version": "0.7.0",
+      "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Active-Lead), dual-channel communication (file-based artifacts + SendMessage live coordination), dual-track build, adversarial review (6 sentinels + probe + arbiter), sub-phase agents (strategist, inspector, chronicler), debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
+      "version": "0.8.1",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"
@@ -86,8 +145,28 @@
       "homepage": "https://github.com/kenkenmain/ken-cc-plugins",
       "repository": "https://github.com/kenkenmain/ken-cc-plugins",
       "license": "MIT",
-      "keywords": ["ants", "swarm", "pswarm", "improve", "self-improvement", "workflow", "agents", "dual-track", "colony", "agent-teams", "delegate-mode"],
-      "tags": ["swarm-execution", "parallel-workers", "adversarial-review", "task-decomposition", "dual-track-build", "claude-only", "colony-pattern"],
+      "keywords": [
+        "ants",
+        "swarm",
+        "pswarm",
+        "improve",
+        "self-improvement",
+        "workflow",
+        "agents",
+        "dual-track",
+        "colony",
+        "agent-teams",
+        "delegate-mode"
+      ],
+      "tags": [
+        "swarm-execution",
+        "parallel-workers",
+        "adversarial-review",
+        "task-decomposition",
+        "dual-track-build",
+        "claude-only",
+        "colony-pattern"
+      ],
       "category": "workflow"
     }
   ]
