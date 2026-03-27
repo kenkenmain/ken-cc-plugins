@@ -154,6 +154,8 @@ Subjects are the primary routing key in `on-task-completed.sh`. Every subject MU
 | `"A3 Sentinel Security: Review"` | `ants:sentinel-security` | all |
 | `"A3 Sentinel Perf: Review"` | `ants:sentinel-perf` | all |
 | `"A3 Sentinel Style: Review"` | `ants:sentinel-style` | all |
+| `"A3 Sentinel Testing: Review"` | `ants:sentinel-testing` | all |
+| `"A3 Sentinel Docs: Review"` | `ants:sentinel-docs` | all |
 | `"A3 Guardian: Write tests"` | `ants:guardian` | all |
 | `"A3 Simplifier: Code cleanup"` | `ants:simplifier` | all |
 

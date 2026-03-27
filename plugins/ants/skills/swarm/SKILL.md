@@ -108,7 +108,7 @@ Note: forager and cartographer are excluded because they are high-volume, low-la
 Phase A0  | EXPLORE   | Colony Exploration     | foragers + cartographer + explore-aggregator
 Phase A1  | PLAN      | Architect Plan         | architect
 Phase A2  | PLAN      | Blueprint Review       | blueprint-reviewer
-Phase A3  | BUILD     | Dual-Track Execution   | workers (task pool) + 4 sentinels + guardian + simplifier + arbiter
+Phase A3  | BUILD     | Dual-Track Execution   | workers (task pool) + 6 sentinels + guardian + simplifier + arbiter
 Phase A4  | SYNC      | Verdict                | TaskCompleted hook evaluates inline (handle_a3_arbiter)
 Phase A5  | SHIP      | Documentation + Ship   | nurse + drone
 ```
@@ -251,7 +251,7 @@ Sentinel output files:
 - `.agents/tmp/phases/loop-{LOOP}/A3-review.sentinel-style.json`
 
 After all 6 complete, TeammateIdle hook assigns the **review-arbiter**:
-- Reads all four sentinel outputs
+- Reads all six sentinel outputs
 - Cross-references findings across dimensions
 - Deduplicates overlapping issues
 - Resolves conflicts (e.g., security vs performance trade-offs)
@@ -472,7 +472,7 @@ The A2 hook reads `.status` only (the `.verdict` fallback was removed in v0.5.5)
 | Theme | Ant colony (forager, architect, worker, sentinel) | Generic minions |
 | Coordination | Agent Teams delegate mode with Command-as-Active-Lead monitoring loop | Sequential phases with hook-driven transitions |
 | Communication | Dual-channel: files (persistent) + SendMessage (live coordination) | File-based only |
-| Key innovation | Task pool + adversarial review teams (4 sentinels + arbiter) | Sequential phases with review-fix cycles |
+| Key innovation | Task pool + adversarial review teams (6 sentinels + arbiter) | Sequential phases with review-fix cycles |
 | Loop mechanism | Orchestrator verdict (A4) -> A1 re-plan (max 5, circuit breaker) | Review phases with fix attempts + stage restarts |
 | Agents | 24 specialized colony roles | 38 agents |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |

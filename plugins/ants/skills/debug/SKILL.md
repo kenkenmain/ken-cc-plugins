@@ -21,7 +21,7 @@ Phase D0  | EXPLORE     | Bug Investigation      | 3x parallel bug-scout
 Phase D1  | PROPOSE     | Solution Proposals      | 3x parallel solution-proposer
 Phase D2  | AGGREGATE   | Solution Ranking         | 1x solution-aggregator + user confirmation
 Phase D3  | IMPLEMENT   | Fix Implementation       | 1x fix-worker
-Phase D4  | REVIEW      | Adversarial Review       | 3x parallel sentinels + review-arbiter
+Phase D4  | REVIEW      | Adversarial Review       | 6x parallel sentinels + review-arbiter
 Phase D5  | SHIP        | Documentation + Commit   | 1x nurse + 1x drone
 ```
 
@@ -39,9 +39,9 @@ Phase D5  | SHIP        | Documentation + Commit   | 1x nurse + 1x drone
         D3 Implement (fix-worker applies the fix)
             |
         D4 Review (adversarial)
-           / | \
-  correctness security perf   (3x parallel sentinels)
-           \ | /
+       / / | \ \ \
+  correct. secur. perf style testing docs  (6x parallel sentinels)
+       \ \ | / / /
         review-arbiter (consolidate)
             |
         D5 Ship
@@ -94,17 +94,20 @@ A single `ants:fix-worker` agent (inherit) reads the selected solution from D2-s
 
 ### Phase D4: Adversarial Review (REVIEW)
 
-Three specialist sentinel agents run in parallel, each reviewing the fix from a different dimension:
+Six specialist sentinel agents run in parallel, each reviewing the fix from a different dimension:
 
 - **`ants:sentinel-correctness`** (sonnet) -- bugs, logic errors, missing error handling, race conditions
 - **`ants:sentinel-security`** (sonnet) -- OWASP top 10, injection, authentication, secrets exposure
 - **`ants:sentinel-perf`** (sonnet) -- N+1 queries, blocking I/O, unnecessary allocations, algorithmic complexity
+- **`ants:sentinel-style`** (sonnet) -- code style, readability, maintainability, dead code
+- **`ants:sentinel-testing`** (sonnet) -- test quality, coverage gaps, missing edge cases, flaky tests
+- **`ants:sentinel-docs`** (sonnet) -- documentation accuracy, stale comments, missing docstrings
 
-After all three sentinels complete, the `ants:review-arbiter` (sonnet) cross-references findings, deduplicates overlapping issues, resolves conflicts, and produces a consolidated quality verdict.
+After all six sentinels complete, the `ants:review-arbiter` (sonnet) cross-references findings, deduplicates overlapping issues, resolves conflicts, and produces a consolidated quality verdict.
 
-- **Agents:** 3x parallel sentinels + 1x `ants:review-arbiter` (sequential after sentinels)
+- **Agents:** 6x parallel sentinels + 1x `ants:review-arbiter` (sequential after sentinels)
 - **Input:** D3-implementation.json + modified source files
-- **Sentinel output:** `.agents/tmp/debug/D4-review.sentinel-correctness.json`, `.agents/tmp/debug/D4-review.sentinel-security.json`, `.agents/tmp/debug/D4-review.sentinel-perf.json`
+- **Sentinel output:** `.agents/tmp/debug/D4-review.sentinel-correctness.json`, `.agents/tmp/debug/D4-review.sentinel-security.json`, `.agents/tmp/debug/D4-review.sentinel-perf.json`, `.agents/tmp/debug/D4-review.sentinel-style.json`, `.agents/tmp/debug/D4-review.sentinel-testing.json`, `.agents/tmp/debug/D4-review.sentinel-docs.json`
 - **Arbiter output:** `.agents/tmp/debug/D4-quality.json`
 
 ### Phase D5: Documentation + Ship (SHIP)
@@ -129,11 +132,14 @@ Two agents run sequentially:
 | D4 | `ants:sentinel-correctness` | sonnet | Reused | 1 | Parallel |
 | D4 | `ants:sentinel-security` | sonnet | Reused | 1 | Parallel |
 | D4 | `ants:sentinel-perf` | sonnet | Reused | 1 | Parallel |
+| D4 | `ants:sentinel-style` | sonnet | Reused | 1 | Parallel |
+| D4 | `ants:sentinel-testing` | sonnet | Reused | 1 | Parallel |
+| D4 | `ants:sentinel-docs` | sonnet | Reused | 1 | Parallel |
 | D4 | `ants:review-arbiter` | sonnet | Reused | 1 | Sequential (after sentinels) |
 | D5 | `ants:nurse` | sonnet | Reused | 1 | Sequential |
 | D5 | `ants:drone` | inherit | Reused | 1 | Sequential (after nurse) |
 
-**Total:** 10 agents (4 new debug-specific + 6 reused from swarm pipeline)
+**Total:** 13 agents (4 new debug-specific + 9 reused from swarm pipeline)
 
 ## Output File Layout
 
@@ -149,6 +155,9 @@ All output files live under `.agents/tmp/debug/`:
 | D4 sentinels | `.agents/tmp/debug/D4-review.sentinel-correctness.json` | JSON | Correctness sentinel findings |
 | D4 sentinels | `.agents/tmp/debug/D4-review.sentinel-security.json` | JSON | Security sentinel findings |
 | D4 sentinels | `.agents/tmp/debug/D4-review.sentinel-perf.json` | JSON | Performance sentinel findings |
+| D4 sentinels | `.agents/tmp/debug/D4-review.sentinel-style.json` | JSON | Style sentinel findings |
+| D4 sentinels | `.agents/tmp/debug/D4-review.sentinel-testing.json` | JSON | Testing sentinel findings |
+| D4 sentinels | `.agents/tmp/debug/D4-review.sentinel-docs.json` | JSON | Documentation sentinel findings |
 | D4 arbiter | `.agents/tmp/debug/D4-quality.json` | JSON | Consolidated quality verdict |
 | D5 docs | `.agents/tmp/debug/D5-docs.json` | JSON | Nurse documentation update summary |
 | D5 ship | `.agents/tmp/debug/D5-ship.json` | JSON | Drone commit/PR output |

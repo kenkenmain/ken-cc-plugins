@@ -42,7 +42,7 @@ Agent Teams delegate mode 6-phase development pipeline with **competing parallel
 Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator (lead)
 Phase A1  | PLAN    | Competing Architects  | 3 architects (parallel, no deps on each other) → plan-arbiter (blockedBy all 3)
 Phase A2  | PLAN    | Competing Reviews     | 3 blueprint-reviewers (parallel) → review-lead (blockedBy all 3)
-Phase A3  | BUILD   | Dual-Track Execution  | workers (task pool) + 4 sentinels + guardian + simplifier + arbiter
+Phase A3  | BUILD   | Dual-Track Execution  | workers (task pool) + 6 sentinels + guardian + simplifier + arbiter
 Phase A4  | SYNC    | Verdict               | TaskCompleted hook evaluates inline (handle_a3_arbiter)
 Phase A5  | SHIP    | Documentation + Ship  | nurse + drone
 ```

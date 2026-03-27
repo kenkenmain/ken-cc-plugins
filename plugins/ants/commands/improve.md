@@ -76,7 +76,7 @@ If `CURRENT_ITERATION == 1`, omit this context entirely.
 
 ### 1b. Verify sentinel outputs
 
-After all 4 sentinels return, verify that all 4 output files exist:
+After all sentinels return, verify that all output files exist:
 - `.agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-correctness.json`
 - `.agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-security.json`
 - `.agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-perf.json`

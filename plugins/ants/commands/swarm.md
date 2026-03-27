@@ -29,7 +29,7 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 Phase A0  | EXPLORE     | Forage         | foragers + cartographer + explore-aggregator
 Phase A1  | PLAN        | Architect      | single planner -> A1-plan.md + A1-tasks.json
 Phase A2  | PLAN-REVIEW | Blueprint      | reviewer -> A2-review.json
-Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 6 sentinels + guardian + simplifier
 Phase A4  | SYNC        | Verdict        | TaskCompleted hook evaluates inline after A3 arbiter
 Phase A5  | SHIP        | Ship           | nurse (docs) -> drone (commit + PR)
 
@@ -193,7 +193,7 @@ Ants Swarm -- 6-Phase Pipeline (Agent Teams)
 Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator
 Phase A1  | PLAN    | Architect Plan        | architect
 Phase A2  | PLAN    | Blueprint Review      | blueprint-reviewer
-Phase A3  | BUILD   | Dual-Track Execution  | workers + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD   | Dual-Track Execution  | workers + 6 sentinels + guardian + simplifier
 Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline after arbiter)
 Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
 
@@ -361,6 +361,8 @@ while true:
        - TaskCreate(subject: "A3 Sentinel Security: Review", blockedBy: [all_worker_task_ids])
        - TaskCreate(subject: "A3 Sentinel Perf: Review", blockedBy: [all_worker_task_ids])
        - TaskCreate(subject: "A3 Sentinel Style: Review", blockedBy: [all_worker_task_ids])
+       - TaskCreate(subject: "A3 Sentinel Testing: Review", blockedBy: [all_worker_task_ids])
+       - TaskCreate(subject: "A3 Sentinel Docs: Review", blockedBy: [all_worker_task_ids])
     5. Create guardian task:
        - TaskCreate(subject: "A3 Guardian: Write tests", blockedBy: [all_worker_task_ids])
     6. Create simplifier task:
@@ -478,6 +480,8 @@ Clean up the team after displaying the summary.
 | A3 | sentinel-security | `ants:sentinel-security` |
 | A3 | sentinel-perf | `ants:sentinel-perf` |
 | A3 | sentinel-style | `ants:sentinel-style` |
+| A3 | sentinel-testing | `ants:sentinel-testing` |
+| A3 | sentinel-docs | `ants:sentinel-docs` |
 | A3 | simplifier | `ants:simplifier` |
 | A3 | review-arbiter | `ants:review-arbiter` |
 | A3 | review-fixer | `ants:review-fixer` |

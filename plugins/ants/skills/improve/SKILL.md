@@ -51,9 +51,9 @@ I2 Report (summary of all iterations)
 
 ### Phase I0: Adversarial Review (REVIEW)
 
-Four specialist sentinels dispatched in parallel: `ants:sentinel-correctness`, `ants:sentinel-security`, `ants:sentinel-perf`, `ants:sentinel-testing`. Each reviews all project files relevant to the task description.
+Four specialist sentinels dispatched in parallel: `ants:sentinel-correctness`, `ants:sentinel-security`, `ants:sentinel-perf`, `ants:sentinel-testing`. Each reviews all project files relevant to the task description. (`sentinel-docs` and `sentinel-style` are excluded from the improve pipeline — docs/style quality is out of scope for defect-focused improvement.)
 
-After all four complete, `ants:review-arbiter` consolidates findings by cross-referencing, deduplicating, and resolving conflicts across all four sentinel reports. The arbiter reports all issues by default -- no severity threshold override is needed, as the arbiter naturally captures all severities including info.
+After all four complete, `ants:review-arbiter` consolidates findings by cross-referencing, deduplicating, and resolving conflicts across all sentinel reports. The arbiter reports all issues by default -- no severity threshold override is needed, as the arbiter naturally captures all severities including info.
 
 - **Sentinel output:** `.agents/tmp/improve/iter-{N}/I0-review.sentinel-correctness.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-security.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-perf.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-testing.json`
 - **Arbiter output:** `.agents/tmp/improve/iter-{N}/I0-quality.json`

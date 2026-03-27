@@ -32,7 +32,7 @@ Parse from $ARGUMENTS to extract the task description and any flags:
 Phase A0  | EXPLORE     | Forage         | foragers + cartographer + explore-aggregator
 Phase A1  | PLAN        | Architect      | single planner -> A1-plan.md + A1-tasks.json
 Phase A2  | PLAN-REVIEW | Blueprint      | reviewer -> A2-review.json
-Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD+QUAL  | Dual-Track     | workers (task pool) + 6 sentinels + guardian + simplifier
 Phase A4  | SYNC        | Verdict        | TaskCompleted hook evaluates inline after A3 arbiter
 Phase A5  | SHIP        | Ship           | nurse (docs) -> drone (commit + PR)
 
@@ -194,7 +194,7 @@ Ants pswarm -- Persistent 6-Phase Pipeline (Agent Teams)
 Phase A0  | EXPLORE | Colony Exploration    | foragers + cartographer + explore-aggregator
 Phase A1  | PLAN    | Architect Plan        | architect
 Phase A2  | PLAN    | Blueprint Review      | blueprint-reviewer
-Phase A3  | BUILD   | Dual-Track Execution  | workers + 4 sentinels + guardian + simplifier
+Phase A3  | BUILD   | Dual-Track Execution  | workers + 6 sentinels + guardian + simplifier
 Phase A4  | SYNC    | Verdict               | TaskCompleted hook (inline evaluation)
 Phase A5  | SHIP    | Documentation + Ship  | nurse (docs) + drone (commit + PR)
 
@@ -312,7 +312,7 @@ Enter a monitoring loop. On each cycle, read state.json and check for signal fla
 4. **Check needsA3Tasks flag** -- if `true`:
    - Read `.agents/tmp/phases/loop-{loop}/A1-tasks.json` to get the task list from the architect
    - For each worker task: call **TaskCreate** with subject `"A3 Worker: {task_name}"`, description including task details, and `blockedBy: ["A2"]` plus any inter-task dependencies (prefixed with `A3-worker-`)
-   - Create sentinel tasks: call **TaskCreate** for each of `A3 Sentinel Correctness: Review`, `A3 Sentinel Security: Review`, `A3 Sentinel Perf: Review`, `A3 Sentinel Style: Review` -- each `blockedBy` all worker task IDs
+   - Create sentinel tasks: call **TaskCreate** for each of `A3 Sentinel Correctness: Review`, `A3 Sentinel Security: Review`, `A3 Sentinel Perf: Review`, `A3 Sentinel Style: Review`, `A3 Sentinel Testing: Review`, `A3 Sentinel Docs: Review` -- each `blockedBy` all worker task IDs
    - Create guardian task: `A3 Guardian: Write tests` -- `blockedBy` all worker task IDs
    - Create simplifier task: `A3 Simplifier: Code cleanup` -- `blockedBy` all worker task IDs
    - Create arbiter task: `A3 Arbiter: Consolidate reviews` -- `blockedBy` all sentinel + guardian + simplifier task IDs
@@ -406,6 +406,8 @@ Run: <.pswarmRun> / <.maxRuns>
 | A3 | sentinel-security | Reviews for security vulnerabilities |
 | A3 | sentinel-perf | Reviews for performance issues |
 | A3 | sentinel-style | Reviews for code style |
+| A3 | sentinel-testing | Reviews for test quality and coverage |
+| A3 | sentinel-docs | Reviews for documentation accuracy |
 | A3 | simplifier | Post-build code cleanup |
 | A3 | review-arbiter | Consolidates adversarial findings |
 | A3 | review-fixer | Targeted repair for critical issues |
