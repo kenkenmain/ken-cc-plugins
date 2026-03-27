@@ -279,6 +279,8 @@ Task IDs are used in `blockedBy` dependency chains and state tracking. They foll
 | `A3-sentinel-security` | `ants:sentinel-security` | blockedBy all workers |
 | `A3-sentinel-perf` | `ants:sentinel-perf` | blockedBy all workers |
 | `A3-sentinel-style` | `ants:sentinel-style` | blockedBy all workers |
+| `A3-sentinel-testing` | `ants:sentinel-testing` | blockedBy all workers |
+| `A3-sentinel-docs` | `ants:sentinel-docs` | blockedBy all workers |
 | `A3-guardian` | `ants:guardian` | blockedBy all workers |
 | `A3-simplifier` | `ants:simplifier` | blockedBy all workers |
 | `A3-arbiter` | `ants:review-arbiter` | blockedBy all sentinels + guardian + simplifier |
@@ -382,6 +384,8 @@ A0-cartographer ──────┤
                                                      └─► A3-sentinel-security ─────┤
                                                      └─► A3-sentinel-perf ─────────┤
                                                      └─► A3-sentinel-style ────────┤
+                                                     └─► A3-sentinel-testing ──────┤
+                                                     └─► A3-sentinel-docs ─────────┤
                                                      └─► A3-guardian ──────────────┤
                                                      └─► A3-simplifier ────────────┤
                                                                                     └─► A3-arbiter
@@ -436,6 +440,8 @@ Output files follow a strict naming convention within `.agents/tmp/phases/`.
 | `A3-review.sentinel-security.json` | sentinel-security |
 | `A3-review.sentinel-perf.json` | sentinel-perf |
 | `A3-review.sentinel-style.json` | sentinel-style |
+| `A3-review.sentinel-testing.json` | sentinel-testing |
+| `A3-review.sentinel-docs.json` | sentinel-docs |
 | `A3-quality.json` | review-arbiter |
 | `A4-queen-verdict.json` | handle_a3_arbiter() in on-task-completed.sh |
 | `A5-docs.json` | nurse |
