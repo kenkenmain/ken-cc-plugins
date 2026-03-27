@@ -331,9 +331,9 @@ handle_a3_sentinel() {
   # Subjects use spaces ("A3 Sentinel Correctness: Review") so match both
   # space and hyphen between "sentinel" and the specialization, then normalize.
   local sentinel_name
-  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel[- ](correctness|security|perf|style)' | head -1 | tr '[:upper:]' '[:lower:]' | tr ' ' '-' || echo "")
+  sentinel_name=$(printf '%s' "$task_subject" | grep -oiE 'sentinel[- ](correctness|security|perf|style|testing|docs)' | head -1 | tr '[:upper:]' '[:lower:]' | tr ' ' '-' || echo "")
   if [[ -z "$sentinel_name" ]]; then
-    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, or sentinel-style (hyphenated or space-separated)."
+    teams_reject_completion "Cannot extract sentinel name from task subject. Expected sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style, sentinel-testing, or sentinel-docs (hyphenated or space-separated)."
     exit 2
   fi
 
@@ -342,11 +342,13 @@ handle_a3_sentinel() {
   touch "$marker_file"
   teams_log "${sentinel_name} completed, marker written to ${marker_file}"
 
-  # Check if all four sentinels are done
+  # Check if all six sentinels are done
   if [[ -f "${phases_dir}/.sentinel-correctness.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-security.done" ]] \
      && [[ -f "${phases_dir}/.sentinel-perf.done" ]] \
-     && [[ -f "${phases_dir}/.sentinel-style.done" ]]; then
+     && [[ -f "${phases_dir}/.sentinel-style.done" ]] \
+     && [[ -f "${phases_dir}/.sentinel-testing.done" ]] \
+     && [[ -f "${phases_dir}/.sentinel-docs.done" ]]; then
     if ! update_state '.updatedAt = $ts | .phases.A3.sentinelsDone = true'; then
       teams_reject_completion "All sentinels done but failed to update state. Retry."
       exit 2

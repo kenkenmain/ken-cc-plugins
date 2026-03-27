@@ -35,7 +35,7 @@ Display pipeline to user:
 ```
 Ants Improve -- Iterative Review-Fix Pipeline
 ===============================================
-Phase I0  | REVIEW  | Adversarial Review  | 3x sentinels + review-arbiter
+Phase I0  | REVIEW  | Adversarial Review  | 4x sentinels + review-arbiter
 Phase I1  | FIX     | Targeted Repair     | 1x review-fixer
 [loop back to I0 if issues remain, up to 5 iterations]
 Phase I2  | REPORT  | Summary             | Display results
@@ -56,9 +56,9 @@ mkdir -p .agents/tmp/improve/iter-${CURRENT_ITERATION}
 
 Display: "Iteration {CURRENT_ITERATION}: Starting adversarial review..."
 
-### 1a. Dispatch 3 parallel sentinels
+### 1a. Dispatch 4 parallel sentinels
 
-Dispatch **3 parallel sentinel agents** via the Agent tool:
+Dispatch **4 parallel sentinel agents** via the Agent tool:
 
 1. `subagent_type: "ants:sentinel-correctness"` -- "Review all code related to <description> for bugs, logic errors, missing error handling, race conditions, and incorrect behavior. IMPORTANT: You are running in the improve pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-correctness.json (this path overrides your default A3 path). {PRIOR_ITERATION_CONTEXT}"
 
@@ -66,18 +66,21 @@ Dispatch **3 parallel sentinel agents** via the Agent tool:
 
 3. `subagent_type: "ants:sentinel-perf"` -- "Review all code related to <description> for performance issues including N+1 queries, blocking I/O, unnecessary allocations, algorithmic complexity, and resource leaks. IMPORTANT: You are running in the improve pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-perf.json (this path overrides your default A3 path). {PRIOR_ITERATION_CONTEXT}"
 
+4. `subagent_type: "ants:sentinel-testing"` -- "Review all code related to <description> for test quality issues including missing test coverage, inadequate edge case testing, brittle test patterns, missing error path tests, and insufficient assertion depth. IMPORTANT: You are running in the improve pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-testing.json (this path overrides your default A3 path). {PRIOR_ITERATION_CONTEXT}"
+
 **{PRIOR_ITERATION_CONTEXT}** -- If `CURRENT_ITERATION > 1`, append the following to each sentinel prompt:
 
-> "This is iteration {CURRENT_ITERATION}. In the previous iteration, the review-fixer applied fixes. Read .agents/tmp/improve/iter-{CURRENT_ITERATION - 1}/I1-fix.json to see what was fixed. Focus on: (1) verifying the previous fixes are correct, (2) finding any new issues introduced by the fixes, (3) identifying any remaining issues that were not addressed."
+> "This is iteration {CURRENT_ITERATION}. In the previous iteration, the review-fixer applied fixes. Read .agents/tmp/improve/iter-{CURRENT_ITERATION - 1}/I1-fix.json to see what was fixed. Also read the 4 sentinel files from the previous iteration (.agents/tmp/improve/iter-{CURRENT_ITERATION - 1}/I0-review.sentinel-correctness.json, .agents/tmp/improve/iter-{CURRENT_ITERATION - 1}/I0-review.sentinel-security.json, .agents/tmp/improve/iter-{CURRENT_ITERATION - 1}/I0-review.sentinel-perf.json, .agents/tmp/improve/iter-{CURRENT_ITERATION - 1}/I0-review.sentinel-testing.json) to understand what was previously flagged. Focus on: (1) verifying the previous fixes are correct, (2) finding any new issues introduced by the fixes, (3) identifying any remaining issues that were not addressed."
 
 If `CURRENT_ITERATION == 1`, omit this context entirely.
 
 ### 1b. Verify sentinel outputs
 
-After all 3 sentinels return, verify that all 3 output files exist:
+After all 4 sentinels return, verify that all 4 output files exist:
 - `.agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-correctness.json`
 - `.agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-security.json`
 - `.agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-perf.json`
+- `.agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-testing.json`
 
 If any are missing, warn the user which sentinels failed and ask whether to proceed with partial results or abort.
 
@@ -85,7 +88,7 @@ If any are missing, warn the user which sentinels failed and ask whether to proc
 
 Dispatch **1 review-arbiter agent** via the Agent tool:
 
-- `subagent_type: "ants:review-arbiter"` -- "Read all sentinel review files at .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-correctness.json, .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-security.json, and .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-perf.json. IMPORTANT: You are running in the improve pipeline, NOT the swarm pipeline. Ignore any default paths in your system prompt. Cross-reference, deduplicate, and produce consolidated verdict. Report ALL issues at every severity level (critical, warning, AND info). Write to .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-quality.json (this path overrides your default A3-quality.json path)."
+- `subagent_type: "ants:review-arbiter"` -- "Read all sentinel review files at .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-correctness.json, .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-security.json, .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-perf.json, and .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-review.sentinel-testing.json. IMPORTANT: You are running in the improve pipeline, NOT the swarm pipeline. Ignore any default paths in your system prompt. Cross-reference, deduplicate, and produce consolidated verdict. Report ALL issues at every severity level (critical, warning, AND info). Write to .agents/tmp/improve/iter-{CURRENT_ITERATION}/I0-quality.json (this path overrides your default A3-quality.json path)."
 
 ### 1d. Evaluate verdict
 

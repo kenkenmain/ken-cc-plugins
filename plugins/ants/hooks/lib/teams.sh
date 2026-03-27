@@ -156,7 +156,7 @@ teams_add_a3_subtasks() {
   subtasks_output=$(jq '
     # Collect all worker task IDs
     [.[].id] as $worker_ids |
-    ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style"] as $sentinel_names |
+    ["sentinel-correctness", "sentinel-security", "sentinel-perf", "sentinel-style", "sentinel-testing", "sentinel-docs"] as $sentinel_names |
 
     # Worker tasks -- each depends on its declared dependencies (prefixed with A3-worker-)
     [.[] | {
@@ -174,10 +174,14 @@ teams_add_a3_subtasks() {
       subject: ("A3 Sentinel " + (if $name == "sentinel-correctness" then "Correctness"
         elif $name == "sentinel-security" then "Security"
         elif $name == "sentinel-perf" then "Perf"
+        elif $name == "sentinel-testing" then "Testing"
+        elif $name == "sentinel-docs" then "Docs"
         else "Style" end) + ": Review"),
       description: ("Review implementation for " + (if $name == "sentinel-correctness" then "bugs, logic errors, and error handling"
         elif $name == "sentinel-security" then "OWASP top 10, injection, secrets, access control"
         elif $name == "sentinel-perf" then "N+1 queries, blocking I/O, complexity"
+        elif $name == "sentinel-testing" then "test quality, coverage gaps, edge cases, and missing assertions"
+        elif $name == "sentinel-docs" then "documentation accuracy, missing docstrings, and stale comments"
         else "code style, readability, maintainability" end)),
       activeForm: ("Reviewing " + $name),
       agentType: ("ants:" + $name),
@@ -211,7 +215,7 @@ teams_add_a3_subtasks() {
       description: "Cross-reference and deduplicate sentinel findings into unified A3-quality.json",
       activeForm: "Consolidating reviews",
       agentType: "ants:review-arbiter",
-      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-guardian", "A3-simplifier"]
+      blockedBy: ["A3-sentinel-correctness", "A3-sentinel-security", "A3-sentinel-perf", "A3-sentinel-style", "A3-sentinel-testing", "A3-sentinel-docs", "A3-guardian", "A3-simplifier"]
     }] +
 
     # Review-fixer task -- depends on arbiter (optional, dispatched if arbiter finds critical issues)
@@ -653,7 +657,7 @@ Plan targeted fixes for the issues found. Do NOT re-plan the entire feature."
     messages_json="$(get_messages_for "$phase_agent")"
     if [[ -n "$messages_json" && "$messages_json" != "[]" ]]; then
       local formatted_messages
-      local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","drone","explore-aggregator","fix-worker","forager","guardian","nurse","plan-arbiter","queen","review-arbiter","review-fixer","review-lead","sentinel-correctness","sentinel-perf","sentinel-security","sentinel-style","simplifier","solution-aggregator","solution-proposer","worker"]'
+      local known_agents='["architect","blueprint-reviewer","bug-scout","cartographer","drone","explore-aggregator","fix-worker","forager","guardian","nurse","plan-arbiter","queen","review-arbiter","review-fixer","review-lead","sentinel-correctness","sentinel-docs","sentinel-perf","sentinel-security","sentinel-style","sentinel-testing","simplifier","solution-aggregator","solution-proposer","worker"]'
       formatted_messages="$(printf '%s' "$messages_json" | jq -r --argjson allowed "$known_agents" '.[] | "- From \(if .from and (.from | IN($allowed[])) then .from else "unknown" end) (loop \(.loop // 0)): \(.content // "" | tostring | gsub("[\\u0000-\\u001f]"; "") | sub("^#+"; "") | .[0:2000])"' 2>/dev/null || { echo "WARNING: Failed to format messages for phase agent" >&2; echo "(Message formatting failed -- check .agents/tmp/state.json .messages array directly)"; })"
       if [[ -n "$formatted_messages" ]]; then
         messages_context="## Messages from Previous Phases

@@ -20,7 +20,7 @@ claude plugin install superpowers-iterate@ken-cc-plugins
 | **superpowers-iterate** | 9 (loop phases 1-8 until clean) | Sequential with iterative refinement | Codex MCP (full) or Claude-only (lite) | Quality-obsessed iteration, convergence to zero issues | "Refactor auth module with TDD", "Add comprehensive error handling" |
 | **minions** | 5 (launch) / 15 (superlaunch) / 5 (cursor) / 2 (review) | Parallel explorers + parallel reviewers (6 specialists) | Claude only (no Codex MCP) | Thorough coverage, personality-driven review teams | "Build payment pipeline (superlaunch)", "Review-fix existing code (review)" |
 | **subagents** | 5-15 (profile-based) | Wave-based parallel agents, complexity-routed tasks | Codex MCP (default) or Claude-only | Complex multi-file features, configurable pipelines | "Add full API with tests (standard)", "Quick config fix (minimal)" |
-| **ants** | 6 (A0-A5), persistent loop variant | Self-organizing task pool + adversarial review team (3 sentinels) | Claude only, Agent Teams | Adversarial quality, fast iteration, concurrent builds | "Add caching layer (swarm)", "Fix all lint warnings (pswarm)" |
+| **ants** | 6 (A0-A5), persistent loop variant | Self-organizing task pool + adversarial review team (5 sentinels) | Claude only, Agent Teams | Adversarial quality, fast iteration, concurrent builds | "Add caching layer (swarm)", "Fix all lint warnings (pswarm)" |
 
 **Quick decision guide:**
 
