@@ -1,6 +1,6 @@
 # ants
 
-Ant-colony themed swarm workflow for Claude Code using Agent Teams delegate mode. The command creates a team, populates a shared task list with dependency chains, spawns teammates, and enters a monitoring loop. Teammates self-claim work via the TeammateIdle hook; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Workers build while four specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the verdict hook decides to ship or loop. Features a social swarm mode with competing architects and reviewers coordinated via task dependencies. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
+Ant-colony themed swarm workflow for Claude Code using Agent Teams delegate mode. The command creates a team, populates a shared task list with dependency chains, spawns teammates, and enters a monitoring loop. Teammates self-claim work via the TeammateIdle hook; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Workers build while six specialist sentinels review from different angles, a simplifier cleans up the code, an arbiter consolidates findings, and the verdict hook decides to ship or loop. Features a social swarm mode with competing architects and reviewers coordinated via task dependencies. Also includes a self-improvement pipeline that iteratively reviews and fixes code issues.
 
 ## Installation
 
@@ -67,6 +67,8 @@ The `--web` flag enables WebSearch for forager agents (A0 exploration) and the a
        |                 sentinel-security (OWASP, injection)
        |                 sentinel-perf (N+1, blocking I/O)
        |                 sentinel-style (readability, dead code)
+       |                 sentinel-testing (test quality, coverage)
+       |                 sentinel-docs (docs accuracy, stale comments)
        |               simplifier applies code cleanup
        |               guardian writes + runs tests
        |               review-arbiter consolidates findings
@@ -172,7 +174,7 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 ### What's New in v0.7.0
 
 - **Dual-channel communication** -- SendMessage re-added as a live coordination overlay alongside file-based artifacts. Files remain the source of truth (hooks read output files, not messages), while SendMessage provides real-time coordination between teammates during active phases. Golden rule: write files first (source of truth for hooks), then SendMessage for live coordination.
-- **16 agents now include SendMessage** -- Worker, all four specialist sentinels (correctness, security, perf, style), guardian, simplifier, review-arbiter, review-fixer, architect, blueprint-reviewer, plan-arbiter, review-lead, explore-aggregator, nurse, and drone all have SendMessage in their tools lists with Communication Protocol sections in their prompts.
+- **18 agents now include SendMessage** -- Worker, all six specialist sentinels (correctness, security, perf, style, testing, docs), guardian, simplifier, review-arbiter, review-fixer, architect, blueprint-reviewer, plan-arbiter, review-lead, explore-aggregator, nurse, and drone all have SendMessage in their tools lists with Communication Protocol sections in their prompts.
 - **Hook prompt templates updated** -- Phase prompt templates (A0-A5) acknowledge the dual-channel model, instructing agents to write output files first and then use SendMessage for status updates and coordination signals.
 - **Golden rule enforced in agent prompts** -- Every agent with SendMessage includes the protocol: "Write files first (source of truth for hooks), then SendMessage for live coordination. Never rely on SendMessage as a substitute for writing output files."
 
@@ -284,7 +286,7 @@ The improve pipeline is **stateless** -- no state.json, no hooks, no Agent Teams
 The key innovation is **Phase A3: Dual-Track Execution with Adversarial Review**. Instead of building everything then reviewing everything (sequential), ants runs two parallel tracks:
 
 - **Build track:** Workers claim tasks from a self-organizing pool -- tasks with satisfied dependencies are dispatched in parallel automatically
-- **Quality track (adversarial):** Four specialist sentinels review from different angles (correctness, security, performance, style), then an arbiter cross-references and deduplicates findings into a single verdict
+- **Quality track (adversarial):** Six specialist sentinels review from different angles (correctness, security, performance, style, testing, docs), then an arbiter cross-references and deduplicates findings into a single verdict
 
 This catches issues from multiple perspectives rather than relying on a single reviewer, and the TaskCompleted hook evaluates the arbiter's consolidated verdict inline before deciding to ship or loop.
 
@@ -302,6 +304,8 @@ This catches issues from multiple perspectives rather than relying on a single r
 | sentinel-security | OWASP, injection, secrets, access control | sonnet | A3 quality, I0 |
 | sentinel-perf | N+1 queries, blocking I/O, complexity | sonnet | A3 quality, I0 |
 | sentinel-style | Code style, readability, maintainability | sonnet | A3 quality |
+| sentinel-testing | Test quality, coverage gaps, flaky tests, assertion quality | sonnet | A3 quality |
+| sentinel-docs | Docs accuracy, stale comments, missing docstrings, README drift | sonnet | A3 quality |
 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | A3 quality |
 | review-arbiter | Consolidates adversarial sentinel findings | sonnet | A3 quality, I0 |
 | review-fixer | Targeted repair for review-fix cycles | inherit | A3 quality, I1 |
@@ -317,7 +321,7 @@ This catches issues from multiple perspectives rather than relying on a single r
 | fix-worker | Implements debug fix with tests | inherit | D3 |
 | sentinel | (deprecated) Generic reviewer from v0.1 | sonnet | -- |
 
-All 24 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/sswarm/pswarm workflows use Agent Teams delegate mode -- commands create teams with task dependency chains, spawn teammates, and enter a monitoring loop. The TeammateIdle hook routes tasks to idle teammates; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks. The debug and improve pipelines are orchestrated synchronously by their respective commands (no Agent Teams).
+All 26 swarm agent definitions are leaf agents (cannot spawn subagents). The swarm/sswarm/pswarm workflows use Agent Teams delegate mode -- commands create teams with task dependency chains, spawn teammates, and enter a monitoring loop. The TeammateIdle hook routes tasks to idle teammates; the TaskCompleted hook validates output, advances state, and evaluates the A4 verdict inline. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks. The debug and improve pipelines are orchestrated synchronously by their respective commands (no Agent Teams).
 
 ## How It Works
 
@@ -345,12 +349,14 @@ Task pool workers (parallel)
     |
     pool drained ----------->  sentinel-correctness  \
                                 sentinel-security      \
-                                sentinel-perf           } parallel
-                                sentinel-style         /
-                                guardian              /
-                                simplifier           /
+                                sentinel-perf           \
+                                sentinel-style          } parallel
+                                sentinel-testing       /
+                                sentinel-docs         /
+                                guardian             /
+                                simplifier          /
                                     |
-                                review-arbiter (consolidate all 6)
+                                review-arbiter (consolidate all 8)
                                     |
                                A3-quality.json
     |                               |
@@ -361,7 +367,7 @@ Task pool workers (parallel)
 
 Workers claim tasks from the pool as dependencies are satisfied. Each worker implements exactly one task, self-verifies (tests, lint, typecheck), and reports results. Workers cannot use git (blocked by hook).
 
-After all workers complete, six agents run in parallel: four specialist sentinels review from different angles (correctness, security, performance, style), the guardian writes and runs tests, and the simplifier applies structural code cleanup without behavioral changes. The review-arbiter then consolidates all sentinel findings into a single A3-quality.json.
+After all workers complete, eight agents run in parallel: six specialist sentinels review from different angles (correctness, security, performance, style, testing, docs), the guardian writes and runs tests, and the simplifier applies structural code cleanup without behavioral changes. The review-arbiter then consolidates all sentinel findings into a single A3-quality.json.
 
 ### Circuit Breaker
 
@@ -385,9 +391,9 @@ If the TaskCompleted hook's inline A4 verdict evaluation finds unresolved critic
 |---|-----------|---------------------|
 | Phases | 6 (A0-A5) | 15 (S0-S14) |
 | Build model | Task pool + adversarial review teams | Sequential with review-fix cycles |
-| Review style | 4 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
+| Review style | 6 specialist sentinels + arbiter + simplifier | Single reviewer per phase |
 | Loop type | Inline A4 verdict -> re-plan (max 5, circuit breaker) | Per-review fix attempts + stage restarts |
-| Agents | 24 colony-themed | 26+ generic |
+| Agents | 26 colony-themed | 26+ generic |
 | Failure handling | Circuit breaker with 3 tiers | Fix budget per review phase |
 | Best for | Medium complexity tasks | Complex tasks needing thorough coverage |
 | Theme | Ant colony | Minions |

@@ -11,6 +11,8 @@ Execute the architect's plan using dual-track dispatch: **build track** (task po
   - `ants:sentinel-security` -- OWASP, injection, secrets, access control
   - `ants:sentinel-perf` -- N+1 queries, blocking I/O, complexity
   - `ants:sentinel-style` -- code style, readability, maintainability
+  - `ants:sentinel-testing` -- test quality, coverage gaps, flaky tests
+  - `ants:sentinel-docs` -- documentation accuracy, missing docs, stale references
   - `ants:review-arbiter` -- consolidates all sentinel findings (waits for all sentinels + guardian + simplifier)
   - `ants:guardian` -- writes and runs tests for completed work
   - `ants:simplifier` -- code cleanup (dead code, complexity reduction, without behavioral changes)
@@ -34,12 +36,14 @@ Task Pool:
   pool drained ---------> Adversarial Review Team
                             sentinel-correctness  \
                             sentinel-security      \
-                            sentinel-perf           } parallel
-                            sentinel-style         /
+                            sentinel-perf           \
+                            sentinel-style          } parallel
+                            sentinel-testing       /
+                            sentinel-docs         /
                             guardian              /
                             simplifier           /
                                   |
-                            review-arbiter (consolidate — waits for all 6)
+                            review-arbiter (consolidate — waits for all 8)
                                   |
                              A3-quality.json
 ```
@@ -110,7 +114,7 @@ As workers complete:
 
 ### 3. Adversarial Review (after pool drains)
 
-After all workers complete, dispatch the adversarial review team. Four specialist sentinels run **in parallel**:
+After all workers complete, dispatch the adversarial review team. Six specialist sentinels run **in parallel**:
 
 **Sentinel-correctness prompt:**
 ```
@@ -168,7 +172,35 @@ Worker outputs (for context):
 Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-style.json
 ```
 
-Wait for all four sentinels to complete.
+**Sentinel-testing prompt:**
+```
+Review all changes for test quality issues: missing test coverage, inadequate assertions,
+flaky test patterns, untested edge cases, test-production parity gaps.
+
+Changed files:
+{{ALL_FILES_CHANGED}}
+
+Worker outputs (for context):
+{{WORKER_OUTPUTS_SUMMARY}}
+
+Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-testing.json
+```
+
+**Sentinel-docs prompt:**
+```
+Review all changes for documentation accuracy: missing or outdated docstrings,
+stale references, incorrect usage examples, undocumented public APIs, changelog gaps.
+
+Changed files:
+{{ALL_FILES_CHANGED}}
+
+Worker outputs (for context):
+{{WORKER_OUTPUTS_SUMMARY}}
+
+Write findings to: .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-docs.json
+```
+
+Wait for all six sentinels to complete.
 
 ### 3b. Simplifier (Code Cleanup — parallel with sentinels)
 
@@ -186,16 +218,18 @@ Output: {status, filesSimplified, changesApplied, summary}
 
 ### 4. Arbiter Consolidation
 
-After all four sentinels, the guardian, and the simplifier complete, dispatch the **review-arbiter**:
+After all six sentinels, the guardian, and the simplifier complete, dispatch the **review-arbiter**:
 
 ```
-Consolidate findings from all four specialist sentinels.
+Consolidate findings from all six specialist sentinels.
 
 Read:
 - .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-correctness.json
 - .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-security.json
 - .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-perf.json
 - .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-style.json
+- .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-testing.json
+- .agents/tmp/phases/loop-{{LOOP}}/A3-review.sentinel-docs.json
 
 Cross-reference findings. Deduplicate overlapping issues. Resolve conflicts.
 Produce unified verdict.
@@ -290,7 +324,7 @@ If a worker reports `blocked` or fails:
 If a sentinel fails to complete:
 - Log the failure
 - Arbiter consolidates from available sentinel outputs (partial review)
-- If all four sentinels fail, treat as blocked
+- If all six sentinels fail, treat as blocked
 
 ### Pool Stall
 

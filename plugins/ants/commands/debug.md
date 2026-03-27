@@ -25,7 +25,7 @@ Phase D0  │ EXPLORE     │ Bug Investigation   │ 3 parallel bug-scouts → 
 Phase D1  │ PROPOSE     │ Solution Proposals   │ 3 parallel solution-proposers (minimal/comprehensive/defensive)
 Phase D2  │ AGGREGATE   │ Rank & Select        │ solution-aggregator → user confirmation (AskUserQuestion)
 Phase D3  │ IMPLEMENT   │ Apply Fix            │ fix-worker applies selected solution
-Phase D4  │ REVIEW      │ Quality Review       │ 3 parallel sentinels → review-arbiter consolidation
+Phase D4  │ REVIEW      │ Quality Review       │ 6 parallel sentinels → review-arbiter consolidation
 Phase D5  │ SHIP        │ Docs + Commit + PR   │ nurse (docs) → drone (commit + PR)
 ```
 
@@ -54,7 +54,7 @@ Phase D0  │ EXPLORE   │ Bug Investigation     │ 3 bug-scouts (parallel)
 Phase D1  │ PROPOSE   │ Solution Proposals     │ 3 solution-proposers (parallel)
 Phase D2  │ AGGREGATE │ Rank & Select          │ solution-aggregator + user confirmation
 Phase D3  │ IMPLEMENT │ Apply Fix              │ fix-worker
-Phase D4  │ REVIEW    │ Quality Review         │ 3 sentinels + review-arbiter
+Phase D4  │ REVIEW    │ Quality Review         │ 6 sentinels + review-arbiter
 Phase D5  │ SHIP      │ Docs + Commit + PR     │ nurse + drone
 ```
 
@@ -120,7 +120,7 @@ Include in the prompt which solution number was selected by the user.
 
 ## Step 6: D4 REVIEW
 
-Dispatch **3 parallel sentinel agents** via the Agent tool:
+Dispatch **6 parallel sentinel agents** via the Agent tool:
 
 1. `subagent_type: "ants:sentinel-correctness"` — "Review all changes from the debug fix for bugs, logic errors, missing error handling. Read .agents/tmp/debug/D3-implementation.json for the list of modified files. IMPORTANT: You are running in the debug pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/debug/D4-review.sentinel-correctness.json (this path overrides your default A3 path)."
 
@@ -128,9 +128,15 @@ Dispatch **3 parallel sentinel agents** via the Agent tool:
 
 3. `subagent_type: "ants:sentinel-perf"` — "Review all changes from the debug fix for performance issues. Read .agents/tmp/debug/D3-implementation.json for the list of modified files. IMPORTANT: You are running in the debug pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/debug/D4-review.sentinel-perf.json (this path overrides your default A3 path)."
 
-After all 3 sentinels complete, dispatch **1 review-arbiter agent**:
+4. `subagent_type: "ants:sentinel-style"` — "Review all changes from the debug fix for code style, readability, and maintainability issues. Read .agents/tmp/debug/D3-implementation.json for the list of modified files. IMPORTANT: You are running in the debug pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/debug/D4-review.sentinel-style.json (this path overrides your default A3 path)."
 
-- `subagent_type: "ants:review-arbiter"` — "Read all sentinel review files at .agents/tmp/debug/D4-review.sentinel-correctness.json, .agents/tmp/debug/D4-review.sentinel-security.json, and .agents/tmp/debug/D4-review.sentinel-perf.json. IMPORTANT: You are running in the debug pipeline, NOT the swarm pipeline. Ignore any default paths in your system prompt. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/debug/D4-quality.json (this path overrides your default A3-quality.json path)."
+5. `subagent_type: "ants:sentinel-testing"` — "Review all changes from the debug fix for test quality, coverage gaps, and missing edge cases. Read .agents/tmp/debug/D3-implementation.json for the list of modified files. IMPORTANT: You are running in the debug pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/debug/D4-review.sentinel-testing.json (this path overrides your default A3 path)."
+
+6. `subagent_type: "ants:sentinel-docs"` — "Review all changes from the debug fix for documentation accuracy, stale comments, and missing docstrings. Read .agents/tmp/debug/D3-implementation.json for the list of modified files. IMPORTANT: You are running in the debug pipeline, NOT the swarm pipeline. Ignore any default output paths in your system prompt. Write findings to .agents/tmp/debug/D4-review.sentinel-docs.json (this path overrides your default A3 path)."
+
+After all 6 sentinels complete, dispatch **1 review-arbiter agent**:
+
+- `subagent_type: "ants:review-arbiter"` — "Read all sentinel review files at .agents/tmp/debug/D4-review.sentinel-correctness.json, .agents/tmp/debug/D4-review.sentinel-security.json, .agents/tmp/debug/D4-review.sentinel-perf.json, .agents/tmp/debug/D4-review.sentinel-style.json, .agents/tmp/debug/D4-review.sentinel-testing.json, and .agents/tmp/debug/D4-review.sentinel-docs.json. IMPORTANT: You are running in the debug pipeline, NOT the swarm pipeline. Ignore any default paths in your system prompt. Cross-reference, deduplicate, and produce consolidated verdict. Write to .agents/tmp/debug/D4-quality.json (this path overrides your default A3-quality.json path)."
 
 ## Step 7: D5 SHIP
 

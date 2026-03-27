@@ -138,16 +138,16 @@ TASKS
 
 subtasks=$(teams_add_a3_subtasks ".agents/tmp/phases/loop-1/A1-tasks.json")
 subtask_count=$(echo "$subtasks" | jq 'length')
-# 2 workers + 4 sentinels (correctness, security, perf, style) + 1 guardian + 1 simplifier + 1 arbiter + 1 review-fixer = 10
-assert_eq "creates 10 subtasks: 2 workers + 4 sentinels + guardian + simplifier + arbiter + review-fixer" "10" "$subtask_count"
+# 2 workers + 6 sentinels (correctness, security, perf, style, testing, docs) + 1 guardian + 1 simplifier + 1 arbiter + 1 review-fixer = 12
+assert_eq "creates 12 subtasks: 2 workers + 6 sentinels + guardian + simplifier + arbiter + review-fixer" "12" "$subtask_count"
 
 # Check worker tasks
 worker_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId | startswith("A3-worker"))] | length')
 assert_eq "2 worker tasks" "2" "$worker_count"
 
-# Check sentinel tasks (4 specialist sentinels: correctness, security, perf, style)
+# Check sentinel tasks (6 specialist sentinels: correctness, security, perf, style, testing, docs)
 sentinel_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId | startswith("A3-sentinel"))] | length')
-assert_eq "4 sentinel tasks (correctness, security, perf, style)" "4" "$sentinel_count"
+assert_eq "6 sentinel tasks (correctness, security, perf, style, testing, docs)" "6" "$sentinel_count"
 
 # Check guardian task
 guardian_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-guardian")] | length')
@@ -169,9 +169,9 @@ fi
 s_deps=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-sentinel-correctness") | .blockedBy | length')
 assert_eq "sentinel depends on 2 workers" "2" "$s_deps"
 
-# Check arbiter depends on 4 sentinels + guardian + simplifier
+# Check arbiter depends on 6 sentinels + guardian + simplifier
 a_deps=$(echo "$subtasks" | jq -r '.[] | select(.phaseId == "A3-arbiter") | .blockedBy | length')
-assert_eq "arbiter depends on 4 sentinels + guardian + simplifier" "6" "$a_deps"
+assert_eq "arbiter depends on 6 sentinels + guardian + simplifier" "8" "$a_deps"
 
 # Test with missing file
 if teams_add_a3_subtasks "/nonexistent/file.json" 2>/dev/null; then
@@ -201,6 +201,28 @@ if echo "$arbiter_blocked" | grep -q "A3-simplifier"; then
   PASS=$((PASS + 1)); echo "  PASS: arbiter blocked by A3-simplifier"
 else
   FAIL=$((FAIL + 1)); echo "  FAIL: arbiter missing A3-simplifier dependency (got: $arbiter_blocked)"
+fi
+
+# Check sentinel-testing task is present (T9: sentinel-testing added)
+testing_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-sentinel-testing")] | length')
+assert_eq "A3-sentinel-testing task present" "1" "$testing_count"
+
+# Arbiter blockedBy must include A3-sentinel-testing (T9: sentinel-testing wired in)
+if echo "$arbiter_blocked" | grep -q "A3-sentinel-testing"; then
+  PASS=$((PASS + 1)); echo "  PASS: arbiter blocked by A3-sentinel-testing"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: arbiter missing A3-sentinel-testing dependency (got: $arbiter_blocked)"
+fi
+
+# Check sentinel-docs task is present (T9: sentinel-docs added)
+docs_count=$(echo "$subtasks" | jq '[.[] | select(.phaseId == "A3-sentinel-docs")] | length')
+assert_eq "A3-sentinel-docs task present" "1" "$docs_count"
+
+# Arbiter blockedBy must include A3-sentinel-docs (T9: sentinel-docs wired in)
+if echo "$arbiter_blocked" | grep -q "A3-sentinel-docs"; then
+  PASS=$((PASS + 1)); echo "  PASS: arbiter blocked by A3-sentinel-docs"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: arbiter missing A3-sentinel-docs dependency (got: $arbiter_blocked)"
 fi
 
 # =========================================================================
@@ -235,6 +257,30 @@ if echo "$prompt" | grep -q "From unknown"; then
   PASS=$((PASS + 1)); echo "  PASS: unknown sender redacted to 'unknown'"
 else
   FAIL=$((FAIL + 1)); echo "  FAIL: unknown sender not redacted"
+fi
+
+# sentinel-testing should appear by name (T9: added to known_agents)
+setup
+jq '.messages = [
+  {"from": "sentinel-testing", "to": "architect", "loop": 1, "content": "Tests OK"}
+]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+prompt_t=$(teams_build_teammate_prompt "A1")
+if echo "$prompt_t" | grep -q "From sentinel-testing"; then
+  PASS=$((PASS + 1)); echo "  PASS: sentinel-testing appears as named sender"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: sentinel-testing missing from prompt messages"
+fi
+
+# sentinel-docs should appear by name (T9: added to known_agents)
+setup
+jq '.messages = [
+  {"from": "sentinel-docs", "to": "architect", "loop": 1, "content": "Docs OK"}
+]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+prompt_d=$(teams_build_teammate_prompt "A1")
+if echo "$prompt_d" | grep -q "From sentinel-docs"; then
+  PASS=$((PASS + 1)); echo "  PASS: sentinel-docs appears as named sender"
+else
+  FAIL=$((FAIL + 1)); echo "  FAIL: sentinel-docs missing from prompt messages"
 fi
 
 # =========================================================================

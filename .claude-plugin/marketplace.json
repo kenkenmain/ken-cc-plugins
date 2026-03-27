@@ -136,8 +136,8 @@
     {
       "name": "ants",
       "source": "./plugins/ants",
-      "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Active-Lead), dual-channel communication (file-based artifacts + SendMessage live coordination), dual-track build, adversarial review (6 sentinels + probe + arbiter), sub-phase agents (strategist, inspector, chronicler), debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
-      "version": "0.8.1",
+      "description": "Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Active-Lead), dual-channel communication (file-based artifacts + SendMessage live coordination), dual-track build, adversarial review (6 specialist sentinels: correctness, security, perf, style, testing, docs + arbiter), debug pipeline for bug investigation, self-improvement pipeline for iterative review-fix, graceful shutdown, plan approval, lint-on-save, HTTP webhooks, opt-in WebSearch support, and structured completion summaries for all five pipelines",
+      "version": "0.9.0",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

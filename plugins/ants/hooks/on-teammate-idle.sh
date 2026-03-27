@@ -251,7 +251,7 @@ dispatch_a3_quality() {
   mkdir -p "$marker_dir"
 
   # Quality agents to dispatch (parallel)
-  local quality_agents=("sentinel-correctness" "sentinel-security" "sentinel-perf" "sentinel-style" "guardian" "simplifier")
+  local quality_agents=("sentinel-correctness" "sentinel-security" "sentinel-perf" "sentinel-style" "sentinel-testing" "sentinel-docs" "guardian" "simplifier")
 
   # Track completion
   local all_quality_done=true
@@ -398,38 +398,41 @@ dispatch_a3_quality() {
 build_a3_quality_prompt() {
   local agent="$1"
 
-  # Map agent name to subject and description in a single case block
-  local subject="" agent_desc=""
+  # Map agent name to subject, description, and output filename in a single case block
+  local subject="" agent_desc="" output_file=""
   case "$agent" in
     sentinel-correctness)
       subject="A3 Sentinel Correctness: Review"
-      agent_desc="Review the implementation for bugs, logic errors, missing error handling, and race conditions." ;;
+      agent_desc="Review the implementation for bugs, logic errors, missing error handling, and race conditions."
+      output_file="A3-review.sentinel-correctness.json" ;;
     sentinel-security)
       subject="A3 Sentinel Security: Review"
-      agent_desc="Review the implementation for OWASP top 10, injection, authentication, secrets exposure, and access control." ;;
+      agent_desc="Review the implementation for OWASP top 10, injection, authentication, secrets exposure, and access control."
+      output_file="A3-review.sentinel-security.json" ;;
     sentinel-perf)
       subject="A3 Sentinel Perf: Review"
-      agent_desc="Review the implementation for N+1 queries, blocking I/O, unnecessary allocations, and algorithmic complexity." ;;
+      agent_desc="Review the implementation for N+1 queries, blocking I/O, unnecessary allocations, and algorithmic complexity."
+      output_file="A3-review.sentinel-perf.json" ;;
     sentinel-style)
       subject="A3 Sentinel Style: Review"
-      agent_desc="Review the implementation for code style, readability, maintainability, excessive nesting, magic numbers, and dead code." ;;
+      agent_desc="Review the implementation for code style, readability, maintainability, excessive nesting, magic numbers, and dead code."
+      output_file="A3-review.sentinel-style.json" ;;
+    sentinel-testing)
+      subject="A3 Sentinel Testing: Review"
+      agent_desc="Review the implementation for test quality, coverage gaps, missing edge-case tests, flaky test patterns, and test maintainability."
+      output_file="A3-review.sentinel-testing.json" ;;
+    sentinel-docs)
+      subject="A3 Sentinel Docs: Review"
+      agent_desc="Review the implementation for documentation accuracy, missing or outdated docstrings, README drift, and inline comment quality."
+      output_file="A3-review.sentinel-docs.json" ;;
     guardian)
       subject="A3 Guardian: Write tests"
-      agent_desc="Write tests for the implemented code. Cover happy path, edge cases, and error paths." ;;
+      agent_desc="Write tests for the implemented code. Cover happy path, edge cases, and error paths."
+      output_file="A3-guardian.json" ;;
     simplifier)
       subject="A3 Simplifier: Code cleanup"
-      agent_desc="Apply targeted code cleanup to worker outputs -- dead code removal, complexity reduction, over-engineering cleanup without behavioral changes." ;;
-  esac
-
-  # Determine the specific output filename for this agent
-  local output_file=""
-  case "$agent" in
-    sentinel-correctness) output_file="A3-review.sentinel-correctness.json" ;;
-    sentinel-security)    output_file="A3-review.sentinel-security.json" ;;
-    sentinel-perf)        output_file="A3-review.sentinel-perf.json" ;;
-    sentinel-style)       output_file="A3-review.sentinel-style.json" ;;
-    guardian)             output_file="A3-guardian.json" ;;
-    simplifier)           output_file="" ;; # simplifier uses Edit, no file output needed
+      agent_desc="Apply targeted code cleanup to worker outputs -- dead code removal, complexity reduction, over-engineering cleanup without behavioral changes."
+      output_file="" ;; # simplifier uses Edit, no file output needed
   esac
 
   cat <<__ANTS_PROMPT_EOF__
@@ -483,6 +486,8 @@ Input files:
 - ${phases_dir}/A3-review.sentinel-security.json
 - ${phases_dir}/A3-review.sentinel-perf.json
 - ${phases_dir}/A3-review.sentinel-style.json
+- ${phases_dir}/A3-review.sentinel-testing.json
+- ${phases_dir}/A3-review.sentinel-docs.json
 
 Output: ${phases_dir}/A3-quality.json
 

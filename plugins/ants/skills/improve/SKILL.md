@@ -18,7 +18,7 @@ Stateless iterative review-fix pipeline. Dispatches specialist sentinels (correc
 ## Pipeline
 
 ```
-Phase I0  | REVIEW      | Adversarial Review     | 3x parallel sentinels + review-arbiter
+Phase I0  | REVIEW      | Adversarial Review     | 4x parallel sentinels + review-arbiter
 Phase I1  | FIX         | Targeted Repair        | 1x review-fixer
 [loop back to I0 if issues remain, up to 5 iterations]
 Phase I2  | REPORT      | Summary                | Orchestrator displays results
@@ -28,10 +28,10 @@ Phase I2  | REPORT      | Summary                | Orchestrator displays results
 
 ```
 Iteration 1:
-    I0 Review (3x parallel sentinels)
-       / | \
-correctness security perf
-       \ | /
+    I0 Review (4x parallel sentinels)
+       / | | \
+correctness security perf testing
+       \ | | /
     review-arbiter (consolidate)
        |
     verdict?
@@ -51,11 +51,11 @@ I2 Report (summary of all iterations)
 
 ### Phase I0: Adversarial Review (REVIEW)
 
-Three specialist sentinels dispatched in parallel: `ants:sentinel-correctness`, `ants:sentinel-security`, `ants:sentinel-perf`. Each reviews all project files relevant to the task description.
+Four specialist sentinels dispatched in parallel: `ants:sentinel-correctness`, `ants:sentinel-security`, `ants:sentinel-perf`, `ants:sentinel-testing`. Each reviews all project files relevant to the task description. (`sentinel-docs` and `sentinel-style` are excluded from the improve pipeline — docs/style quality is out of scope for defect-focused improvement.)
 
-After all three complete, `ants:review-arbiter` consolidates findings by cross-referencing, deduplicating, and resolving conflicts across all three sentinel reports. The arbiter reports all issues by default -- no severity threshold override is needed, as the arbiter naturally captures all severities including info.
+After all four complete, `ants:review-arbiter` consolidates findings by cross-referencing, deduplicating, and resolving conflicts across all sentinel reports. The arbiter reports all issues by default -- no severity threshold override is needed, as the arbiter naturally captures all severities including info.
 
-- **Sentinel output:** `.agents/tmp/improve/iter-{N}/I0-review.sentinel-correctness.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-security.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-perf.json`
+- **Sentinel output:** `.agents/tmp/improve/iter-{N}/I0-review.sentinel-correctness.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-security.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-perf.json`, `.agents/tmp/improve/iter-{N}/I0-review.sentinel-testing.json`
 - **Arbiter output:** `.agents/tmp/improve/iter-{N}/I0-quality.json`
 - **Verdict:** `clean` (zero issues) terminates loop; `issues_found` (any severity) triggers I1
 
@@ -93,10 +93,11 @@ No agent dispatched -- the orchestrator reads all iteration outputs and displays
 | I0 | `ants:sentinel-correctness` | sonnet | Yes | 1 | Parallel |
 | I0 | `ants:sentinel-security` | sonnet | Yes | 1 | Parallel |
 | I0 | `ants:sentinel-perf` | sonnet | Yes | 1 | Parallel |
+| I0 | `ants:sentinel-testing` | sonnet | Yes | 1 | Parallel |
 | I0 | `ants:review-arbiter` | sonnet | Yes | 1 | Sequential (after sentinels) |
 | I1 | `ants:review-fixer` | inherit | Yes | 1 | Single |
 
-**Total:** 5 reused agents, 0 new agents
+**Total:** 6 reused agents, 0 new agents
 
 ## Output File Layout
 
@@ -107,6 +108,7 @@ All output files live under `.agents/tmp/improve/` with per-iteration subdirecto
 | I0 sentinel | `.agents/tmp/improve/iter-{N}/I0-review.sentinel-correctness.json` | JSON | Correctness findings |
 | I0 sentinel | `.agents/tmp/improve/iter-{N}/I0-review.sentinel-security.json` | JSON | Security findings |
 | I0 sentinel | `.agents/tmp/improve/iter-{N}/I0-review.sentinel-perf.json` | JSON | Performance findings |
+| I0 sentinel | `.agents/tmp/improve/iter-{N}/I0-review.sentinel-testing.json` | JSON | Test quality findings |
 | I0 arbiter | `.agents/tmp/improve/iter-{N}/I0-quality.json` | JSON | Consolidated verdict |
 | I1 fixer | `.agents/tmp/improve/iter-{N}/I1-fix.json` | JSON | Fix report |
 

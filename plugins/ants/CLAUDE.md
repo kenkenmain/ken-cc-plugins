@@ -7,7 +7,7 @@ Ant-colony themed swarm workflow with Agent Teams delegate mode (Command-as-Acti
 ```
 plugins/ants/
 ├── .claude-plugin/plugin.json    # Plugin manifest (name, version)
-├── agents/                        # Agent definitions (24 agents)
+├── agents/                        # Agent definitions (26 agents)
 │   ├── architect.md               # Plan writer with task assignments
 │   ├── blueprint-reviewer.md      # Plan validator
 │   ├── bug-scout.md               # Parallel bug investigator (debug D0)
@@ -26,6 +26,8 @@ plugins/ants/
 │   ├── sentinel-correctness.md    # Specialist: bugs, logic errors, error handling
 │   ├── sentinel-perf.md           # Specialist: N+1 queries, blocking I/O, complexity
 │   ├── sentinel-security.md       # Specialist: OWASP, injection, secrets, access control
+│   ├── sentinel-testing.md        # Specialist: test quality, coverage gaps, edge cases
+│   ├── sentinel-docs.md           # Specialist: docs accuracy, stale comments, missing docstrings
 │   ├── solution-aggregator.md     # Ranks and selects best fix (debug D2)
 │   ├── solution-proposer.md       # Proposes one specific fix approach (debug D1)
 │   └── worker.md                  # Task implementer (one per task)
@@ -109,21 +111,23 @@ Commands check this env var as Step 0 and abort with a clear error message if it
 | 18 | sentinel-perf | Specialist: N+1 queries, blocking I/O, complexity | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
 | 19 | sentinel-security | Specialist: OWASP, injection, secrets, access control | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
 | 20 | sentinel-style | Specialist: code style, readability, maintainability | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
-| 21 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash, SendMessage | Yes | Yes |
-| 22 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | No | Yes |
-| 23 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | No | Yes |
-| 24 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
-| 25 | (orchestrator) | Agent Teams delegate mode with Command-as-Active-Lead (hooks, not an agent file) | -- | -- | -- | -- |
+| 21 | sentinel-testing | Specialist: test quality, coverage gaps, missing edge cases, flaky tests | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 22 | sentinel-docs | Specialist: docs accuracy, stale comments, missing docstrings, API docs drift | sonnet | Read, Glob, Grep, Bash, Write, SendMessage | Yes | Yes |
+| 23 | simplifier | Post-build code cleanup (dead code, complexity, naming) | sonnet | Read, Edit, Glob, Grep, Bash, SendMessage | Yes | Yes |
+| 24 | solution-aggregator | Ranks and selects best fix (debug D2) | sonnet | Read, Write, Glob | No | Yes |
+| 25 | solution-proposer | Proposes one specific fix approach (debug D1) | sonnet | Read, Glob, Grep, Write | No | Yes |
+| 26 | worker | Implements a single task from the plan | inherit | Read, Grep, Glob, Edit, Write, Bash, SendMessage | Yes | Yes |
+| 27 | (orchestrator) | Agent Teams delegate mode with Command-as-Active-Lead (hooks, not an agent file) | -- | -- | -- | -- |
 
 All agents have `disallowedTools: [Task]` -- no agent can spawn subagents. Commands create Agent Teams and enter a monitoring loop (Command-as-Active-Lead). TeammateIdle hook routes tasks to idle teammates. TaskCompleted hook validates output and advances state. Hooks set signal flags in state.json; the command's monitoring loop reads these flags and calls TaskCreate for dynamic tasks (hooks are shell scripts and cannot call Claude tools). SendMessage is a live coordination overlay -- agents write files first (source of truth for hooks), then SendMessage summaries to the team or relevant agents.
 
-**Sentinel tool design:** Specialist sentinels (rows 17-20) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
+**Sentinel tool design:** Specialist sentinels (rows 17-22) have `Write` to create new output JSON files but exclude `Edit` via `disallowedTools` — sentinels must never modify existing project source files during adversarial review. This is intentional, not a bug.
 
-**Simplifier tool design:** The simplifier (row 21) has `Edit` to apply code cleanup but excludes `Write` via `disallowedTools` — it makes surgical edits to existing files, never full rewrites.
+**Simplifier tool design:** The simplifier (row 23) has `Edit` to apply code cleanup but excludes `Write` via `disallowedTools` — it makes surgical edits to existing files, never full rewrites.
 
 ### Deprecated Agents
 
-- **sentinel** -- Replaced by specialist sentinels (sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style) in v0.2/v0.5.4. The generic sentinel is retained for backward compatibility with v0.1 state files but should not be dispatched in new workflows.
+- **sentinel** -- Replaced by specialist sentinels (sentinel-correctness, sentinel-security, sentinel-perf, sentinel-style, sentinel-testing, sentinel-docs) in v0.2/v0.5.4. The generic sentinel is retained for backward compatibility with v0.1 state files but should not be dispatched in new workflows.
 
 ### WebSearch Strategy
 
@@ -163,7 +167,7 @@ Three pipeline variants are supported, selected by the `pipeline` field in state
 | A0 | EXPLORE | forager x2-4, cartographer x1, explore-aggregator x1 | Parallel codebase exploration (explore-aggregator synthesizes results) |
 | A1 | PLAN | architect x1 | Structured plan with task assignments |
 | A2 | PLAN | blueprint-reviewer x1 | Plan validation |
-| A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style (adversarial review), simplifier x1, review-arbiter x1, guardian x1 | Self-organizing task pool with adversarial review and cleanup tracks |
+| A3 | BUILD | worker xN (task pool), sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style + sentinel-testing + sentinel-docs (adversarial review), simplifier x1, review-arbiter x1, guardian x1 | Self-organizing task pool with adversarial review and cleanup tracks |
 | A4 | SYNC | TaskCompleted hook (inline) | Evaluated inline by TaskCompleted hook when A3 arbiter completes; reads A3-quality.json, renders ship/loop verdict (circuit breaker aware), sets signal flags |
 | A5 | SHIP | nurse x1, drone x1 | Documentation update + commit/PR |
 
@@ -176,7 +180,7 @@ D0 EXPLORE   — 3× bug-scout (parallel)
 D1 PROPOSE   — 3× solution-proposer (parallel)
 D2 AGGREGATE — solution-aggregator + user confirmation
 D3 IMPLEMENT — fix-worker (implements fix + tests)
-D4 REVIEW    — 3× sentinels + review-arbiter
+D4 REVIEW    — 6× sentinels + review-arbiter
 D5 SHIP      — nurse + drone
 ```
 
@@ -186,7 +190,7 @@ D5 SHIP      — nurse + drone
 | D1 | PROPOSE | solution-proposer ×3 | Parallel fix proposals (minimal, comprehensive, defensive) |
 | D2 | AGGREGATE | solution-aggregator ×1 | Rank proposals + user selects |
 | D3 | IMPLEMENT | fix-worker ×1 | Implement fix, write tests, self-verify |
-| D4 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + review-arbiter | Adversarial review of fix |
+| D4 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style + sentinel-testing + sentinel-docs + review-arbiter | Adversarial review of fix |
 | D5 | SHIP | nurse ×1, drone ×1 | Documentation + commit/PR |
 
 Output files: `.agents/tmp/debug/` (see `skills/debug/SKILL.md` for complete layout).
@@ -196,7 +200,7 @@ Output files: `.agents/tmp/debug/` (see `skills/debug/SKILL.md` for complete lay
 Stateless iterative review-fix pipeline dispatched directly by `/ants:improve`. No state.json, no hooks, no Agent Teams -- the command orchestrates all agents synchronously, like the debug pipeline.
 
 ```
-I0 REVIEW    -- 3x sentinels (parallel) + review-arbiter
+I0 REVIEW    -- 6x sentinels (parallel) + review-arbiter
 I1 FIX       -- review-fixer applies targeted fixes
 [loop back to I0 if issues remain, up to 5 iterations]
 I2 REPORT    -- summary of all iterations
@@ -204,7 +208,7 @@ I2 REPORT    -- summary of all iterations
 
 | Phase | Stage | Agent(s) | Description |
 |-------|-------|----------|-------------|
-| I0 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + review-arbiter | Parallel adversarial review, arbiter consolidates |
+| I0 | REVIEW | sentinel-correctness + sentinel-security + sentinel-perf + sentinel-style + sentinel-testing + sentinel-docs + review-arbiter | Parallel adversarial review, arbiter consolidates |
 | I1 | FIX | review-fixer x1 | Applies targeted fixes for all issues (info severity and above) |
 | I2 | REPORT | (orchestrator) | Displays iteration-by-iteration summary |
 
@@ -248,15 +252,17 @@ Phase A3 is the core innovation. Two tracks run in coordinated execution:
 
 **Build Track:** Workers claim tasks from a self-organizing task pool. Tasks with no dependencies start as "ready"; as tasks complete, dependent tasks become ready automatically. This replaces the rigid wave-based dispatch from v0.1.
 
-**Quality Track (Adversarial Review + Cleanup):** After all workers complete (pool drained), six agents run in parallel:
+**Quality Track (Adversarial Review + Cleanup):** After all workers complete (pool drained), eight agents run in parallel:
 - **sentinel-correctness** -- bugs, logic errors, missing error handling, race conditions
 - **sentinel-security** -- OWASP top 10, injection, authentication, secrets exposure
 - **sentinel-perf** -- N+1 queries, blocking I/O, unnecessary allocations, algorithmic complexity
 - **sentinel-style** -- code style, readability, maintainability (excessive nesting, magic numbers, dead code)
+- **sentinel-testing** -- test quality, coverage gaps, missing edge cases, flaky tests, assertion quality
+- **sentinel-docs** -- docs accuracy, stale comments, missing docstrings, API docs not matching implementation
 - **guardian** -- writes and runs tests for the implemented code
 - **simplifier** -- applies targeted code cleanup without behavioral changes (dead code removal, complexity reduction)
 
-After all six complete, the **review-arbiter** cross-references sentinel findings, deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json). If the review-arbiter identifies critical issues, a **review-fixer** is dispatched to apply targeted repairs before the quality verdict is finalized.
+After all eight complete, the **review-arbiter** cross-references sentinel findings, deduplicates overlapping issues, resolves conflicts, and produces a single consolidated verdict (A3-quality.json). If the review-arbiter identifies critical issues, a **review-fixer** is dispatched to apply targeted repairs before the quality verdict is finalized.
 
 **Task Pool Synchronization:** Workers in the pool run in parallel when their dependencies are satisfied. After all workers complete (pool drained), the adversarial review team runs. This replaces the wave barrier model with dependency-driven dispatch.
 
@@ -282,7 +288,7 @@ The `hooks/lib/teams.sh` library provides task graph generation, teammate prompt
 
 - `teams_create_phase_tasks()` -- Creates TaskCreate entries for full A0→A5 linear dependency chain
 - `teams_create_sswarm_tasks()` -- Creates sswarm-specific task graph with competing agents at A1/A2 (3 architects + plan-arbiter, 3 reviewers + review-lead)
-- `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes sentinel-style; arbiter blockedBy includes all 4 sentinels + guardian + simplifier)
+- `teams_add_a3_subtasks()` -- Dynamically adds worker/sentinel/simplifier/arbiter tasks after A1 (sentinel_names array includes all 6 specialist sentinels; arbiter blockedBy includes all 6 sentinels + guardian + simplifier)
 - `teams_create_verdict_tasks()` -- Generates A5 tasks (nurse + drone) after clean A4 verdict
 - `teams_create_pswarm_run_tasks()` -- Wrapper that generates fresh task graph for pswarm run boundary
 - `teams_get_a3_task_prompt()` -- Generates task-specific prompt for A3 worker task assignment
@@ -469,6 +475,8 @@ Session scoping via `ownerPpid` + `sessionId` ensures hooks only fire for the se
 │   │   ├── A3-review.sentinel-security.json     # Security review
 │   │   ├── A3-review.sentinel-perf.json         # Performance review
 │   │   ├── A3-review.sentinel-style.json        # Style review
+│   │   ├── A3-review.sentinel-testing.json      # Testing review
+│   │   ├── A3-review.sentinel-docs.json         # Documentation review
 │   │   ├── A3-quality.json            # Arbiter consolidated verdict
 │   │   ├── A4-queen-verdict.json     # Verdict (written by TaskCompleted hook inline A4 evaluation)
 │   │   ├── A5-docs.json              # Nurse documentation summary
@@ -624,6 +632,8 @@ Files are the persistent artifacts validated by hooks (TaskCompleted reads JSON 
 | sentinel-security | review-arbiter | Review-ready signal (arbiter reads JSON file) |
 | sentinel-perf | review-arbiter | Review-ready signal (arbiter reads JSON file) |
 | sentinel-style | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| sentinel-testing | review-arbiter | Review-ready signal (arbiter reads JSON file) |
+| sentinel-docs | review-arbiter | Review-ready signal (arbiter reads JSON file) |
 | guardian | team | Test summary (pass/fail counts) |
 | simplifier | team | Cleanup summary (changes applied) |
 | review-arbiter | team | Consolidated quality verdict |
