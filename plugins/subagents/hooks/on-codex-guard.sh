@@ -50,6 +50,22 @@ if ! check_session_owner; then
 fi
 
 # ---------------------------------------------------------------------------
+# 4b. Subagent bypass: if this call comes from a subagent (different
+#     transcript_path than the orchestrator), allow it. The codex-* subagent
+#     types (codex-reviewer, codex-task-agent, etc.) have only Codex MCP as
+#     a tool — they MUST call it to do their job. Timeout protection is
+#     already enforced at the orchestrator level by on-task-dispatch.sh
+#     (which requires run_in_background: true for codex agents) and by the
+#     orchestrator's TaskOutput timeout polling. Blocking the nested call
+#     here would make those agents non-functional.
+# ---------------------------------------------------------------------------
+INPUT_TRANSCRIPT="$(echo "$INPUT" | jq -r '.transcript_path // ""')"
+OWNER_TRANSCRIPT="$(state_get '.ownerTranscriptPath // empty')"
+if [[ -n "$INPUT_TRANSCRIPT" && -n "$OWNER_TRANSCRIPT" && "$INPUT_TRANSCRIPT" != "$OWNER_TRANSCRIPT" ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # 5. Block direct MCP call — must go through background Task dispatch
 # ---------------------------------------------------------------------------
 CURRENT_PHASE="$(state_get '.currentPhase // "unknown"')"

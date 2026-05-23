@@ -107,7 +107,7 @@
       "name": "subagents",
       "source": "./plugins/subagents",
       "description": "Run multi-phase development workflows through hook-driven subagent orchestration with automatic phase chaining, permission gates, and full context isolation between stages.",
-      "version": "0.16.6",
+      "version": "0.16.7",
       "author": {
         "name": "Kennard Ng",
         "email": "kennard.ng.pool.hua@gmail.com"

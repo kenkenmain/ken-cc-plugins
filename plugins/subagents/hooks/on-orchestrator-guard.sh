@@ -47,6 +47,20 @@ if ! check_session_owner; then
 fi
 
 # ---------------------------------------------------------------------------
+# 4b. Subagent bypass: if this call comes from a subagent (different
+#     transcript_path than the orchestrator's), allow it. Task agents
+#     dispatched during the IMPLEMENT phase MUST write code — that's their
+#     entire job. The orchestrator-level guard is correct (orchestrator
+#     should dispatch, not write directly), but it must not block the
+#     dispatched subagents from doing their work.
+# ---------------------------------------------------------------------------
+INPUT_TRANSCRIPT="$(echo "$INPUT" | jq -r '.transcript_path // ""')"
+OWNER_TRANSCRIPT="$(state_get '.ownerTranscriptPath // empty')"
+if [[ -n "$INPUT_TRANSCRIPT" && -n "$OWNER_TRANSCRIPT" && "$INPUT_TRANSCRIPT" != "$OWNER_TRANSCRIPT" ]]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # 5. Get the file path being edited/written
 # ---------------------------------------------------------------------------
 FILE_PATH="$(echo "$INPUT" | jq -r '.tool_input.file_path // ""')"
