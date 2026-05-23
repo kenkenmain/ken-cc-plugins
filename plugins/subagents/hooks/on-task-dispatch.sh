@@ -50,6 +50,20 @@ if ! check_session_owner; then
 fi
 
 # ---------------------------------------------------------------------------
+# 3d. Capture orchestrator's transcript_path on first Task dispatch.
+#     Only the orchestrator dispatches Tasks — subagents do not have the
+#     Task tool — so the first Task dispatch we see while state is active
+#     is from the orchestrator. Record its transcript_path so other guards
+#     (on-codex-guard, on-orchestrator-guard) can distinguish orchestrator
+#     calls (apply guard) from subagent calls (allow).
+# ---------------------------------------------------------------------------
+INPUT_TRANSCRIPT="$(echo "$INPUT" | jq -r '.transcript_path // ""')"
+OWNER_TRANSCRIPT="$(state_get '.ownerTranscriptPath // empty')"
+if [[ -z "$OWNER_TRANSCRIPT" && -n "$INPUT_TRANSCRIPT" ]]; then
+  state_update ".ownerTranscriptPath = \"$INPUT_TRANSCRIPT\""
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Get the current phase from state
 # ---------------------------------------------------------------------------
 CURRENT_PHASE="$(state_get '.currentPhase // empty')"
