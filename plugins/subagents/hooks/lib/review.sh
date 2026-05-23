@@ -16,7 +16,8 @@ DEFAULT_MAX_FIX_ATTEMPTS=10
 # Severity ordering for comparison
 # ---------------------------------------------------------------------------
 severity_rank() {
-  case "${1^^}" in
+  # Portable uppercase (works on bash 3.2, macOS default — `${var^^}` is bash 4+).
+  case "$(echo "${1:-}" | tr '[:lower:]' '[:upper:]')" in
     LOW)    echo 1 ;;
     MEDIUM) echo 2 ;;
     HIGH)   echo 3 ;;
@@ -49,7 +50,7 @@ get_min_block_severity() {
   configured="$(state_get '.reviewPolicy.minBlockSeverity // empty')"
 
   if [[ -n "$configured" ]]; then
-    echo "${configured^^}"
+    echo "$configured" | tr '[:lower:]' '[:upper:]'
   else
     echo "$DEFAULT_MIN_BLOCK_SEVERITY"
   fi
